@@ -228,7 +228,7 @@ function shiftMatch(match: NameMatch, offset: number): NameMatch {
 }
 
 function compareScores(left: readonly number[], right: readonly number[]): number {
-  const length = Math.max(left.length, right.length);
+  const length = left.length > right.length ? left.length : right.length;
 
   for (let index = 0; index < length; index += 1) {
     const leftValue = left[index] ?? 0;

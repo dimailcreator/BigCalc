@@ -54,14 +54,40 @@ export type {
   RegisteredName,
   RegistryDefinition
 } from "./registry/index.js";
-export { segmentRegisteredNameRun, tokenizeRegisteredNames } from "./syntax/index.js";
+export {
+  astToDebugString,
+  parseExpression,
+  segmentRegisteredNameRun,
+  tokenizeExpression,
+  tokenizeRegisteredNames
+} from "./syntax/index.js";
 export type {
+  BinaryNode,
+  ConstantNode,
+  ExpressionNode,
+  FunctionCallNode,
+  FunctionIterationNode,
+  LogNode,
+  NumberLiteralNode,
+  PostfixNode,
+  SourceSpan,
+  UnaryNode
+} from "./syntax/index.js";
+export type {
+  DelimiterToken,
+  EndToken,
+  ExpressionRegisteredNameToken,
   ImplicitMultiplicationToken,
   NameToken,
   NameTokenizationError,
   NameTokenizationResult,
+  NumberToken,
+  OperatorToken,
+  ParseResult,
   RegisteredNameToken,
-  SourceCharacterToken
+  SourceCharacterToken,
+  Token,
+  TokenizationResult
 } from "./syntax/index.js";
 export {
   RATIONAL_ONE,
