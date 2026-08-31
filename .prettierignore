@@ -1,0 +1,8 @@
+dist
+dist-test
+node_modules
+coverage
+package-lock.json
+AGENTS.md
+CORE_SPEC.md
+IMPLEMENTATION_PLAN.md
