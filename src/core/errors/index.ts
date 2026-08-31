@@ -10,6 +10,8 @@ export {
   syntaxError,
   unknownIdentifierError
 } from "./factories.js";
+export { isCalcError, isDivisionByZeroError } from "./guards.js";
+export { InternalCalculationException, RegistryConfigurationException } from "./exceptions.js";
 export type {
   AmbiguousIdentifierError,
   CalcError,

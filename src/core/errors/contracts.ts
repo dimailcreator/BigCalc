@@ -82,5 +82,5 @@ export interface RegistryConfigurationError {
     | "ReservedNameOverride"
     | "InvalidDefinition";
   readonly message: string;
-  readonly name?: string;
+  readonly registryName?: string;
 }

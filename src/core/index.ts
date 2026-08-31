@@ -5,6 +5,8 @@ export {
   divisionByZeroError,
   domainError,
   internalCalculationError,
+  isCalcError,
+  isDivisionByZeroError,
   precisionError,
   registryConfigurationError,
   resourceLimitError,
@@ -41,4 +43,46 @@ export type {
 } from "./evaluation/index.js";
 export type { VerifiedNumber, ZeroKind } from "./formatting/index.js";
 export type { CoreSmokeProbe } from "./public.js";
+export { createCoreRegistry, createRegistry } from "./registry/index.js";
+export type {
+  ConstantDefinition,
+  CoreRegistry,
+  ExtensionRegistryDefinitions,
+  FunctionArity,
+  FunctionDefinition,
+  NameMatch,
+  RegisteredName,
+  RegistryDefinition
+} from "./registry/index.js";
+export { segmentRegisteredNameRun, tokenizeRegisteredNames } from "./syntax/index.js";
+export type {
+  ImplicitMultiplicationToken,
+  NameToken,
+  NameTokenizationError,
+  NameTokenizationResult,
+  RegisteredNameToken,
+  SourceCharacterToken
+} from "./syntax/index.js";
+export {
+  RATIONAL_ONE,
+  RATIONAL_ZERO,
+  absRational,
+  addRational,
+  assertCanonicalRational,
+  compareRational,
+  createRational,
+  divideRational,
+  equalsRational,
+  exactNthRootRational,
+  integerRational,
+  isIntegerRational,
+  isRational,
+  isZeroRational,
+  multiplyRational,
+  negateRational,
+  powRational,
+  reciprocalRational,
+  signOfRational,
+  subtractRational
+} from "./values/index.js";
 export type { Ball, LazyReal, Rational, RealValue, Sign } from "./values/index.js";

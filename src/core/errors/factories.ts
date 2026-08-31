@@ -104,9 +104,9 @@ export function internalCalculationError(
 export function registryConfigurationError(
   code: RegistryConfigurationError["code"],
   message: string,
-  name?: string
+  registryName?: string
 ): RegistryConfigurationError {
-  return name === undefined
+  return registryName === undefined
     ? { kind: "registry-configuration-error", code, message }
-    : { kind: "registry-configuration-error", code, message, name };
+    : { kind: "registry-configuration-error", code, message, registryName };
 }
