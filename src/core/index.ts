@@ -39,12 +39,42 @@ export type {
   CalculationHandle,
   CancelledResult,
   CompletedResult,
+  EvaluationCheckpoint,
   EvaluationContext,
+  EvaluationContextOptions,
+  EvaluationGraph,
+  EvaluationGraphContext,
+  EvaluationNode,
+  EvaluationNodeStateSnapshot,
+  EvaluationNodeType,
   EvaluationSettings,
   FailedResult,
+  OperandPrecisionRequest,
+  OperandPrecisionStrategy,
   PausedResult,
   PrecisionRequest,
   RefinementResult
+} from "./evaluation/index.js";
+export {
+  DEFAULT_EVALUATION_SETTINGS,
+  createAddNode,
+  createConstantNode,
+  createDivNode,
+  createEvaluationContext,
+  createEvaluationGraph,
+  createEvaluationSettings,
+  createFactorialNode,
+  createFunctionNode,
+  createLazyRealNode,
+  createLogNode,
+  createMulNode,
+  createPostfixPercentNode,
+  createPowNode,
+  createRationalNode,
+  createSubNode,
+  createUnaryNode,
+  nodeToLazyReal,
+  precisionBitsForRequest
 } from "./evaluation/index.js";
 export type { VerifiedNumber, ZeroKind } from "./formatting/index.js";
 export type { CoreSmokeProbe } from "./public.js";

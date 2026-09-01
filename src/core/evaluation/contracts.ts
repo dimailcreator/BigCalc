@@ -15,6 +15,10 @@ export interface EvaluationContext {
   readonly settings: EvaluationSettings;
 }
 
+export interface EvaluationCheckpoint {
+  checkpoint(): void;
+}
+
 export type RefinementResult = CompletedResult | PausedResult | CancelledResult | FailedResult;
 
 export interface CompletedResult {

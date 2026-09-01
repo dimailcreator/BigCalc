@@ -5,3 +5,4 @@ import "./registry-tokenizer.test.js";
 import "./parser.test.js";
 import "./backend.test.js";
 import "./ball.test.js";
+import "./evaluation-graph.test.js";
