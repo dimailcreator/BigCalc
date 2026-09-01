@@ -95,6 +95,20 @@ export type {
   TokenizationResult
 } from "./syntax/index.js";
 export {
+  addBall,
+  ballToOutwardInterval,
+  containsZeroBall,
+  containsZeroInterval,
+  createBall,
+  createInternalInterval,
+  definitelyNegativeBall,
+  definitelyNegativeInterval,
+  definitelyPositiveBall,
+  definitelyPositiveInterval,
+  definitelyZeroBall,
+  definitelyZeroInterval,
+  divideBall,
+  intervalToBall,
   RATIONAL_ONE,
   RATIONAL_ZERO,
   absRational,
@@ -109,11 +123,21 @@ export {
   isIntegerRational,
   isRational,
   isZeroRational,
+  multiplyBall,
   multiplyRational,
   negateRational,
   powRational,
+  rationalToBall,
   reciprocalRational,
   signOfRational,
+  subtractBall,
   subtractRational
 } from "./values/index.js";
-export type { Ball, LazyReal, Rational, RealValue, Sign } from "./values/index.js";
+export type {
+  Ball,
+  InternalInterval,
+  LazyReal,
+  Rational,
+  RealValue,
+  Sign
+} from "./values/index.js";

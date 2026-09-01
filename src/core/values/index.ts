@@ -1,4 +1,26 @@
 export {
+  addBall,
+  ballToOutwardInterval,
+  containsZeroBall,
+  containsZeroInterval,
+  createBall,
+  createInternalInterval,
+  definitelyNegativeBall,
+  definitelyNegativeInterval,
+  definitelyPositiveBall,
+  definitelyPositiveInterval,
+  definitelyZeroBall,
+  definitelyZeroInterval,
+  divideBall,
+  intervalToBall,
+  multiplyBall,
+  rationalToBall,
+  subtractBall,
+  widenOutwardBall,
+  widenOutwardInterval
+} from "./ball.js";
+export type { InternalInterval } from "./ball.js";
+export {
   RATIONAL_ONE,
   RATIONAL_ZERO,
   absRational,
