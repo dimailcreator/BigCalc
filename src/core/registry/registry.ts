@@ -1,5 +1,7 @@
 import { InternalCalculationException, RegistryConfigurationException } from "../errors/index.js";
+import { createBuiltinConstantValue } from "../math/constants.js";
 import type { RealValue } from "../values/contracts.js";
+import type { EvaluationContext } from "../evaluation/contracts.js";
 import type {
   ConstantDefinition,
   CoreRegistry,
@@ -132,8 +134,12 @@ function builtinConstant(name: string): ConstantDefinition {
   return {
     kind: "constant",
     name,
-    createValue(): RealValue {
-      throw new InternalCalculationException(`Constant ${name} is not implemented yet`);
+    createValue(context: EvaluationContext): RealValue {
+      if (name !== PI && name !== "e") {
+        throw new InternalCalculationException(`Constant ${name} is not implemented yet`);
+      }
+
+      return createBuiltinConstantValue(name, context);
     }
   };
 }
