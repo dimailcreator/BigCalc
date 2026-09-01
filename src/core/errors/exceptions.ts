@@ -1,5 +1,22 @@
-import type { InternalCalculationError, RegistryConfigurationError } from "./contracts.js";
-import { internalCalculationError, registryConfigurationError } from "./factories.js";
+import type {
+  DomainError,
+  InternalCalculationError,
+  RegistryConfigurationError
+} from "./contracts.js";
+import { domainError, internalCalculationError, registryConfigurationError } from "./factories.js";
+
+export class DomainException extends Error implements DomainError {
+  readonly kind = "calc-error";
+  readonly code = "DomainError";
+  readonly operation: string;
+
+  constructor(operation: string, message?: string) {
+    const error = domainError(operation, message);
+    super(error.message);
+    this.name = "DomainError";
+    this.operation = operation;
+  }
+}
 
 export class InternalCalculationException extends Error implements InternalCalculationError {
   readonly kind = "calc-error";

@@ -43,6 +43,7 @@ export type {
   EvaluationContext,
   EvaluationContextOptions,
   EvaluationGraph,
+  EvaluationGraphFromSourceResult,
   EvaluationGraphContext,
   EvaluationNode,
   EvaluationNodeStateSnapshot,
@@ -53,6 +54,7 @@ export type {
   OperandPrecisionStrategy,
   PausedResult,
   PrecisionRequest,
+  RealValueEvaluationResult,
   RefinementResult
 } from "./evaluation/index.js";
 export {
@@ -62,6 +64,8 @@ export {
   createDivNode,
   createEvaluationContext,
   createEvaluationGraph,
+  createEvaluationGraphFromAst,
+  createEvaluationGraphFromSource,
   createEvaluationSettings,
   createFactorialNode,
   createFunctionNode,
@@ -73,6 +77,8 @@ export {
   createRationalNode,
   createSubNode,
   createUnaryNode,
+  evaluateAstToRealValue,
+  evaluateExpressionToRealValue,
   nodeToLazyReal,
   precisionBitsForRequest
 } from "./evaluation/index.js";

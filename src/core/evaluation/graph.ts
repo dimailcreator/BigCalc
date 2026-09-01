@@ -7,8 +7,21 @@ import {
   rationalToBall,
   subtractBall
 } from "../values/ball.js";
-import { createRational } from "../values/rational.js";
-import { InternalCalculationException } from "../errors/index.js";
+import {
+  absRational,
+  addRational,
+  createRational,
+  divideRational,
+  exactNthRootRational,
+  integerRational,
+  isIntegerRational,
+  multiplyRational,
+  negateRational,
+  powRational,
+  signOfRational,
+  subtractRational
+} from "../values/rational.js";
+import { DomainException, InternalCalculationException } from "../errors/index.js";
 import type { EvaluationGraphContext } from "./context.js";
 import type { EvaluationContext, PrecisionRequest } from "./contracts.js";
 
@@ -48,6 +61,7 @@ export interface EvaluationNodeStateSnapshot {
 export interface EvaluationNode {
   readonly nodeType: EvaluationNodeType;
   readonly children: readonly EvaluationNode[];
+  evaluate(context: EvaluationGraphContext): RealValue;
   refine(request: PrecisionRequest, context: EvaluationGraphContext): Promise<Ball>;
   invalidate(): void;
   getStateSnapshot(): EvaluationNodeStateSnapshot;
@@ -56,6 +70,7 @@ export interface EvaluationNode {
 export interface EvaluationGraph {
   readonly root: EvaluationNode;
   readonly context: EvaluationGraphContext;
+  evaluate(): RealValue;
   refine(request: PrecisionRequest): Promise<Ball>;
   getOrCreateConstantNode(name: string): EvaluationNode;
   invalidate(): void;
@@ -129,7 +144,7 @@ export function createDivNode(
 }
 
 export function createPowNode(base: EvaluationNode, exponent: EvaluationNode): EvaluationNode {
-  return new NotImplementedEvaluationNode("pow", [base, exponent]);
+  return new PowEvaluationNode(base, exponent);
 }
 
 export function createPostfixPercentNode(operand: EvaluationNode): EvaluationNode {
@@ -137,14 +152,14 @@ export function createPostfixPercentNode(operand: EvaluationNode): EvaluationNod
 }
 
 export function createFactorialNode(operand: EvaluationNode): EvaluationNode {
-  return new NotImplementedEvaluationNode("factorial", [operand]);
+  return new FactorialEvaluationNode(operand);
 }
 
 export function createFunctionNode(
   functionName: string,
   args: readonly EvaluationNode[]
 ): EvaluationNode {
-  return new NotImplementedEvaluationNode("function", args, functionName);
+  return new FunctionEvaluationNode(functionName, args);
 }
 
 export function createLogNode(options: {
@@ -184,6 +199,7 @@ abstract class BaseEvaluationNode implements EvaluationNode {
   private highestCompletedDigits = 0;
   private lastRequestedDigits: number | null = null;
   private cachedBall: Ball | null = null;
+  private cachedValue: RealValue | null = null;
   private readonly childRequests: OperandPrecisionRequest[] = [];
 
   protected constructor(
@@ -213,6 +229,18 @@ abstract class BaseEvaluationNode implements EvaluationNode {
     return ball;
   }
 
+  evaluate(context: EvaluationGraphContext): RealValue {
+    if (this.cachedValue !== null) {
+      return this.cachedValue;
+    }
+
+    context.checkpoint();
+    const value = this.evaluateUncached(context);
+    this.cachedValue = value;
+
+    return value;
+  }
+
   invalidate(): void {
     this.invalidateWithVisited(new Set());
   }
@@ -224,6 +252,7 @@ abstract class BaseEvaluationNode implements EvaluationNode {
 
     visited.add(this);
     this.cachedBall = null;
+    this.cachedValue = null;
     this.highestCompletedDigits = 0;
     this.invalidations += 1;
     this.version += 1;
@@ -263,6 +292,8 @@ abstract class BaseEvaluationNode implements EvaluationNode {
     request: PrecisionRequest,
     context: EvaluationGraphContext
   ): Promise<Ball>;
+
+  protected abstract evaluateUncached(context: EvaluationGraphContext): RealValue;
 }
 
 class RationalEvaluationNode extends BaseEvaluationNode {
@@ -278,6 +309,10 @@ class RationalEvaluationNode extends BaseEvaluationNode {
       rationalToBall(this.value, precisionBitsForRequest(request), context.backend)
     );
   }
+
+  protected evaluateUncached(): RealValue {
+    return this.value;
+  }
 }
 
 class LazyRealEvaluationNode extends BaseEvaluationNode {
@@ -290,6 +325,10 @@ class LazyRealEvaluationNode extends BaseEvaluationNode {
     context: EvaluationGraphContext
   ): Promise<Ball> {
     return this.value.refine(request, context);
+  }
+
+  protected evaluateUncached(): RealValue {
+    return this.value;
   }
 }
 
@@ -314,6 +353,19 @@ class ConstantEvaluationNode extends BaseEvaluationNode {
     }
 
     return realValueToBall(this.value, request, context);
+  }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    if (this.value === null) {
+      const definition = context.registry.getConstant(this.name);
+      if (definition === null) {
+        throw new InternalCalculationException(`Constant ${this.name} is not registered`);
+      }
+
+      this.value = definition.createValue(context);
+    }
+
+    return this.value;
   }
 }
 
@@ -346,6 +398,25 @@ class UnaryEvaluationNode extends BaseEvaluationNode {
     }
 
     return createBall(context.backend.negate(ball.center), ball.radius);
+  }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    const operand = this.children[0];
+    if (operand === undefined) {
+      throw new InternalCalculationException("Unary node operand is missing");
+    }
+
+    const value = operand.evaluate(context);
+
+    if (this.operator === "+") {
+      return value;
+    }
+
+    if (value.kind === "rational") {
+      return negateRational(value);
+    }
+
+    return nodeToLazyReal(this);
   }
 }
 
@@ -392,6 +463,33 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
         throw new InternalCalculationException(`Unsupported binary node ${this.nodeType}`);
     }
   }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    const left = this.children[0];
+    const right = this.children[1];
+    if (left === undefined || right === undefined) {
+      throw new InternalCalculationException("Binary node operands are missing");
+    }
+
+    const leftValue = left.evaluate(context);
+    const rightValue = right.evaluate(context);
+    if (leftValue.kind !== "rational" || rightValue.kind !== "rational") {
+      return nodeToLazyReal(this);
+    }
+
+    switch (this.nodeType) {
+      case "add":
+        return addRational(leftValue, rightValue);
+      case "sub":
+        return subtractRational(leftValue, rightValue);
+      case "mul":
+        return multiplyRational(leftValue, rightValue);
+      case "div":
+        return divideRational(leftValue, rightValue);
+      default:
+        throw new InternalCalculationException(`Unsupported binary node ${this.nodeType}`);
+    }
+  }
 }
 
 class PercentEvaluationNode extends BaseEvaluationNode {
@@ -416,6 +514,119 @@ class PercentEvaluationNode extends BaseEvaluationNode {
 
     return multiplyBall(operandBall, percentBall, precisionBits, context.backend);
   }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    const operand = this.children[0];
+    if (operand === undefined) {
+      throw new InternalCalculationException("Percent node operand is missing");
+    }
+
+    const value = operand.evaluate(context);
+    if (value.kind !== "rational") {
+      return nodeToLazyReal(this);
+    }
+
+    return multiplyRational(value, this.divisor);
+  }
+}
+
+class PowEvaluationNode extends BaseEvaluationNode {
+  constructor(base: EvaluationNode, exponent: EvaluationNode) {
+    super("pow", [base, exponent]);
+  }
+
+  protected refineUncached(): Promise<Ball> {
+    throw new InternalCalculationException("Approximate power evaluation is not implemented yet");
+  }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    const base = this.children[0];
+    const exponent = this.children[1];
+    if (base === undefined || exponent === undefined) {
+      throw new InternalCalculationException("Power node operands are missing");
+    }
+
+    const baseValue = base.evaluate(context);
+    const exponentValue = exponent.evaluate(context);
+    if (baseValue.kind !== "rational" || exponentValue.kind !== "rational") {
+      return nodeToLazyReal(this);
+    }
+
+    return evaluateExactRationalPower(baseValue, exponentValue);
+  }
+}
+
+class FactorialEvaluationNode extends BaseEvaluationNode {
+  constructor(operand: EvaluationNode) {
+    super("factorial", [operand]);
+  }
+
+  protected refineUncached(): Promise<Ball> {
+    throw new InternalCalculationException(
+      "Approximate factorial evaluation is not implemented yet"
+    );
+  }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    const operand = this.children[0];
+    if (operand === undefined) {
+      throw new InternalCalculationException("Factorial node operand is missing");
+    }
+
+    const value = operand.evaluate(context);
+    if (value.kind !== "rational") {
+      return nodeToLazyReal(this);
+    }
+
+    if (!isIntegerRational(value)) {
+      if (context.settings.factorialMode === "integer") {
+        throw new DomainException("!", "Integer factorial mode requires a non-negative integer");
+      }
+
+      return nodeToLazyReal(this);
+    }
+
+    if (value.numerator < 0n) {
+      throw new DomainException("!", "Factorial is not defined for negative integers");
+    }
+
+    return integerRational(factorialBigInt(value.numerator));
+  }
+}
+
+class FunctionEvaluationNode extends BaseEvaluationNode {
+  constructor(
+    private readonly functionName: string,
+    args: readonly EvaluationNode[]
+  ) {
+    super("function", args);
+  }
+
+  protected refineUncached(): Promise<Ball> {
+    throw new InternalCalculationException(
+      `Approximate function ${this.functionName} evaluation is not implemented yet`
+    );
+  }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    const args = this.children.map((child) => child.evaluate(context));
+
+    if (this.functionName === "abs" && args.length === 1) {
+      const value = args[0];
+      if (value === undefined) {
+        throw new InternalCalculationException("abs argument is missing");
+      }
+
+      return value.kind === "rational" ? absRational(value) : nodeToLazyReal(this);
+    }
+
+    const definition = context.registry.getFunction(this.functionName);
+    if (definition === null) {
+      throw new InternalCalculationException(`Function ${this.functionName} is not registered`);
+    }
+
+    return definition.evaluate(args, context);
+  }
 }
 
 class NotImplementedEvaluationNode extends BaseEvaluationNode {
@@ -430,6 +641,10 @@ class NotImplementedEvaluationNode extends BaseEvaluationNode {
   protected refineUncached(): Promise<Ball> {
     throw new InternalCalculationException(`Evaluation node ${this.label} is not implemented yet`);
   }
+
+  protected evaluateUncached(): RealValue {
+    return nodeToLazyReal(this);
+  }
 }
 
 class DefaultEvaluationGraph implements EvaluationGraph {
@@ -439,6 +654,10 @@ class DefaultEvaluationGraph implements EvaluationGraph {
     readonly root: EvaluationNode,
     readonly context: EvaluationGraphContext
   ) {}
+
+  evaluate(): RealValue {
+    return this.root.evaluate(this.context);
+  }
 
   refine(request: PrecisionRequest): Promise<Ball> {
     return this.root.refine(request, this.context);
@@ -516,4 +735,40 @@ function invalidateNodeWithVisited(node: EvaluationNode, visited: Set<Evaluation
 
   visited.add(node);
   node.invalidate();
+}
+
+function evaluateExactRationalPower(base: Rational, exponent: Rational): Rational | LazyReal {
+  if (isIntegerRational(exponent)) {
+    return powRational(base, exponent.numerator);
+  }
+
+  if (signOfRational(base) < 0 && exponent.denominator % 2n === 0n) {
+    throw new DomainException("^", "Negative base with an even rational denominator is not real");
+  }
+
+  const root = exactNthRootRational(base, exponent.denominator);
+  if (root === null) {
+    return notImplementedLazyReal("Non-exact rational power requires approximate pow");
+  }
+
+  return powRational(root, exponent.numerator);
+}
+
+function factorialBigInt(value: bigint): bigint {
+  let result = 1n;
+
+  for (let factor = 2n; factor <= value; factor += 1n) {
+    result *= factor;
+  }
+
+  return result;
+}
+
+function notImplementedLazyReal(message: string): LazyReal {
+  return Object.freeze({
+    kind: "lazy-real",
+    refine(): Promise<Ball> {
+      throw new InternalCalculationException(message);
+    }
+  });
 }

@@ -17,6 +17,13 @@ export {
 } from "./context.js";
 export type { EvaluationContextOptions, EvaluationGraphContext } from "./context.js";
 export {
+  createEvaluationGraphFromAst,
+  createEvaluationGraphFromSource,
+  evaluateAstToRealValue,
+  evaluateExpressionToRealValue
+} from "./evaluator.js";
+export type { EvaluationGraphFromSourceResult, RealValueEvaluationResult } from "./evaluator.js";
+export {
   createAddNode,
   createConstantNode,
   createDivNode,
