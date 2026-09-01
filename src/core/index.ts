@@ -13,7 +13,12 @@ export {
   syntaxError,
   unknownIdentifierError
 } from "./errors/index.js";
-export type { InternalFloat, NonNegativeInternalFloat, RoundingMode } from "./backend/index.js";
+export type {
+  BigFloatBackend,
+  InternalFloat,
+  NonNegativeInternalFloat,
+  RoundingMode
+} from "./backend/index.js";
 export type {
   AmbiguousIdentifierError,
   CalcError,
