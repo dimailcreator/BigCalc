@@ -7,3 +7,4 @@ import "./backend.test.js";
 import "./ball.test.js";
 import "./evaluation-graph.test.js";
 import "./exact-evaluator.test.js";
+import "./verified-number.test.js";
