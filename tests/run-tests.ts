@@ -8,3 +8,5 @@ import "./ball.test.js";
 import "./evaluation-graph.test.js";
 import "./exact-evaluator.test.js";
 import "./verified-number.test.js";
+import "./precision-propagation.test.js";
+import "./precision-cutoff.test.js";

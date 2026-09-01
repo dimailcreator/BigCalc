@@ -138,6 +138,7 @@ export type {
 } from "./syntax/index.js";
 export {
   addBall,
+  applyPrecisionCutoff,
   ballToOutwardInterval,
   containsZeroBall,
   containsZeroInterval,
@@ -179,6 +180,7 @@ export type {
   Ball,
   InternalInterval,
   LazyReal,
+  PrecisionCutoffMetadata,
   Rational,
   RealValue,
   Sign

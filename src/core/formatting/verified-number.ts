@@ -67,7 +67,15 @@ export function verifiedNumberFromBall(
 ): VerifiedNumber {
   validatePrecisionRequest(request);
 
-  const precisionBits = precisionBitsForVerifiedDigits(request.significantDigits);
+  if (ball.precisionCutoff !== undefined && !ball.precisionCutoff.ambiguousBoundary) {
+    return verifiedNumberFromPrecisionCutoffBall(ball, request);
+  }
+
+  const precisionBits = Math.max(
+    precisionBitsForVerifiedDigits(request.significantDigits),
+    ball.center.precisionBits,
+    ball.radius.precisionBits
+  );
   const interval = ballToOutwardInterval(ball, precisionBits, backend);
   const lower = internalFloatToRational(interval.lower);
   const upper = internalFloatToRational(interval.upper);
@@ -87,14 +95,61 @@ export function verifiedNumberFromBall(
       });
     }
 
+    const digits =
+      exactPoint.decimalTerminating && exactPoint.digits.length < request.significantDigits
+        ? exactPoint.digits.padEnd(request.significantDigits, "0")
+        : exactPoint.digits;
+
     return Object.freeze({
       ...exactPoint,
+      digits,
+      verifiedDigits: digits.length,
       valueExact: false,
-      decimalTerminating: false
+      decimalTerminating: exactPoint.decimalTerminating
     });
   }
 
   return verifiedNumberFromRationalInterval(lower, upper, request);
+}
+
+function verifiedNumberFromPrecisionCutoffBall(
+  ball: Ball,
+  request: PrecisionRequest
+): VerifiedNumber {
+  const metadata = ball.precisionCutoff;
+  if (metadata === undefined) {
+    throw new InternalCalculationException("Precision cutoff metadata is missing");
+  }
+
+  if (isZeroRational(metadata.roundedCenter)) {
+    return Object.freeze({
+      sign: 0,
+      digits: "0",
+      exponent10: 0n,
+      verifiedDigits: 1,
+      valueExact: false,
+      decimalTerminating: false,
+      rounded: true,
+      zeroKind: "rounded"
+    });
+  }
+
+  const sign = signOfRational(metadata.roundedCenter);
+  const magnitude = absRational(metadata.roundedCenter);
+  const exponent10 = floorLog10Rational(magnitude);
+  const representedDigits = Number(exponent10 - metadata.stepExponent10 + ONE);
+  const requestedDigits = Math.min(request.significantDigits, representedDigits);
+  const digits = significantDigitsPrefix(magnitude, exponent10, requestedDigits);
+
+  return Object.freeze({
+    sign,
+    digits,
+    exponent10,
+    verifiedDigits: digits.length,
+    valueExact: false,
+    decimalTerminating: true,
+    rounded: true
+  });
 }
 
 export async function verifiedNumberFromRealValue(

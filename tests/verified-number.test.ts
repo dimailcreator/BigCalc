@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  addRational,
   createInternalInterval,
   createRational,
   intervalToBall,
+  subtractRational,
   verifiedNumberFromBall,
   verifiedNumberFromRational
 } from "../src/core/index.js";
@@ -99,6 +101,35 @@ void describe("verified decimal digits", () => {
     assert.equal(verified.verifiedDigits, 4);
     assert.equal(verified.valueExact, false);
     assert.equal(verified.decimalTerminating, false);
+  });
+
+  void it("uses the ball internal precision when extracting verified digits", () => {
+    const precisionBits = 220;
+    const center = addRational(createRational(10n ** 50n), createRational(1n, 3n));
+    const uncertainty = createRational(1n, 10n ** 40n);
+    const ball = intervalToBall(
+      createInternalInterval(
+        backend.fromRational(
+          subtractRational(center, uncertainty),
+          precisionBits,
+          "towardNegativeInfinity"
+        ),
+        backend.fromRational(
+          addRational(center, uncertainty),
+          precisionBits,
+          "towardPositiveInfinity"
+        ),
+        backend
+      ),
+      precisionBits,
+      backend
+    );
+    const verified = verifiedNumberFromBall(ball, digits(20), backend);
+
+    assert.equal(verified.sign, 1);
+    assert.equal(verified.exponent10, 50n);
+    assert.equal(verified.digits, "10000000000000000000");
+    assert.equal(verified.verifiedDigits, 20);
   });
 
   void it("does not invent a digit when a ball crosses a sign or power-of-ten boundary", () => {

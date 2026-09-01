@@ -7,7 +7,8 @@ import type { EvaluationCheckpoint, EvaluationContext, EvaluationSettings } from
 export const DEFAULT_EVALUATION_SETTINGS: EvaluationSettings = Object.freeze({
   angleMode: "radians",
   factorialMode: "integer",
-  maxCalculationTimeMs: 1000
+  maxCalculationTimeMs: 1000,
+  precisionCutoffDigits: 3000
 });
 
 export interface EvaluationContextOptions {
@@ -25,10 +26,16 @@ export interface EvaluationGraphContext extends EvaluationContext, EvaluationChe
 export function createEvaluationSettings(
   settings: Partial<EvaluationSettings> = {}
 ): EvaluationSettings {
-  return Object.freeze({
+  const resolved = {
     ...DEFAULT_EVALUATION_SETTINGS,
     ...settings
-  });
+  };
+
+  if (!Number.isSafeInteger(resolved.precisionCutoffDigits) || resolved.precisionCutoffDigits < 1) {
+    throw new Error("precisionCutoffDigits must be a positive safe integer");
+  }
+
+  return Object.freeze(resolved);
 }
 
 export function createEvaluationContext(

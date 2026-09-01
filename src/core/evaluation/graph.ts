@@ -1,7 +1,10 @@
 import type { Ball, LazyReal, Rational, RealValue } from "../values/contracts.js";
 import {
   addBall,
+  applyPrecisionCutoff,
+  containsZeroBall,
   createBall,
+  definitelyZeroBall,
   divideBall,
   multiplyBall,
   rationalToBall,
@@ -22,6 +25,7 @@ import {
   subtractRational
 } from "../values/rational.js";
 import { DomainException, InternalCalculationException } from "../errors/index.js";
+import { verifiedNumberFromBall } from "../formatting/verified-number.js";
 import type { EvaluationGraphContext } from "./context.js";
 import type { EvaluationContext, PrecisionRequest } from "./contracts.js";
 
@@ -83,6 +87,7 @@ export type OperandPrecisionStrategy = (
 ) => PrecisionRequest;
 
 const DEFAULT_GUARD_DIGITS = 2;
+const MAX_ADAPTIVE_REFINEMENT_ATTEMPTS = 16;
 
 export function createEvaluationGraph(
   root: EvaluationNode,
@@ -421,13 +426,16 @@ class UnaryEvaluationNode extends BaseEvaluationNode {
 }
 
 class BinaryEvaluationNode extends BaseEvaluationNode {
+  private readonly operandPrecisionStrategy: OperandPrecisionStrategy | null;
+
   constructor(
     nodeType: "add" | "sub" | "mul" | "div",
     left: EvaluationNode,
     right: EvaluationNode,
-    private readonly operandPrecisionStrategy: OperandPrecisionStrategy = defaultOperandPrecision
+    operandPrecisionStrategy?: OperandPrecisionStrategy
   ) {
     super(nodeType, [left, right]);
+    this.operandPrecisionStrategy = operandPrecisionStrategy ?? null;
   }
 
   protected async refineUncached(
@@ -438,6 +446,15 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
     const right = this.children[1];
     if (left === undefined || right === undefined) {
       throw new InternalCalculationException("Binary node operands are missing");
+    }
+
+    const exactValue = this.evaluateExactBinaryOrNull(context, left, right);
+    if (exactValue !== null) {
+      return rationalToBall(exactValue, precisionBitsForRequest(request), context.backend);
+    }
+
+    if (this.operandPrecisionStrategy === null) {
+      return this.refineAdaptive(request, context, left, right);
     }
 
     const leftBall = await left.refine(
@@ -452,6 +469,87 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
 
     switch (this.nodeType) {
       case "add":
+        return this.applyPrecisionCutoffIfNeeded(
+          addBall(leftBall, rightBall, precisionBits, context.backend),
+          precisionBits,
+          context
+        );
+      case "sub":
+        return this.applyPrecisionCutoffIfNeeded(
+          subtractBall(leftBall, rightBall, precisionBits, context.backend),
+          precisionBits,
+          context
+        );
+      case "mul":
+        return multiplyBall(leftBall, rightBall, precisionBits, context.backend);
+      case "div":
+        return divideBall(leftBall, rightBall, precisionBits, context.backend);
+      default:
+        throw new InternalCalculationException(`Unsupported binary node ${this.nodeType}`);
+    }
+  }
+
+  private async refineAdaptive(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    left: EvaluationNode,
+    right: EvaluationNode
+  ): Promise<Ball> {
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+    let lastVerifiedDigits = 0;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+      if (operandDigits > adaptiveOperandDigitLimit(request.significantDigits)) {
+        break;
+      }
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const leftBall = await left.refine(this.recordChildRequest(0, childRequest), context);
+      const rightBall = await right.refine(this.recordChildRequest(1, childRequest), context);
+      const precisionBits = precisionBitsForRequest(childRequest);
+
+      if (this.nodeType === "div" && containsZeroBall(rightBall, precisionBits, context.backend)) {
+        if (definitelyZeroBall(rightBall, precisionBits, context.backend)) {
+          return divideBall(leftBall, rightBall, precisionBits, context.backend);
+        }
+
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+
+      const ball = this.applyPrecisionCutoffIfNeeded(
+        this.applyOperation(leftBall, rightBall, precisionBits, context),
+        precisionBits,
+        context
+      );
+      const verified = verifiedNumberFromBall(ball, request, context.backend);
+      lastVerifiedDigits = verified.verifiedDigits;
+
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return ball;
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
+
+    throw new InternalCalculationException(
+      `Unable to prove ${String(request.significantDigits)} digits for ${this.nodeType}; last verified ${String(lastVerifiedDigits)}`
+    );
+  }
+
+  private applyOperation(
+    leftBall: Ball,
+    rightBall: Ball,
+    precisionBits: number,
+    context: EvaluationGraphContext
+  ): Ball {
+    switch (this.nodeType) {
+      case "add":
         return addBall(leftBall, rightBall, precisionBits, context.backend);
       case "sub":
         return subtractBall(leftBall, rightBall, precisionBits, context.backend);
@@ -459,6 +557,49 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
         return multiplyBall(leftBall, rightBall, precisionBits, context.backend);
       case "div":
         return divideBall(leftBall, rightBall, precisionBits, context.backend);
+      default:
+        throw new InternalCalculationException(`Unsupported binary node ${this.nodeType}`);
+    }
+  }
+
+  private applyPrecisionCutoffIfNeeded(
+    ball: Ball,
+    precisionBits: number,
+    context: EvaluationGraphContext
+  ): Ball {
+    if (this.nodeType !== "add" && this.nodeType !== "sub") {
+      return ball;
+    }
+
+    return applyPrecisionCutoff(
+      ball,
+      context.settings.precisionCutoffDigits,
+      precisionBits,
+      context.backend
+    );
+  }
+
+  private evaluateExactBinaryOrNull(
+    context: EvaluationGraphContext,
+    left: EvaluationNode,
+    right: EvaluationNode
+  ): Rational | null {
+    const leftValue = left.evaluate(context);
+    const rightValue = right.evaluate(context);
+
+    if (leftValue.kind !== "rational" || rightValue.kind !== "rational") {
+      return null;
+    }
+
+    switch (this.nodeType) {
+      case "add":
+        return addRational(leftValue, rightValue);
+      case "sub":
+        return subtractRational(leftValue, rightValue);
+      case "mul":
+        return multiplyRational(leftValue, rightValue);
+      case "div":
+        return divideRational(leftValue, rightValue);
       default:
         throw new InternalCalculationException(`Unsupported binary node ${this.nodeType}`);
     }
@@ -735,6 +876,33 @@ function invalidateNodeWithVisited(node: EvaluationNode, visited: Set<Evaluation
 
   visited.add(node);
   node.invalidate();
+}
+
+function verifiedDigitsSatisfyRequest(
+  verified: ReturnType<typeof verifiedNumberFromBall>,
+  request: PrecisionRequest
+): boolean {
+  if (verified.sign === 0 && verified.verifiedDigits > 0) {
+    return true;
+  }
+
+  return verified.verifiedDigits >= request.significantDigits;
+}
+
+function nextOperandDigits(
+  currentDigits: number,
+  requestedDigits: number,
+  verifiedDigits: number
+): number {
+  const missingDigits = Math.max(0, requestedDigits - verifiedDigits);
+  const growth = Math.max(DEFAULT_GUARD_DIGITS, missingDigits + DEFAULT_GUARD_DIGITS);
+  const doubled = currentDigits * 2;
+
+  return Math.max(currentDigits + growth, doubled);
+}
+
+function adaptiveOperandDigitLimit(requestedDigits: number): number {
+  return Math.max(4096, requestedDigits * 16);
 }
 
 function evaluateExactRationalPower(base: Rational, exponent: Rational): Rational | LazyReal {

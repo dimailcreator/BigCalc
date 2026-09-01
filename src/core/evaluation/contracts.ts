@@ -9,6 +9,7 @@ export interface EvaluationSettings {
   readonly angleMode: "radians" | "degrees";
   readonly factorialMode: "integer" | "gamma";
   readonly maxCalculationTimeMs: number;
+  readonly precisionCutoffDigits: number;
 }
 
 export interface EvaluationContext {

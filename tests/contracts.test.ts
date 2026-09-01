@@ -119,7 +119,8 @@ void describe("stage 1 contracts", () => {
           settings: {
             angleMode: "radians",
             factorialMode: "integer",
-            maxCalculationTimeMs: 1000
+            maxCalculationTimeMs: 1000,
+            precisionCutoffDigits: 3000
           }
         }
       ),

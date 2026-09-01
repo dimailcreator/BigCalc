@@ -19,7 +19,8 @@ const context: EvaluationContext = {
   settings: {
     angleMode: "radians",
     factorialMode: "integer",
-    maxCalculationTimeMs: 1000
+    maxCalculationTimeMs: 1000,
+    precisionCutoffDigits: 3000
   }
 };
 

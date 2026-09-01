@@ -5,7 +5,23 @@ import type {
 } from "../backend/contracts.js";
 import { divisionByZeroError } from "../errors/index.js";
 import type { DivisionByZeroError } from "../errors/index.js";
-import type { Ball, Rational } from "./contracts.js";
+import type { Ball, PrecisionCutoffMetadata, Rational, Sign } from "./contracts.js";
+import {
+  absRational,
+  addRational,
+  compareRational,
+  createRational,
+  divideRational,
+  isZeroRational,
+  multiplyRational,
+  signOfRational,
+  subtractRational
+} from "./rational.js";
+
+const ZERO = 0n;
+const ONE = 1n;
+const TWO = 2n;
+const TEN = 10n;
 
 export interface InternalInterval {
   readonly kind: "internal-interval";
@@ -13,11 +29,24 @@ export interface InternalInterval {
   readonly upper: InternalFloat;
 }
 
-export function createBall(center: InternalFloat, radius: InternalFloat): Ball {
-  return Object.freeze({
+export function createBall(
+  center: InternalFloat,
+  radius: InternalFloat,
+  precisionCutoff?: PrecisionCutoffMetadata
+): Ball {
+  const ball = {
     kind: "ball",
     center,
     radius: asNonNegativeInternalFloat(radius)
+  } satisfies Omit<Ball, "precisionCutoff">;
+
+  if (precisionCutoff === undefined) {
+    return Object.freeze(ball);
+  }
+
+  return Object.freeze({
+    ...ball,
+    precisionCutoff
   });
 }
 
@@ -277,6 +306,58 @@ export function divideBall(
   );
 }
 
+export function applyPrecisionCutoff(
+  ball: Ball,
+  cutoffDigits: number,
+  precisionBits: number,
+  backend: BigFloatBackend
+): Ball {
+  validatePrecisionCutoffDigits(cutoffDigits);
+
+  const workingPrecisionBits = Math.max(
+    precisionBits,
+    ball.center.precisionBits,
+    ball.radius.precisionBits
+  );
+  const interval = ballToOutwardInterval(ball, workingPrecisionBits, backend);
+  const lower = internalFloatToRational(interval.lower);
+  const upper = internalFloatToRational(interval.upper);
+
+  if (compareRational(lower, upper) === 0 && isZeroRational(lower)) {
+    return ball;
+  }
+
+  const step = precisionCutoffStepForInterval(lower, upper, cutoffDigits);
+  const halfStep = divideRational(step, integerRational(TWO));
+  const roundedCenter = roundHalfAwayFromZeroToStep(internalFloatToRational(ball.center), step);
+  const roundedLower = roundHalfAwayFromZeroToStep(lower, step);
+  const roundedUpper = roundHalfAwayFromZeroToStep(upper, step);
+  const lowerRoundedBound = minRational(roundedLower, roundedUpper);
+  const upperRoundedBound = maxRational(roundedLower, roundedUpper);
+  const finalLower = subtractRational(lowerRoundedBound, halfStep);
+  const finalUpper = addRational(upperRoundedBound, halfStep);
+  const storedCenter = backend.fromRational(roundedCenter, workingPrecisionBits, "nearest");
+  const storedCenterRational = internalFloatToRational(storedCenter);
+  const radius = maxRational(
+    absRational(subtractRational(storedCenterRational, finalLower)),
+    absRational(subtractRational(finalUpper, storedCenterRational))
+  );
+
+  return createBall(
+    storedCenter,
+    backend.fromRational(radius, workingPrecisionBits, "towardPositiveInfinity"),
+    Object.freeze({
+      kind: "precision-cutoff",
+      cutoffDigits,
+      stepExponent10: decimalExponentOfPowerOfTen(step),
+      roundedCenter,
+      roundedLower,
+      roundedUpper,
+      ambiguousBoundary: compareRational(roundedLower, roundedUpper) !== 0
+    })
+  );
+}
+
 export function widenOutwardBall(
   ball: Ball,
   extraRadius: InternalFloat,
@@ -410,6 +491,156 @@ function maxFloat(values: readonly InternalFloat[], backend: BigFloatBackend): I
   }
 
   return result;
+}
+
+function integerRational(value: bigint): Rational {
+  return createRational(value, ONE);
+}
+
+function precisionCutoffStepForInterval(
+  lower: Rational,
+  upper: Rational,
+  cutoffDigits: number
+): Rational {
+  const lowerMagnitude = absRational(lower);
+  const upperMagnitude = absRational(upper);
+  const magnitude = maxRational(lowerMagnitude, upperMagnitude);
+  const exponent =
+    isZeroRational(magnitude) || compareRational(magnitude, integerRational(ONE)) < 0
+      ? -BigInt(cutoffDigits)
+      : floorLog10Rational(magnitude) - BigInt(cutoffDigits);
+
+  return powerOfTenRational(exponent);
+}
+
+function roundHalfAwayFromZeroToStep(value: Rational, step: Rational): Rational {
+  const scaled = divideRational(value, step);
+  const roundedMagnitude = roundHalfAwayFromZeroToInteger(absRational(scaled));
+  const rounded =
+    signOfRational(scaled) < 0
+      ? integerRational(-roundedMagnitude)
+      : integerRational(roundedMagnitude);
+
+  return multiplyRational(rounded, step);
+}
+
+function roundHalfAwayFromZeroToInteger(value: Rational): bigint {
+  if (value.numerator < ZERO) {
+    throw new Error("roundHalfAwayFromZeroToInteger requires a non-negative rational");
+  }
+
+  const quotient = value.numerator / value.denominator;
+  const remainder = value.numerator % value.denominator;
+
+  return remainder * TWO < value.denominator ? quotient : quotient + ONE;
+}
+
+function floorLog10Rational(value: Rational): bigint {
+  if (value.numerator <= ZERO) {
+    throw new Error("floorLog10Rational requires a positive rational");
+  }
+
+  let exponent = BigInt(value.numerator.toString().length - value.denominator.toString().length);
+
+  while (comparePositiveRationalToPowerOfTen(value, exponent) < 0) {
+    exponent -= ONE;
+  }
+
+  while (comparePositiveRationalToPowerOfTen(value, exponent + ONE) >= 0) {
+    exponent += ONE;
+  }
+
+  return exponent;
+}
+
+function comparePositiveRationalToPowerOfTen(value: Rational, exponent: bigint): Sign {
+  const left = exponent >= ZERO ? value.numerator : value.numerator * powerOfTen(-exponent);
+  const right = exponent >= ZERO ? value.denominator * powerOfTen(exponent) : value.denominator;
+
+  if (left === right) {
+    return 0;
+  }
+
+  return left < right ? -1 : 1;
+}
+
+function powerOfTenRational(exponent: bigint): Rational {
+  return exponent >= ZERO
+    ? createRational(powerOfTen(exponent), ONE)
+    : createRational(ONE, powerOfTen(-exponent));
+}
+
+function decimalExponentOfPowerOfTen(value: Rational): bigint {
+  const denominator = value.denominator.toString();
+  const numerator = value.numerator.toString();
+
+  if (value.numerator === ONE && isPowerOfTenString(denominator)) {
+    return -BigInt(denominator.length - 1);
+  }
+
+  if (value.denominator === ONE && isPowerOfTenString(numerator)) {
+    return BigInt(numerator.length - 1);
+  }
+
+  throw new Error("Expected a power-of-ten rational");
+}
+
+function isPowerOfTenString(value: string): boolean {
+  if (!value.startsWith("1")) {
+    return false;
+  }
+
+  for (let index = 1; index < value.length; index += 1) {
+    if (value[index] !== "0") {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function powerOfTen(exponent: bigint): bigint {
+  if (exponent < ZERO) {
+    throw new Error("powerOfTen requires a non-negative exponent");
+  }
+
+  return TEN ** exponent;
+}
+
+function minRational(left: Rational, right: Rational): Rational {
+  return compareRational(left, right) <= 0 ? left : right;
+}
+
+function maxRational(left: Rational, right: Rational): Rational {
+  return compareRational(left, right) >= 0 ? left : right;
+}
+
+function validatePrecisionCutoffDigits(cutoffDigits: number): void {
+  if (!Number.isSafeInteger(cutoffDigits) || cutoffDigits < 1) {
+    throw new Error("precision cutoff digits must be a positive safe integer");
+  }
+}
+
+function internalFloatToRational(value: InternalFloat): Rational {
+  if (value.sign === 0) {
+    return createRational(ZERO, ONE);
+  }
+
+  const signedSignificand = value.sign === 1 ? value.significand : -value.significand;
+
+  if (value.exponent >= ZERO) {
+    return createRational(signedSignificand * powerOfTwo(value.exponent), ONE);
+  }
+
+  return createRational(signedSignificand, powerOfTwo(-value.exponent));
+}
+
+function powerOfTwo(exponent: bigint): bigint {
+  if (exponent < ZERO) {
+    throw new Error("powerOfTwo requires a non-negative exponent");
+  }
+
+  return ONE << exponent;
 }
 
 function zeroFloat(backend: BigFloatBackend): InternalFloat {

@@ -1,5 +1,6 @@
 export {
   addBall,
+  applyPrecisionCutoff,
   ballToOutwardInterval,
   containsZeroBall,
   containsZeroInterval,
@@ -42,4 +43,11 @@ export {
   signOfRational,
   subtractRational
 } from "./rational.js";
-export type { Ball, LazyReal, Rational, RealValue, Sign } from "./contracts.js";
+export type {
+  Ball,
+  LazyReal,
+  PrecisionCutoffMetadata,
+  Rational,
+  RealValue,
+  Sign
+} from "./contracts.js";

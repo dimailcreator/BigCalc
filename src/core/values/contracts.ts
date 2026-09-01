@@ -20,4 +20,15 @@ export interface Ball {
   readonly kind: "ball";
   readonly center: InternalFloat;
   readonly radius: NonNegativeInternalFloat;
+  readonly precisionCutoff?: PrecisionCutoffMetadata;
+}
+
+export interface PrecisionCutoffMetadata {
+  readonly kind: "precision-cutoff";
+  readonly cutoffDigits: number;
+  readonly stepExponent10: bigint;
+  readonly roundedCenter: Rational;
+  readonly roundedLower: Rational;
+  readonly roundedUpper: Rational;
+  readonly ambiguousBoundary: boolean;
 }
