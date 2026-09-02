@@ -11,13 +11,28 @@ import {
   subtractBall
 } from "../values/ball.js";
 import {
+  divideIntervals,
+  exactLogRational,
+  expBallInterval,
+  intervalContainsRational,
+  intervalSignLower,
+  intervalSignUpper,
+  intervalToRoundedBall,
+  lnPositiveInterval,
+  rationalIntervalFromBall
+} from "../math/elementary.js";
+import {
+  RATIONAL_ONE,
   absRational,
   addRational,
+  compareRational,
   createRational,
   divideRational,
+  equalsRational,
   exactNthRootRational,
   integerRational,
   isIntegerRational,
+  isZeroRational,
   multiplyRational,
   negateRational,
   powRational,
@@ -172,11 +187,19 @@ export function createLogNode(options: {
   readonly argument: EvaluationNode;
   readonly iteration: bigint | null;
 }): EvaluationNode {
-  return new NotImplementedEvaluationNode(
-    "log",
-    options.base === null ? [options.argument] : [options.base, options.argument],
-    options.iteration === null ? "log" : `log[${options.iteration.toString()}]`
-  );
+  const iteration = options.iteration ?? 1n;
+  if (iteration === 0n) {
+    return options.argument;
+  }
+
+  const base = options.base ?? createRationalNode(integerRational(10n));
+  let current = options.argument;
+
+  for (let index = 0n; index < iteration; index += 1n) {
+    current = new LogEvaluationNode(base, current);
+  }
+
+  return current;
 }
 
 export function nodeToLazyReal(node: EvaluationNode): LazyReal {
@@ -743,7 +766,18 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     super("function", args);
   }
 
-  protected refineUncached(): Promise<Ball> {
+  protected refineUncached(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    if (this.functionName === "exp") {
+      return this.refineExp(request, context);
+    }
+
+    if (this.functionName === "ln") {
+      return this.refineLn(request, context);
+    }
+
     throw new InternalCalculationException(
       `Approximate function ${this.functionName} evaluation is not implemented yet`
     );
@@ -761,6 +795,34 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       return value.kind === "rational" ? absRational(value) : nodeToLazyReal(this);
     }
 
+    if (this.functionName === "exp" && args.length === 1) {
+      const value = args[0];
+      if (value === undefined) {
+        throw new InternalCalculationException("exp argument is missing");
+      }
+
+      if (value.kind === "rational" && isZeroRational(value)) {
+        return RATIONAL_ONE;
+      }
+
+      return nodeToLazyReal(this);
+    }
+
+    if (this.functionName === "ln" && args.length === 1) {
+      const value = args[0];
+      if (value === undefined) {
+        throw new InternalCalculationException("ln argument is missing");
+      }
+
+      if (value.kind !== "rational") {
+        return nodeToLazyReal(this);
+      }
+
+      assertLnRationalDomain(value);
+
+      return equalsRational(value, RATIONAL_ONE) ? integerRational(0n) : nodeToLazyReal(this);
+    }
+
     const definition = context.registry.getFunction(this.functionName);
     if (definition === null) {
       throw new InternalCalculationException(`Function ${this.functionName} is not registered`);
@@ -768,23 +830,226 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
 
     return definition.evaluate(args, context);
   }
+
+  private async refineExp(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    const operand = this.onlyArgumentNode("exp");
+    const lnArgument = this.argumentOfNestedUnaryFunction(operand, "ln");
+    if (lnArgument !== null) {
+      const value = lnArgument.evaluate(context);
+      if (value.kind === "rational") {
+        assertLnRationalDomain(value);
+        return lnArgument.refine(request, context);
+      }
+
+      await operand.refine({ significantDigits: DEFAULT_GUARD_DIGITS }, context);
+      return lnArgument.refine(request, context);
+    }
+
+    return this.refineUnaryTranscendental(
+      request,
+      context,
+      operand,
+      "exp",
+      () => "ok",
+      expBallInterval
+    );
+  }
+
+  private async refineLn(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    const operand = this.onlyArgumentNode("ln");
+    const expArgument = this.argumentOfNestedUnaryFunction(operand, "exp");
+    if (expArgument !== null) {
+      return expArgument.refine(request, context);
+    }
+
+    return this.refineUnaryTranscendental(
+      request,
+      context,
+      operand,
+      "ln",
+      (interval) => lnDomainStatus(interval),
+      lnPositiveInterval
+    );
+  }
+
+  private async refineUnaryTranscendental(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    operand: EvaluationNode,
+    operation: "exp" | "ln",
+    domainStatus: (interval: ReturnType<typeof rationalIntervalFromBall>) => DomainRefinementStatus,
+    evaluateInterval: (
+      interval: ReturnType<typeof rationalIntervalFromBall>,
+      decimalDigits: number
+    ) => ReturnType<typeof expBallInterval>
+  ): Promise<Ball> {
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+    let lastVerifiedDigits = 0;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const precisionBits = precisionBitsForRequest(childRequest);
+      const operandBall = await operand.refine(this.recordChildRequest(0, childRequest), context);
+      const operandInterval = rationalIntervalFromBall(operandBall, precisionBits, context.backend);
+      const domain = domainStatus(operandInterval);
+
+      if (domain === "domain-error") {
+        throw new DomainException(operation, `${operation} domain requires x > 0`);
+      }
+
+      if (domain === "needs-refinement") {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+
+      const resultInterval = evaluateInterval(
+        operandInterval,
+        operandDigits + DEFAULT_GUARD_DIGITS + 8
+      );
+      const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      lastVerifiedDigits = verified.verifiedDigits;
+
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return resultBall;
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
+
+    throw new InternalCalculationException(
+      `Unable to prove ${String(request.significantDigits)} digits for ${operation}; last verified ${String(lastVerifiedDigits)}`
+    );
+  }
+
+  private onlyArgumentNode(functionName: string): EvaluationNode {
+    const operand = this.children[0];
+    if (operand === undefined || this.children.length !== 1) {
+      throw new InternalCalculationException(`${functionName} requires exactly one argument`);
+    }
+
+    return operand;
+  }
+
+  private argumentOfNestedUnaryFunction(
+    operand: EvaluationNode,
+    functionName: "exp" | "ln"
+  ): EvaluationNode | null {
+    if (!(operand instanceof FunctionEvaluationNode) || operand.functionName !== functionName) {
+      return null;
+    }
+
+    return operand.onlyArgumentNode(functionName);
+  }
 }
 
-class NotImplementedEvaluationNode extends BaseEvaluationNode {
+class LogEvaluationNode extends BaseEvaluationNode {
   constructor(
-    nodeType: EvaluationNodeType,
-    children: readonly EvaluationNode[],
-    private readonly label: string = nodeType
+    private readonly base: EvaluationNode,
+    private readonly argument: EvaluationNode
   ) {
-    super(nodeType, children);
+    super("log", [base, argument]);
   }
 
-  protected refineUncached(): Promise<Ball> {
-    throw new InternalCalculationException(`Evaluation node ${this.label} is not implemented yet`);
+  protected async refineUncached(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    const exactValue = this.evaluateExactLogOrNull(context);
+    if (exactValue !== null) {
+      return rationalToBall(exactValue, precisionBitsForRequest(request), context.backend);
+    }
+
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+    let lastVerifiedDigits = 0;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const precisionBits = precisionBitsForRequest(childRequest);
+      const baseBall = await this.base.refine(this.recordChildRequest(0, childRequest), context);
+      const argumentBall = await this.argument.refine(
+        this.recordChildRequest(1, childRequest),
+        context
+      );
+      const baseInterval = rationalIntervalFromBall(baseBall, precisionBits, context.backend);
+      const argumentInterval = rationalIntervalFromBall(
+        argumentBall,
+        precisionBits,
+        context.backend
+      );
+      const domain = logDomainStatus(baseInterval, argumentInterval);
+
+      if (domain === "domain-error") {
+        throw new DomainException("log", "log domain requires x > 0, base > 0, base != 1");
+      }
+
+      if (domain === "needs-refinement") {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+
+      const decimalDigits = operandDigits + DEFAULT_GUARD_DIGITS + 8;
+      const numerator = lnPositiveInterval(argumentInterval, decimalDigits);
+      const denominator = lnPositiveInterval(baseInterval, decimalDigits);
+
+      if (intervalContainsRational(denominator, integerRational(0n))) {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+
+      const resultBall = intervalToRoundedBall(
+        divideIntervals(numerator, denominator),
+        precisionBits,
+        context.backend
+      );
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      lastVerifiedDigits = verified.verifiedDigits;
+
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return resultBall;
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
+
+    throw new InternalCalculationException(
+      `Unable to prove ${String(request.significantDigits)} digits for log; last verified ${String(lastVerifiedDigits)}`
+    );
   }
 
-  protected evaluateUncached(): RealValue {
-    return nodeToLazyReal(this);
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    return this.evaluateExactLogOrNull(context) ?? nodeToLazyReal(this);
+  }
+
+  private evaluateExactLogOrNull(context: EvaluationGraphContext): Rational | null {
+    const baseValue = this.base.evaluate(context);
+    const argumentValue = this.argument.evaluate(context);
+
+    if (baseValue.kind !== "rational" || argumentValue.kind !== "rational") {
+      return null;
+    }
+
+    assertLogRationalDomain(baseValue, argumentValue);
+
+    return exactLogRational(baseValue, argumentValue);
   }
 }
 
@@ -903,6 +1168,56 @@ function nextOperandDigits(
 
 function adaptiveOperandDigitLimit(requestedDigits: number): number {
   return Math.max(4096, requestedDigits * 16);
+}
+
+type DomainRefinementStatus = "ok" | "needs-refinement" | "domain-error";
+
+function lnDomainStatus(
+  interval: ReturnType<typeof rationalIntervalFromBall>
+): DomainRefinementStatus {
+  if (intervalSignUpper(interval) <= 0) {
+    return "domain-error";
+  }
+
+  return intervalSignLower(interval) <= 0 ? "needs-refinement" : "ok";
+}
+
+function logDomainStatus(
+  base: ReturnType<typeof rationalIntervalFromBall>,
+  argument: ReturnType<typeof rationalIntervalFromBall>
+): DomainRefinementStatus {
+  if (intervalSignUpper(argument) <= 0 || intervalSignUpper(base) <= 0) {
+    return "domain-error";
+  }
+
+  if (intervalSignLower(argument) <= 0 || intervalSignLower(base) <= 0) {
+    return "needs-refinement";
+  }
+
+  if (
+    compareRational(base.lower, RATIONAL_ONE) === 0 &&
+    compareRational(base.upper, RATIONAL_ONE) === 0
+  ) {
+    return "domain-error";
+  }
+
+  return intervalContainsRational(base, RATIONAL_ONE) ? "needs-refinement" : "ok";
+}
+
+function assertLnRationalDomain(argument: Rational): void {
+  if (signOfRational(argument) <= 0) {
+    throw new DomainException("ln", "ln domain requires x > 0");
+  }
+}
+
+function assertLogRationalDomain(base: Rational, argument: Rational): void {
+  if (
+    signOfRational(argument) <= 0 ||
+    signOfRational(base) <= 0 ||
+    equalsRational(base, RATIONAL_ONE)
+  ) {
+    throw new DomainException("log", "log domain requires x > 0, base > 0, base != 1");
+  }
 }
 
 function evaluateExactRationalPower(base: Rational, exponent: Rational): Rational | LazyReal {

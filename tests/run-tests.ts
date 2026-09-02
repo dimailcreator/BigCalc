@@ -11,3 +11,4 @@ import "./verified-number.test.js";
 import "./precision-propagation.test.js";
 import "./precision-cutoff.test.js";
 import "./constants.test.js";
+import "./transcendentals.test.js";

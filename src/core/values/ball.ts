@@ -100,14 +100,17 @@ export function intervalToBall(
   backend: BigFloatBackend
 ): Ball {
   const checkedInterval = createInternalInterval(interval.lower, interval.upper, backend);
-  const radius = backend.sub(
-    checkedInterval.upper,
-    checkedInterval.lower,
-    precisionBits,
-    "towardPositiveInfinity"
+  const lower = internalFloatToRational(checkedInterval.lower);
+  const upper = internalFloatToRational(checkedInterval.upper);
+  const midpoint = divideRational(addRational(lower, upper), integerRational(TWO));
+  const center = backend.fromRational(midpoint, precisionBits, "nearest");
+  const centerRational = internalFloatToRational(center);
+  const radius = maxRational(
+    absRational(subtractRational(centerRational, lower)),
+    absRational(subtractRational(upper, centerRational))
   );
 
-  return createBall(checkedInterval.lower, radius);
+  return createBall(center, backend.fromRational(radius, precisionBits, "towardPositiveInfinity"));
 }
 
 export function addBall(
