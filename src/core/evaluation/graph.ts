@@ -13,6 +13,7 @@ import {
 import {
   divideIntervals,
   exactLogRational,
+  gammaRealInterval,
   cosAngleInterval,
   expBallInterval,
   intervalContainsRational,
@@ -21,6 +22,7 @@ import {
   intervalToRoundedBall,
   lnPositiveInterval,
   powPositiveInterval,
+  createRationalInterval,
   type RationalInterval,
   rationalIntervalFromBall,
   sinAngleInterval,
@@ -924,10 +926,65 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
     super("factorial", [operand]);
   }
 
-  protected refineUncached(): Promise<Ball> {
-    throw new InternalCalculationException(
-      "Approximate factorial evaluation is not implemented yet"
-    );
+  protected async refineUncached(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    const operand = this.children[0];
+    if (operand === undefined) {
+      throw new InternalCalculationException("Factorial node operand is missing");
+    }
+
+    const exact = this.evaluateExactFactorialOrNull(context, operand);
+    if (exact !== null) {
+      return rationalToBall(exact, precisionBitsForRequest(request), context.backend);
+    }
+
+    if (context.settings.factorialMode === "integer") {
+      throw new DomainException("!", "Integer factorial mode requires a non-negative integer");
+    }
+
+    const rationalOperand = operand.evaluate(context);
+    if (rationalOperand.kind === "rational") {
+      return this.refineGammaInterval(
+        createRationalInterval(
+          addRational(rationalOperand, RATIONAL_ONE),
+          addRational(rationalOperand, RATIONAL_ONE)
+        ),
+        request,
+        context,
+        request.significantDigits + DEFAULT_GUARD_DIGITS
+      );
+    }
+
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const precisionBits = precisionBitsForRequest(childRequest);
+      const operandBall = await operand.refine(this.recordChildRequest(0, childRequest), context);
+      const operandInterval = rationalIntervalFromBall(operandBall, precisionBits, context.backend);
+      const gammaArgument = createRationalInterval(
+        addRational(operandInterval.lower, RATIONAL_ONE),
+        addRational(operandInterval.upper, RATIONAL_ONE)
+      );
+      const ball = this.tryRefineGammaInterval(
+        gammaArgument,
+        request,
+        context,
+        operandDigits + DEFAULT_GUARD_DIGITS
+      );
+
+      if (ball !== null) {
+        return ball;
+      }
+
+      operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+    }
+
+    throw new InternalCalculationException("Unable to prove Gamma factorial domain");
   }
 
   protected evaluateUncached(context: EvaluationGraphContext): RealValue {
@@ -947,6 +1004,79 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
       }
 
       return nodeToLazyReal(this);
+    }
+
+    if (value.numerator < 0n) {
+      throw new DomainException("!", "Factorial is not defined for negative integers");
+    }
+
+    return integerRational(factorialBigInt(value.numerator));
+  }
+
+  private refineGammaInterval(
+    gammaArgument: RationalInterval,
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    decimalDigits: number
+  ): Ball {
+    let gammaDigits = decimalDigits;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const ball = this.tryRefineGammaInterval(gammaArgument, request, context, gammaDigits);
+      if (ball !== null) {
+        return ball;
+      }
+
+      gammaDigits = nextOperandDigits(gammaDigits, request.significantDigits, 0);
+    }
+
+    throw new InternalCalculationException("Unable to verify exact Gamma factorial interval");
+  }
+
+  private tryRefineGammaInterval(
+    gammaArgument: RationalInterval,
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    decimalDigits: number
+  ): Ball | null {
+    const gammaInterval = gammaRealInterval(gammaArgument, decimalDigits);
+
+    if (gammaInterval === null) {
+      return null;
+    }
+
+    const precisionBits = Math.max(
+      precisionBitsForRequest(request),
+      precisionBitsForRequest({ significantDigits: decimalDigits })
+    );
+    const ball = intervalToRoundedBall(gammaInterval, precisionBits, context.backend);
+    const verified = verifiedNumberFromBall(ball, request, context.backend);
+
+    if (verified.verifiedDigits < request.significantDigits) {
+      return null;
+    }
+
+    return applyPrecisionCutoff(
+      ball,
+      context.settings.precisionCutoffDigits,
+      precisionBits,
+      context.backend
+    );
+  }
+
+  private evaluateExactFactorialOrNull(
+    context: EvaluationGraphContext,
+    operand: EvaluationNode
+  ): Rational | null {
+    const value = operand.evaluate(context);
+    if (value.kind !== "rational") {
+      return null;
+    }
+
+    if (!isIntegerRational(value)) {
+      return null;
     }
 
     if (value.numerator < 0n) {

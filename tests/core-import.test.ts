@@ -8,7 +8,7 @@ void describe("core public entrypoint", () => {
     const probe = createCoreSmokeProbe();
 
     assert.equal(CORE_PUBLIC_API_VERSION, "0.0.0");
-    assert.equal(CORE_STAGE, "stage-15");
+    assert.equal(CORE_STAGE, "stage-16");
     assert.deepEqual(probe, {
       apiVersion: CORE_PUBLIC_API_VERSION,
       stage: CORE_STAGE,

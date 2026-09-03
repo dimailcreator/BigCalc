@@ -15,6 +15,8 @@ import {
   integerRational,
   isZeroRational,
   multiplyRational,
+  negateRational,
+  powRational,
   reciprocalRational,
   signOfRational,
   subtractRational
@@ -32,6 +34,8 @@ const TAIL_STOP_UNITS = 8n;
 const MAX_REDUCTION_STEPS = 8192;
 const MAX_SERIES_TERMS = 20000;
 const DEFAULT_INTERVAL_GUARD_DIGITS = 8;
+const MIN_GAMMA_STIRLING_ARGUMENT = 64;
+const BERNOULLI_CACHE = new Map<number, Rational>([[0, RATIONAL_ONE]]);
 
 export interface RationalInterval {
   readonly lower: Rational;
@@ -167,6 +171,52 @@ export function powPositiveInterval(
   const scaledExponent = multiplyIntervals(logBase, exponent);
 
   return expBallInterval(scaledExponent, decimalDigits);
+}
+
+export function gammaRealInterval(
+  argument: RationalInterval,
+  decimalDigits: number
+): RationalInterval | null {
+  const halfInteger = exactHalfIntegerGammaInterval(argument, decimalDigits);
+  if (halfInteger !== null) {
+    return halfInteger;
+  }
+
+  if (containsGammaPole(argument)) {
+    return null;
+  }
+
+  const shift = gammaShiftToPositiveStirlingArgument(argument, decimalDigits);
+  const shiftedArgument = addIntervalInteger(argument, BigInt(shift));
+  let logGamma = logGammaPositiveStirlingInterval(shiftedArgument, decimalDigits);
+  let recurrenceSign = 1;
+
+  if (shift > 0) {
+    let recurrenceMagnitude = createRationalInterval(RATIONAL_ONE, RATIONAL_ONE);
+
+    for (let index = 0; index < shift; index += 1) {
+      const factor = addIntervalInteger(argument, BigInt(index));
+      if (intervalContainsRational(factor, RATIONAL_ZERO)) {
+        return null;
+      }
+
+      if (intervalSignUpper(factor) < 0) {
+        recurrenceSign *= -1;
+      }
+
+      recurrenceMagnitude = multiplyIntervals(recurrenceMagnitude, absNonZeroInterval(factor));
+    }
+
+    const recurrenceLog = lnPositiveInterval(
+      recurrenceMagnitude,
+      decimalDigits + DEFAULT_INTERVAL_GUARD_DIGITS
+    );
+    logGamma = subtractIntervals(logGamma, recurrenceLog);
+  }
+
+  const magnitude = expBallInterval(logGamma, decimalDigits);
+
+  return recurrenceSign > 0 ? magnitude : negateInterval(magnitude);
 }
 
 export function sinAngleInterval(
@@ -334,6 +384,120 @@ function reduceRadianIntervalNearZero(
   const multipleOfPi = scaleIntervalByInteger(pi, multiple);
 
   return subtractIntervals(argument, multipleOfPi);
+}
+
+function logGammaPositiveStirlingInterval(
+  argument: RationalInterval,
+  decimalDigits: number
+): RationalInterval {
+  if (intervalSignLower(argument) <= 0) {
+    throw new InternalCalculationException("logGammaPositiveStirlingInterval requires z > 0");
+  }
+
+  const workingDigits = decimalDigits + DEFAULT_INTERVAL_GUARD_DIGITS;
+  const half = createRational(ONE, TWO);
+  const oneHalfLnTwoPi = divideIntervalByInteger(
+    lnPositiveInterval(
+      scaleIntervalByInteger(piRationalInterval(workingDigits + 8), TWO),
+      workingDigits
+    ),
+    TWO
+  );
+  const logArgument = lnPositiveInterval(argument, workingDigits);
+  let logGamma = addIntervals(
+    subtractIntervals(
+      multiplyIntervals(subtractIntervalRational(argument, half), logArgument),
+      argument
+    ),
+    oneHalfLnTwoPi
+  );
+  const series = stirlingCorrectionInterval(argument, workingDigits);
+  logGamma = addIntervals(logGamma, series.sum);
+  logGamma = widenInterval(logGamma, series.remainder);
+
+  return logGamma;
+}
+
+function exactHalfIntegerGammaInterval(
+  argument: RationalInterval,
+  decimalDigits: number
+): RationalInterval | null {
+  if (!equalsRational(argument.lower, argument.upper)) {
+    return null;
+  }
+
+  const doubled = multiplyRational(argument.lower, integerRational(TWO));
+  if (doubled.denominator !== ONE || doubled.numerator % TWO === 0n) {
+    return null;
+  }
+
+  const half = createRational(ONE, TWO);
+  let current = argument.lower;
+  let multiplier = RATIONAL_ONE;
+  let steps = 0;
+
+  while (compareRational(current, half) > 0) {
+    current = subtractRational(current, RATIONAL_ONE);
+    multiplier = multiplyRational(multiplier, current);
+    steps += 1;
+
+    if (steps > MAX_REDUCTION_STEPS) {
+      throw new InternalCalculationException("Half-integer Gamma reduction exceeded limit");
+    }
+  }
+
+  while (compareRational(current, half) < 0) {
+    multiplier = divideRational(multiplier, current);
+    current = addRational(current, RATIONAL_ONE);
+    steps += 1;
+
+    if (steps > MAX_REDUCTION_STEPS) {
+      throw new InternalCalculationException("Half-integer Gamma reduction exceeded limit");
+    }
+  }
+
+  const sqrtPi = powPositiveInterval(
+    piRationalInterval(decimalDigits + DEFAULT_INTERVAL_GUARD_DIGITS),
+    createRationalInterval(half, half),
+    decimalDigits
+  );
+
+  return multiplyIntervalByRational(sqrtPi, multiplier);
+}
+
+function stirlingCorrectionInterval(
+  argument: RationalInterval,
+  decimalDigits: number
+): { readonly sum: RationalInterval; readonly remainder: Rational } {
+  let sum = createRationalInterval(RATIONAL_ZERO, RATIONAL_ZERO);
+  const threshold = createRational(ONE, powerOfTen(decimalDigits));
+
+  for (let index = 1; index <= 256; index += 1) {
+    const bernoulli = bernoulliNumber(2 * index);
+    const denominator = BigInt(2 * index * (2 * index - 1));
+    const coefficient = divideRational(bernoulli, integerRational(denominator));
+    const power = 2 * index - 1;
+
+    sum = addIntervals(sum, divideIntervalByPositivePower(coefficient, argument, power));
+
+    const nextIndex = index + 1;
+    const nextBernoulli = absRational(bernoulliNumber(2 * nextIndex));
+    const nextDenominator = BigInt(2 * nextIndex * (2 * nextIndex - 1));
+    const nextPower = 2 * nextIndex - 1;
+    const remainder = divideRational(
+      nextBernoulli,
+      multiplyRational(
+        integerRational(nextDenominator),
+        powRational(argument.lower, BigInt(nextPower))
+      )
+    );
+
+    if (compareRational(remainder, threshold) <= 0) {
+      return Object.freeze({ sum, remainder });
+    }
+  }
+
+  throw new InternalCalculationException("Gamma Stirling correction exceeded internal term limit");
 }
 
 function principalStrip(
@@ -643,11 +807,35 @@ function subtractIntervals(left: RationalInterval, right: RationalInterval): Rat
   );
 }
 
+function negateInterval(interval: RationalInterval): RationalInterval {
+  return createRationalInterval(negateRational(interval.upper), negateRational(interval.lower));
+}
+
+function absNonZeroInterval(interval: RationalInterval): RationalInterval {
+  if (intervalContainsRational(interval, RATIONAL_ZERO)) {
+    throw new InternalCalculationException("Cannot take absolute interval across zero");
+  }
+
+  return intervalSignUpper(interval) < 0 ? negateInterval(interval) : interval;
+}
+
 function scaleIntervalByInteger(interval: RationalInterval, factor: bigint): RationalInterval {
   const lower = multiplyRational(interval.lower, integerRational(factor));
   const upper = multiplyRational(interval.upper, integerRational(factor));
 
   return factor >= ZERO
+    ? createRationalInterval(lower, upper)
+    : createRationalInterval(upper, lower);
+}
+
+function multiplyIntervalByRational(
+  interval: RationalInterval,
+  factor: Rational
+): RationalInterval {
+  const lower = multiplyRational(interval.lower, factor);
+  const upper = multiplyRational(interval.upper, factor);
+
+  return signOfRational(factor) >= 0
     ? createRationalInterval(lower, upper)
     : createRationalInterval(upper, lower);
 }
@@ -663,6 +851,119 @@ function divideIntervalByInteger(interval: RationalInterval, divisor: bigint): R
   return divisor > ZERO
     ? createRationalInterval(lower, upper)
     : createRationalInterval(upper, lower);
+}
+
+function addIntervalInteger(interval: RationalInterval, value: bigint): RationalInterval {
+  return addIntervals(
+    interval,
+    createRationalInterval(integerRational(value), integerRational(value))
+  );
+}
+
+function subtractIntervalRational(interval: RationalInterval, value: Rational): RationalInterval {
+  return subtractIntervals(interval, createRationalInterval(value, value));
+}
+
+function widenInterval(interval: RationalInterval, radius: Rational): RationalInterval {
+  if (signOfRational(radius) < 0) {
+    throw new InternalCalculationException("Cannot widen interval by a negative radius");
+  }
+
+  return createRationalInterval(
+    subtractRational(interval.lower, radius),
+    addRational(interval.upper, radius)
+  );
+}
+
+function divideIntervalByPositivePower(
+  numerator: Rational,
+  denominator: RationalInterval,
+  exponent: number
+): RationalInterval {
+  if (intervalSignLower(denominator) <= 0) {
+    throw new InternalCalculationException("Positive-power interval denominator must be positive");
+  }
+
+  const denominatorLowerPower = powRational(denominator.lower, BigInt(exponent));
+  const denominatorUpperPower = powRational(denominator.upper, BigInt(exponent));
+
+  if (signOfRational(numerator) >= 0) {
+    return createRationalInterval(
+      divideRational(numerator, denominatorUpperPower),
+      divideRational(numerator, denominatorLowerPower)
+    );
+  }
+
+  return createRationalInterval(
+    divideRational(numerator, denominatorLowerPower),
+    divideRational(numerator, denominatorUpperPower)
+  );
+}
+
+function gammaShiftToPositiveStirlingArgument(
+  argument: RationalInterval,
+  decimalDigits: number
+): number {
+  const target = BigInt(Math.max(MIN_GAMMA_STIRLING_ARGUMENT, decimalDigits + 8));
+  const lowerFloor = floorRational(argument.lower);
+  const shift = target - lowerFloor;
+
+  if (shift <= ZERO) {
+    return 0;
+  }
+
+  if (shift > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new InternalCalculationException("Gamma argument shift exceeds safe internal bounds");
+  }
+
+  return Number(shift);
+}
+
+function containsGammaPole(interval: RationalInterval): boolean {
+  if (compareRational(interval.lower, RATIONAL_ZERO) > 0) {
+    return false;
+  }
+
+  return ceilRational(interval.lower) <= floorRational(interval.upper);
+}
+
+function bernoulliNumber(index: number): Rational {
+  if (!Number.isSafeInteger(index) || index < 0) {
+    throw new InternalCalculationException("Bernoulli index must be a non-negative safe integer");
+  }
+
+  const cached = BERNOULLI_CACHE.get(index);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const coefficients: Rational[] = [];
+
+  for (let outer = 0; outer <= index; outer += 1) {
+    coefficients[outer] = createRational(ONE, BigInt(outer + 1));
+
+    for (let inner = outer; inner >= 1; inner -= 1) {
+      const left = coefficients[inner - 1];
+      const right = coefficients[inner];
+      if (left === undefined || right === undefined) {
+        throw new InternalCalculationException("Bernoulli coefficient is missing");
+      }
+
+      coefficients[inner - 1] = multiplyRational(
+        integerRational(BigInt(inner)),
+        subtractRational(left, right)
+      );
+    }
+  }
+
+  const result = coefficients[0];
+  if (result === undefined) {
+    throw new InternalCalculationException("Bernoulli result is missing");
+  }
+
+  BERNOULLI_CACHE.set(index, result);
+
+  return result;
 }
 
 function rationalToScaledFloor(value: Rational, scale: bigint): bigint {
@@ -700,6 +1001,13 @@ function floorRational(value: Rational): bigint {
   const remainder = value.numerator % value.denominator;
 
   return remainder !== ZERO && value.numerator < ZERO ? quotient - ONE : quotient;
+}
+
+function ceilRational(value: Rational): bigint {
+  const quotient = value.numerator / value.denominator;
+  const remainder = value.numerator % value.denominator;
+
+  return remainder !== ZERO && value.numerator > ZERO ? quotient + ONE : quotient;
 }
 
 function decimalMagnitudeUpperBound(interval: RationalInterval): number {
