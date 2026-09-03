@@ -13,16 +13,22 @@ import {
 import {
   divideIntervals,
   exactLogRational,
+  cosAngleInterval,
   expBallInterval,
   intervalContainsRational,
   intervalSignLower,
   intervalSignUpper,
   intervalToRoundedBall,
   lnPositiveInterval,
-  rationalIntervalFromBall
+  powPositiveInterval,
+  type RationalInterval,
+  rationalIntervalFromBall,
+  sinAngleInterval,
+  tanAngleInterval
 } from "../math/elementary.js";
 import {
   RATIONAL_ONE,
+  RATIONAL_ZERO,
   absRational,
   addRational,
   compareRational,
@@ -699,8 +705,46 @@ class PowEvaluationNode extends BaseEvaluationNode {
     super("pow", [base, exponent]);
   }
 
-  protected refineUncached(): Promise<Ball> {
-    throw new InternalCalculationException("Approximate power evaluation is not implemented yet");
+  protected async refineUncached(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    const base = this.children[0];
+    const exponent = this.children[1];
+    if (base === undefined || exponent === undefined) {
+      throw new InternalCalculationException("Power node operands are missing");
+    }
+
+    const exact = this.evaluateExactPowerOrNull(context, base, exponent);
+    if (exact !== null) {
+      return rationalToBall(exact, precisionBitsForRequest(request), context.backend);
+    }
+
+    const baseValue = base.evaluate(context);
+    const exponentValue = exponent.evaluate(context);
+
+    if (baseValue.kind === "rational" && isZeroRational(baseValue)) {
+      return this.refineZeroBasePower(request, context, exponent, exponentValue);
+    }
+
+    if (baseValue.kind === "rational" && signOfRational(baseValue) < 0) {
+      if (exponentValue.kind !== "rational") {
+        throw new DomainException(
+          "^",
+          "Negative base requires a rational exponent with an odd denominator"
+        );
+      }
+
+      assertNegativeRationalPowerDomain(exponentValue);
+      return this.refineSignedRationalBasePower(
+        request,
+        context,
+        absRational(baseValue),
+        exponentValue
+      );
+    }
+
+    return this.refinePositiveRealPower(request, context, base, exponent);
   }
 
   protected evaluateUncached(context: EvaluationGraphContext): RealValue {
@@ -714,6 +758,161 @@ class PowEvaluationNode extends BaseEvaluationNode {
     const exponentValue = exponent.evaluate(context);
     if (baseValue.kind !== "rational" || exponentValue.kind !== "rational") {
       return nodeToLazyReal(this);
+    }
+
+    return evaluateExactRationalPower(baseValue, exponentValue) ?? nodeToLazyReal(this);
+  }
+
+  private async refinePositiveRealPower(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    base: EvaluationNode,
+    exponent: EvaluationNode
+  ): Promise<Ball> {
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+    let lastVerifiedDigits = 0;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const precisionBits = precisionBitsForRequest(childRequest);
+      const baseBall = await base.refine(this.recordChildRequest(0, childRequest), context);
+      const exponentBall = await exponent.refine(this.recordChildRequest(1, childRequest), context);
+      const baseInterval = rationalIntervalFromBall(baseBall, precisionBits, context.backend);
+      const exponentInterval = rationalIntervalFromBall(
+        exponentBall,
+        precisionBits,
+        context.backend
+      );
+      const domain = positivePowerBaseDomainStatus(baseInterval);
+
+      if (domain === "domain-error") {
+        throw new DomainException("^", "Non-rational power requires a positive base");
+      }
+
+      if (domain === "needs-refinement") {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+
+      const resultInterval = powPositiveInterval(
+        baseInterval,
+        exponentInterval,
+        operandDigits + DEFAULT_GUARD_DIGITS + 8
+      );
+      const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      lastVerifiedDigits = verified.verifiedDigits;
+
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return resultBall;
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
+
+    throw new InternalCalculationException(
+      `Unable to prove ${String(request.significantDigits)} digits for power; last verified ${String(lastVerifiedDigits)}`
+    );
+  }
+
+  private refineSignedRationalBasePower(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    positiveBase: Rational,
+    exponent: Rational
+  ): Promise<Ball> {
+    const sign = exponent.numerator % 2n === 0n ? 1 : -1;
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+    let lastVerifiedDigits = 0;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const precisionBits = precisionBitsForRequest({ significantDigits: operandDigits });
+      const resultInterval = powPositiveInterval(
+        createExactInterval(positiveBase),
+        createExactInterval(exponent),
+        operandDigits + DEFAULT_GUARD_DIGITS + 8
+      );
+      const signedInterval = sign < 0 ? negateInterval(resultInterval) : resultInterval;
+      const resultBall = intervalToRoundedBall(signedInterval, precisionBits, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      lastVerifiedDigits = verified.verifiedDigits;
+
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return Promise.resolve(resultBall);
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
+
+    throw new InternalCalculationException(
+      `Unable to prove ${String(request.significantDigits)} digits for negative rational power; last verified ${String(lastVerifiedDigits)}`
+    );
+  }
+
+  private async refineZeroBasePower(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    exponent: EvaluationNode,
+    exponentValue: RealValue
+  ): Promise<Ball> {
+    if (exponentValue.kind === "rational") {
+      return rationalToBall(
+        evaluateZeroBasePower(exponentValue),
+        precisionBitsForRequest(request),
+        context.backend
+      );
+    }
+
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const precisionBits = precisionBitsForRequest(childRequest);
+      const exponentBall = await exponent.refine(this.recordChildRequest(1, childRequest), context);
+      const exponentInterval = rationalIntervalFromBall(
+        exponentBall,
+        precisionBits,
+        context.backend
+      );
+
+      if (intervalSignLower(exponentInterval) > 0) {
+        return rationalToBall(RATIONAL_ZERO, precisionBitsForRequest(request), context.backend);
+      }
+
+      if (intervalSignUpper(exponentInterval) < 0) {
+        throwDivisionByZeroViaRationalPower();
+      }
+
+      operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+    }
+
+    throw new InternalCalculationException("Unable to determine zero-base power domain");
+  }
+
+  private evaluateExactPowerOrNull(
+    context: EvaluationGraphContext,
+    base: EvaluationNode,
+    exponent: EvaluationNode
+  ): Rational | null {
+    const baseValue = base.evaluate(context);
+    const exponentValue = exponent.evaluate(context);
+
+    if (baseValue.kind !== "rational" || exponentValue.kind !== "rational") {
+      return null;
     }
 
     return evaluateExactRationalPower(baseValue, exponentValue);
@@ -778,6 +977,10 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       return this.refineLn(request, context);
     }
 
+    if (isTrigFunctionName(this.functionName)) {
+      return this.refineTrig(request, context, this.functionName);
+    }
+
     throw new InternalCalculationException(
       `Approximate function ${this.functionName} evaluation is not implemented yet`
     );
@@ -821,6 +1024,19 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       assertLnRationalDomain(value);
 
       return equalsRational(value, RATIONAL_ONE) ? integerRational(0n) : nodeToLazyReal(this);
+    }
+
+    if (isTrigFunctionName(this.functionName) && args.length === 1) {
+      const value = args[0];
+      if (value === undefined) {
+        throw new InternalCalculationException(`${this.functionName} argument is missing`);
+      }
+
+      if (value.kind !== "rational") {
+        return nodeToLazyReal(this);
+      }
+
+      return this.evaluateExactTrigRationalOrLazy(value, context);
     }
 
     const definition = context.registry.getFunction(this.functionName);
@@ -875,6 +1091,65 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       "ln",
       (interval) => lnDomainStatus(interval),
       lnPositiveInterval
+    );
+  }
+
+  private async refineTrig(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    operation: TrigFunctionName
+  ): Promise<Ball> {
+    const operand = this.onlyArgumentNode(operation);
+    const exactValue = this.evaluateExactTrigNodeOrNull(operand, context);
+    if (exactValue !== null) {
+      return rationalToBall(exactValue, precisionBitsForRequest(request), context.backend);
+    }
+
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+    let lastVerifiedDigits = 0;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const precisionBits = precisionBitsForRequest(childRequest);
+      const operandBall = await operand.refine(this.recordChildRequest(0, childRequest), context);
+      const operandInterval = rationalIntervalFromBall(operandBall, precisionBits, context.backend);
+      const decimalDigits = operandDigits + DEFAULT_GUARD_DIGITS + 8;
+      const resultInterval = evaluateTrigInterval(
+        operation,
+        operandInterval,
+        decimalDigits,
+        context.settings.angleMode
+      );
+
+      if (resultInterval === null) {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+
+      const resultBall = this.applyDegreePrecisionCutoffIfNeeded(
+        intervalToRoundedBall(resultInterval, precisionBits, context.backend),
+        request,
+        precisionBits,
+        context
+      );
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      lastVerifiedDigits = verified.verifiedDigits;
+
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return resultBall;
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
+
+    throw new InternalCalculationException(
+      `Unable to prove ${String(request.significantDigits)} digits for ${operation}; last verified ${String(lastVerifiedDigits)}`
     );
   }
 
@@ -952,6 +1227,52 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     }
 
     return operand.onlyArgumentNode(functionName);
+  }
+
+  private evaluateExactTrigNodeOrNull(
+    operand: EvaluationNode,
+    context: EvaluationGraphContext
+  ): Rational | null {
+    const value = operand.evaluate(context);
+
+    if (value.kind !== "rational") {
+      return null;
+    }
+
+    const exact = exactTrigRational(this.functionName as TrigFunctionName, value, context);
+
+    return exact;
+  }
+
+  private evaluateExactTrigRationalOrLazy(
+    value: Rational,
+    context: EvaluationGraphContext
+  ): RealValue {
+    return (
+      exactTrigRational(this.functionName as TrigFunctionName, value, context) ??
+      nodeToLazyReal(this)
+    );
+  }
+
+  private applyDegreePrecisionCutoffIfNeeded(
+    ball: Ball,
+    request: PrecisionRequest,
+    precisionBits: number,
+    context: EvaluationGraphContext
+  ): Ball {
+    if (
+      context.settings.angleMode !== "degrees" ||
+      request.significantDigits <= context.settings.precisionCutoffDigits
+    ) {
+      return ball;
+    }
+
+    return applyPrecisionCutoff(
+      ball,
+      context.settings.precisionCutoffDigits,
+      precisionBits,
+      context.backend
+    );
   }
 }
 
@@ -1051,6 +1372,132 @@ class LogEvaluationNode extends BaseEvaluationNode {
 
     return exactLogRational(baseValue, argumentValue);
   }
+}
+
+type TrigFunctionName = "sin" | "cos" | "tan";
+
+function isTrigFunctionName(name: string): name is TrigFunctionName {
+  return name === "sin" || name === "cos" || name === "tan";
+}
+
+function evaluateTrigInterval(
+  operation: TrigFunctionName,
+  interval: ReturnType<typeof rationalIntervalFromBall>,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees"
+): ReturnType<typeof sinAngleInterval> | null {
+  switch (operation) {
+    case "sin":
+      return sinAngleInterval(interval, decimalDigits, angleMode);
+    case "cos":
+      return cosAngleInterval(interval, decimalDigits, angleMode);
+    case "tan":
+      return tanAngleInterval(interval, decimalDigits, angleMode);
+  }
+}
+
+function exactTrigRational(
+  operation: TrigFunctionName,
+  value: Rational,
+  context: EvaluationGraphContext
+): Rational | null {
+  if (context.settings.angleMode === "degrees") {
+    return exactDegreeTrigRational(operation, value);
+  }
+
+  if (!isZeroRational(value)) {
+    return null;
+  }
+
+  return operation === "cos" ? RATIONAL_ONE : integerRational(0n);
+}
+
+function exactDegreeTrigRational(operation: TrigFunctionName, degrees: Rational): Rational | null {
+  if (operation === "tan") {
+    return exactDegreeTanRational(degrees);
+  }
+
+  const twelfth = exactIntegerMultiple(degrees, 30n);
+
+  switch (operation) {
+    case "sin":
+      return twelfth === null ? null : exactDegreeSinForTwelfth(twelfth);
+    case "cos":
+      return twelfth === null ? null : exactDegreeCosForTwelfth(twelfth);
+  }
+}
+
+function exactDegreeSinForTwelfth(twelfth: bigint): Rational | null {
+  switch (moduloBigInt(twelfth, 12n)) {
+    case 0n:
+    case 6n:
+      return integerRational(0n);
+    case 1n:
+    case 5n:
+      return createRational(1n, 2n);
+    case 3n:
+      return RATIONAL_ONE;
+    case 7n:
+    case 11n:
+      return createRational(-1n, 2n);
+    case 9n:
+      return integerRational(-1n);
+    default:
+      return null;
+  }
+}
+
+function exactDegreeCosForTwelfth(twelfth: bigint): Rational | null {
+  switch (moduloBigInt(twelfth, 12n)) {
+    case 0n:
+      return RATIONAL_ONE;
+    case 2n:
+    case 10n:
+      return createRational(1n, 2n);
+    case 3n:
+    case 9n:
+      return integerRational(0n);
+    case 4n:
+    case 8n:
+      return createRational(-1n, 2n);
+    case 6n:
+      return integerRational(-1n);
+    default:
+      return null;
+  }
+}
+
+function exactDegreeTanRational(degrees: Rational): Rational | null {
+  const eighth = exactIntegerMultiple(degrees, 45n);
+
+  if (eighth === null) {
+    return null;
+  }
+
+  switch (moduloBigInt(eighth, 4n)) {
+    case 0n:
+      return integerRational(0n);
+    case 1n:
+      return RATIONAL_ONE;
+    case 2n:
+      throw new DomainException("tan", "tan is undefined at odd multiples of 90 degrees");
+    case 3n:
+      return integerRational(-1n);
+  }
+
+  throw new InternalCalculationException("Unexpected degree tangent residue");
+}
+
+function exactIntegerMultiple(value: Rational, unit: bigint): bigint | null {
+  const quotient = divideRational(value, integerRational(unit));
+
+  return isIntegerRational(quotient) ? quotient.numerator : null;
+}
+
+function moduloBigInt(value: bigint, modulus: bigint): bigint {
+  const remainder = value % modulus;
+
+  return remainder < 0n ? remainder + modulus : remainder;
 }
 
 class DefaultEvaluationGraph implements EvaluationGraph {
@@ -1204,6 +1651,25 @@ function logDomainStatus(
   return intervalContainsRational(base, RATIONAL_ONE) ? "needs-refinement" : "ok";
 }
 
+function positivePowerBaseDomainStatus(interval: RationalInterval): DomainRefinementStatus {
+  if (intervalSignLower(interval) > 0) {
+    return "ok";
+  }
+
+  return intervalSignUpper(interval) < 0 ? "domain-error" : "needs-refinement";
+}
+
+function createExactInterval(value: Rational): RationalInterval {
+  return Object.freeze({ lower: value, upper: value });
+}
+
+function negateInterval(interval: RationalInterval): RationalInterval {
+  return Object.freeze({
+    lower: negateRational(interval.upper),
+    upper: negateRational(interval.lower)
+  });
+}
+
 function assertLnRationalDomain(argument: Rational): void {
   if (signOfRational(argument) <= 0) {
     throw new DomainException("ln", "ln domain requires x > 0");
@@ -1220,21 +1686,46 @@ function assertLogRationalDomain(base: Rational, argument: Rational): void {
   }
 }
 
-function evaluateExactRationalPower(base: Rational, exponent: Rational): Rational | LazyReal {
+function evaluateExactRationalPower(base: Rational, exponent: Rational): Rational | null {
   if (isIntegerRational(exponent)) {
     return powRational(base, exponent.numerator);
   }
 
-  if (signOfRational(base) < 0 && exponent.denominator % 2n === 0n) {
-    throw new DomainException("^", "Negative base with an even rational denominator is not real");
+  if (isZeroRational(base)) {
+    return evaluateZeroBasePower(exponent);
+  }
+
+  if (signOfRational(base) < 0) {
+    assertNegativeRationalPowerDomain(exponent);
   }
 
   const root = exactNthRootRational(base, exponent.denominator);
   if (root === null) {
-    return notImplementedLazyReal("Non-exact rational power requires approximate pow");
+    return null;
   }
 
   return powRational(root, exponent.numerator);
+}
+
+function assertNegativeRationalPowerDomain(exponent: Rational): void {
+  if (exponent.denominator % 2n === 0n) {
+    throw new DomainException("^", "Negative base with an even rational denominator is not real");
+  }
+}
+
+function evaluateZeroBasePower(exponent: Rational): Rational {
+  const exponentSign = signOfRational(exponent);
+
+  if (exponentSign < 0) {
+    return powRational(RATIONAL_ZERO, -1n);
+  }
+
+  return exponentSign === 0 ? RATIONAL_ONE : RATIONAL_ZERO;
+}
+
+function throwDivisionByZeroViaRationalPower(): never {
+  powRational(RATIONAL_ZERO, -1n);
+  throw new InternalCalculationException("Unreachable zero power division branch");
 }
 
 function factorialBigInt(value: bigint): bigint {
@@ -1245,13 +1736,4 @@ function factorialBigInt(value: bigint): bigint {
   }
 
   return result;
-}
-
-function notImplementedLazyReal(message: string): LazyReal {
-  return Object.freeze({
-    kind: "lazy-real",
-    refine(): Promise<Ball> {
-      throw new InternalCalculationException(message);
-    }
-  });
 }

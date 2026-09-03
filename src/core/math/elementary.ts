@@ -24,10 +24,14 @@ const ZERO = 0n;
 const ONE = 1n;
 const TWO = 2n;
 const FOUR = 4n;
+const FIVE = 5n;
 const TEN = 10n;
+const SIXTEEN = 16n;
+const TWO_HUNDRED_THIRTY_NINE = 239n;
 const TAIL_STOP_UNITS = 8n;
 const MAX_REDUCTION_STEPS = 8192;
 const MAX_SERIES_TERMS = 20000;
+const DEFAULT_INTERVAL_GUARD_DIGITS = 8;
 
 export interface RationalInterval {
   readonly lower: Rational;
@@ -150,6 +154,45 @@ export function divideIntervals(
   return createRationalInterval(minRational(candidates), maxRational(candidates));
 }
 
+export function powPositiveInterval(
+  base: RationalInterval,
+  exponent: RationalInterval,
+  decimalDigits: number
+): RationalInterval {
+  if (intervalSignLower(base) <= 0) {
+    throw new InternalCalculationException("powPositiveInterval requires base > 0");
+  }
+
+  const logBase = lnPositiveInterval(base, decimalDigits + DEFAULT_INTERVAL_GUARD_DIGITS);
+  const scaledExponent = multiplyIntervals(logBase, exponent);
+
+  return expBallInterval(scaledExponent, decimalDigits);
+}
+
+export function sinAngleInterval(
+  argument: RationalInterval,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees"
+): RationalInterval {
+  return sinRadianInterval(toRadianInterval(argument, decimalDigits, angleMode), decimalDigits);
+}
+
+export function cosAngleInterval(
+  argument: RationalInterval,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees"
+): RationalInterval {
+  return cosRadianInterval(toRadianInterval(argument, decimalDigits, angleMode), decimalDigits);
+}
+
+export function tanAngleInterval(
+  argument: RationalInterval,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees"
+): RationalInterval | null {
+  return tanRadianInterval(toRadianInterval(argument, decimalDigits, angleMode), decimalDigits);
+}
+
 export function intervalContainsRational(interval: RationalInterval, value: Rational): boolean {
   return compareRational(interval.lower, value) <= 0 && compareRational(interval.upper, value) >= 0;
 }
@@ -187,6 +230,221 @@ export function createRationalInterval(lower: Rational, upper: Rational): Ration
     throw new InternalCalculationException(
       "Rational interval lower bound must not exceed upper bound"
     );
+  }
+
+  return Object.freeze({ lower, upper });
+}
+
+function sinRadianInterval(argument: RationalInterval, decimalDigits: number): RationalInterval {
+  const reduced = reduceRadianIntervalNearZero(argument, decimalDigits);
+  const strip = principalStrip(reduced, decimalDigits);
+
+  if (!strip.inside) {
+    return createRationalInterval(integerRational(-ONE), RATIONAL_ONE);
+  }
+
+  const lower = sinPointInterval(reduced.lower, decimalDigits);
+  const upper = sinPointInterval(reduced.upper, decimalDigits);
+
+  return createRationalInterval(lower.lower, upper.upper);
+}
+
+function cosRadianInterval(argument: RationalInterval, decimalDigits: number): RationalInterval {
+  const reduced = reduceRadianIntervalNearZero(argument, decimalDigits);
+  const strip = principalStrip(reduced, decimalDigits);
+
+  if (!strip.inside) {
+    return createRationalInterval(integerRational(-ONE), RATIONAL_ONE);
+  }
+
+  const lowerEndpoint = cosPointInterval(reduced.lower, decimalDigits);
+  const upperEndpoint = cosPointInterval(reduced.upper, decimalDigits);
+  const lower = minRational([
+    lowerEndpoint.lower,
+    lowerEndpoint.upper,
+    upperEndpoint.lower,
+    upperEndpoint.upper
+  ]);
+  const upper = intervalContainsRational(reduced, RATIONAL_ZERO)
+    ? RATIONAL_ONE
+    : maxRational([
+        lowerEndpoint.lower,
+        lowerEndpoint.upper,
+        upperEndpoint.lower,
+        upperEndpoint.upper
+      ]);
+
+  return createRationalInterval(lower, upper);
+}
+
+function tanRadianInterval(
+  argument: RationalInterval,
+  decimalDigits: number
+): RationalInterval | null {
+  const reduced = reduceRadianIntervalNearZero(argument, decimalDigits);
+  const strip = principalStrip(reduced, decimalDigits);
+
+  if (!strip.strictInside) {
+    return null;
+  }
+
+  const lowerCos = cosPointInterval(reduced.lower, decimalDigits);
+  const upperCos = cosPointInterval(reduced.upper, decimalDigits);
+
+  if (
+    intervalContainsRational(lowerCos, RATIONAL_ZERO) ||
+    intervalContainsRational(upperCos, RATIONAL_ZERO)
+  ) {
+    return null;
+  }
+
+  const lower = divideIntervals(sinPointInterval(reduced.lower, decimalDigits), lowerCos);
+  const upper = divideIntervals(sinPointInterval(reduced.upper, decimalDigits), upperCos);
+
+  return createRationalInterval(
+    minRational([lower.lower, lower.upper, upper.lower, upper.upper]),
+    maxRational([lower.lower, lower.upper, upper.lower, upper.upper])
+  );
+}
+
+function toRadianInterval(
+  argument: RationalInterval,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees"
+): RationalInterval {
+  if (angleMode === "radians") {
+    return argument;
+  }
+
+  const pi = piRationalInterval(decimalDigits + decimalMagnitudeUpperBound(argument) + 12);
+  return divideIntervalByInteger(multiplyIntervals(argument, pi), 180n);
+}
+
+function reduceRadianIntervalNearZero(
+  argument: RationalInterval,
+  decimalDigits: number
+): RationalInterval {
+  const pi = piRationalInterval(decimalDigits + decimalMagnitudeUpperBound(argument) + 12);
+  const midpoint = divideRational(
+    addRational(argument.lower, argument.upper),
+    integerRational(TWO)
+  );
+  const piMidpoint = divideRational(addRational(pi.lower, pi.upper), integerRational(TWO));
+  const multiple = nearestIntegerRational(divideRational(midpoint, piMidpoint));
+  const multipleOfPi = scaleIntervalByInteger(pi, multiple);
+
+  return subtractIntervals(argument, multipleOfPi);
+}
+
+function principalStrip(
+  interval: RationalInterval,
+  decimalDigits: number
+): { readonly inside: boolean; readonly strictInside: boolean } {
+  const pi = piRationalInterval(decimalDigits + 12);
+  const halfPiLower = divideRational(pi.lower, integerRational(TWO));
+  const negativeHalfPiLower = createRational(-halfPiLower.numerator, halfPiLower.denominator);
+  const inside =
+    compareRational(interval.lower, negativeHalfPiLower) >= 0 &&
+    compareRational(interval.upper, halfPiLower) <= 0;
+
+  return Object.freeze({
+    inside,
+    strictInside:
+      compareRational(interval.lower, negativeHalfPiLower) > 0 &&
+      compareRational(interval.upper, halfPiLower) < 0
+  });
+}
+
+function sinPointInterval(value: Rational, decimalDigits: number): RationalInterval {
+  if (isZeroRational(value)) {
+    return createRationalInterval(RATIONAL_ZERO, RATIONAL_ZERO);
+  }
+
+  return alternatingTaylorPointInterval(value, decimalDigits, "sin");
+}
+
+function cosPointInterval(value: Rational, decimalDigits: number): RationalInterval {
+  if (isZeroRational(value)) {
+    return createRationalInterval(RATIONAL_ONE, RATIONAL_ONE);
+  }
+
+  return alternatingTaylorPointInterval(value, decimalDigits, "cos");
+}
+
+function alternatingTaylorPointInterval(
+  value: Rational,
+  decimalDigits: number,
+  operation: "sin" | "cos"
+): RationalInterval {
+  const xSquared = multiplyRational(value, value);
+  let term = operation === "sin" ? value : RATIONAL_ONE;
+  let sum = term;
+  const threshold = createRational(ONE, powerOfTen(decimalDigits));
+
+  for (let index = 0; index <= MAX_SERIES_TERMS; index += 1) {
+    const first = operation === "sin" ? TWO * BigInt(index + 1) : TWO * BigInt(index) + ONE;
+    const second = first + ONE;
+    const nextTerm = divideRational(
+      multiplyRational(createRational(-term.numerator, term.denominator), xSquared),
+      integerRational(first * second)
+    );
+    const tail = absRational(nextTerm);
+
+    if (compareRational(tail, threshold) <= 0) {
+      return createRationalInterval(subtractRational(sum, tail), addRational(sum, tail));
+    }
+
+    term = nextTerm;
+    sum = addRational(sum, term);
+  }
+
+  throw new InternalCalculationException(`${operation} series exceeded internal term limit`);
+}
+
+function piRationalInterval(decimalDigits: number): RationalInterval {
+  const digits = Math.max(1, decimalDigits);
+  const scale = powerOfTen(digits);
+  const atanOneFifth = atanReciprocalScaledInterval(FIVE, digits + 8, scale);
+  const atanOneOver239 = atanReciprocalScaledInterval(TWO_HUNDRED_THIRTY_NINE, digits + 8, scale);
+
+  return createRationalInterval(
+    createRational(SIXTEEN * atanOneFifth.lower - FOUR * atanOneOver239.upper, scale),
+    createRational(SIXTEEN * atanOneFifth.upper - FOUR * atanOneOver239.lower, scale)
+  );
+}
+
+function atanReciprocalScaledInterval(
+  reciprocalDenominator: bigint,
+  termCount: number,
+  scale: bigint
+): { readonly lower: bigint; readonly upper: bigint } {
+  let lower = ZERO;
+  let upper = ZERO;
+  let powerDenominator = reciprocalDenominator;
+  const denominatorStep = reciprocalDenominator * reciprocalDenominator;
+
+  for (let index = 0; index < termCount; index += 1) {
+    const termDenominator = powerDenominator * (TWO * BigInt(index) + ONE);
+    const termLower = scale / termDenominator;
+    const termUpper = ceilDiv(scale, termDenominator);
+
+    if (index % 2 === 0) {
+      lower += termLower;
+      upper += termUpper;
+    } else {
+      lower -= termUpper;
+      upper -= termLower;
+    }
+
+    powerDenominator *= denominatorStep;
+  }
+
+  const nextTermUpper = ceilDiv(scale, powerDenominator * (TWO * BigInt(termCount) + ONE));
+
+  if (termCount % 2 === 0) {
+    upper += nextTermUpper;
+  } else {
+    lower -= nextTermUpper;
   }
 
   return Object.freeze({ lower, upper });
@@ -360,10 +618,28 @@ function multiplyPositiveIntervals(
   );
 }
 
+function multiplyIntervals(left: RationalInterval, right: RationalInterval): RationalInterval {
+  const candidates = [
+    multiplyRational(left.lower, right.lower),
+    multiplyRational(left.lower, right.upper),
+    multiplyRational(left.upper, right.lower),
+    multiplyRational(left.upper, right.upper)
+  ];
+
+  return createRationalInterval(minRational(candidates), maxRational(candidates));
+}
+
 function addIntervals(left: RationalInterval, right: RationalInterval): RationalInterval {
   return createRationalInterval(
     addRational(left.lower, right.lower),
     addRational(left.upper, right.upper)
+  );
+}
+
+function subtractIntervals(left: RationalInterval, right: RationalInterval): RationalInterval {
+  return createRationalInterval(
+    subtractRational(left.lower, right.upper),
+    subtractRational(left.upper, right.lower)
   );
 }
 
@@ -372,6 +648,19 @@ function scaleIntervalByInteger(interval: RationalInterval, factor: bigint): Rat
   const upper = multiplyRational(interval.upper, integerRational(factor));
 
   return factor >= ZERO
+    ? createRationalInterval(lower, upper)
+    : createRationalInterval(upper, lower);
+}
+
+function divideIntervalByInteger(interval: RationalInterval, divisor: bigint): RationalInterval {
+  if (divisor === ZERO) {
+    throw new InternalCalculationException("Cannot divide interval by zero");
+  }
+
+  const lower = divideRational(interval.lower, integerRational(divisor));
+  const upper = divideRational(interval.upper, integerRational(divisor));
+
+  return divisor > ZERO
     ? createRationalInterval(lower, upper)
     : createRationalInterval(upper, lower);
 }
@@ -400,6 +689,30 @@ function ceilDiv(numerator: bigint, denominator: bigint): bigint {
   const remainder = numerator % denominator;
 
   return remainder === ZERO ? quotient : quotient + ONE;
+}
+
+function nearestIntegerRational(value: Rational): bigint {
+  return floorRational(addRational(value, createRational(ONE, TWO)));
+}
+
+function floorRational(value: Rational): bigint {
+  const quotient = value.numerator / value.denominator;
+  const remainder = value.numerator % value.denominator;
+
+  return remainder !== ZERO && value.numerator < ZERO ? quotient - ONE : quotient;
+}
+
+function decimalMagnitudeUpperBound(interval: RationalInterval): number {
+  const magnitude = maxRational([absRational(interval.lower), absRational(interval.upper)]);
+
+  if (isZeroRational(magnitude)) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    magnitude.numerator.toString().length - magnitude.denominator.toString().length + 2
+  );
 }
 
 function powerOfTen(exponent: number): bigint {
