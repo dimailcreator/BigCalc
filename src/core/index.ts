@@ -37,6 +37,9 @@ export type {
 } from "./errors/index.js";
 export type {
   CalculationHandle,
+  CalculationHandleFromSourceResult,
+  CalculationHandleOptions,
+  CalculationHandleState,
   CancelledResult,
   CompletedResult,
   EvaluationCheckpoint,
@@ -59,6 +62,8 @@ export type {
 } from "./evaluation/index.js";
 export {
   DEFAULT_EVALUATION_SETTINGS,
+  createCalculationHandle,
+  createCalculationHandleFromSource,
   createAddNode,
   createConstantNode,
   createDivNode,

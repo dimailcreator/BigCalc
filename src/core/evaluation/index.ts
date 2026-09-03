@@ -23,6 +23,12 @@ export {
   evaluateExpressionToRealValue
 } from "./evaluator.js";
 export type { EvaluationGraphFromSourceResult, RealValueEvaluationResult } from "./evaluator.js";
+export { createCalculationHandle, createCalculationHandleFromSource } from "./lifecycle.js";
+export type {
+  CalculationHandleFromSourceResult,
+  CalculationHandleOptions,
+  CalculationHandleState
+} from "./lifecycle.js";
 export {
   createAddNode,
   createConstantNode,
