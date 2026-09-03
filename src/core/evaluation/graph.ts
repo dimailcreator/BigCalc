@@ -776,6 +776,9 @@ class PowEvaluationNode extends BaseEvaluationNode {
 
     for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
       context.checkpoint();
+      if (operandDigits > adaptiveOperandDigitLimit(request.significantDigits)) {
+        break;
+      }
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
       const precisionBits = precisionBitsForRequest(childRequest);
@@ -1099,6 +1102,10 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     request: PrecisionRequest,
     context: EvaluationGraphContext
   ): Promise<Ball> {
+    if (this.functionName === "abs") {
+      return this.refineAbs(request, context);
+    }
+
     if (this.functionName === "exp") {
       return this.refineExp(request, context);
     }
@@ -1175,6 +1182,42 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     }
 
     return definition.evaluate(args, context);
+  }
+
+  private async refineAbs(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    const operand = this.onlyArgumentNode("abs");
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+    let lastVerifiedDigits = 0;
+
+    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+      context.checkpoint();
+
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const precisionBits = precisionBitsForRequest(childRequest);
+      const operandBall = await operand.refine(this.recordChildRequest(0, childRequest), context);
+      const operandInterval = rationalIntervalFromBall(operandBall, precisionBits, context.backend);
+      const resultInterval = absInterval(operandInterval);
+      const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      lastVerifiedDigits = verified.verifiedDigits;
+
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return resultBall;
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
+
+    throw new InternalCalculationException(
+      `Unable to prove ${String(request.significantDigits)} digits for abs; last verified ${String(lastVerifiedDigits)}`
+    );
   }
 
   private async refineExp(
@@ -1798,6 +1841,23 @@ function negateInterval(interval: RationalInterval): RationalInterval {
     lower: negateRational(interval.upper),
     upper: negateRational(interval.lower)
   });
+}
+
+function absInterval(interval: RationalInterval): RationalInterval {
+  if (intervalSignLower(interval) >= 0) {
+    return interval;
+  }
+
+  if (intervalSignUpper(interval) <= 0) {
+    return negateInterval(interval);
+  }
+
+  const lowerMagnitude = absRational(interval.lower);
+  const upperMagnitude = absRational(interval.upper);
+  const upper =
+    compareRational(lowerMagnitude, upperMagnitude) >= 0 ? lowerMagnitude : upperMagnitude;
+
+  return createRationalInterval(RATIONAL_ZERO, upper);
 }
 
 function assertLnRationalDomain(argument: Rational): void {

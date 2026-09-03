@@ -15,3 +15,4 @@ import "./transcendentals.test.js";
 import "./trig.test.js";
 import "./power.test.js";
 import "./factorial-gamma.test.js";
+import "./builtins-completion.test.js";
