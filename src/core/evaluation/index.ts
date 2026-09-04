@@ -27,6 +27,7 @@ export { createCalculationHandle, createCalculationHandleFromSource } from "./li
 export type {
   CalculationHandleFromSourceResult,
   CalculationHandleOptions,
+  CalculationResourceLimits,
   CalculationHandleState
 } from "./lifecycle.js";
 export {

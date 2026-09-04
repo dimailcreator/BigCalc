@@ -39,6 +39,7 @@ export type {
   CalculationHandle,
   CalculationHandleFromSourceResult,
   CalculationHandleOptions,
+  CalculationResourceLimits,
   CalculationHandleState,
   CancelledResult,
   CompletedResult,

@@ -1,9 +1,15 @@
 import type {
   DomainError,
   InternalCalculationError,
+  ResourceLimitError,
   RegistryConfigurationError
 } from "./contracts.js";
-import { domainError, internalCalculationError, registryConfigurationError } from "./factories.js";
+import {
+  domainError,
+  internalCalculationError,
+  registryConfigurationError,
+  resourceLimitError
+} from "./factories.js";
 
 export class DomainException extends Error implements DomainError {
   readonly kind = "calc-error";
@@ -25,6 +31,19 @@ export class InternalCalculationException extends Error implements InternalCalcu
   constructor(message: string) {
     super(internalCalculationError(message).message);
     this.name = "InternalCalculationError";
+  }
+}
+
+export class ResourceLimitException extends Error implements ResourceLimitError {
+  readonly kind = "calc-error";
+  readonly code = "ResourceLimitError";
+  readonly resource: ResourceLimitError["resource"];
+
+  constructor(resource: ResourceLimitError["resource"], message: string) {
+    const error = resourceLimitError(resource, message);
+    super(error.message);
+    this.name = "ResourceLimitError";
+    this.resource = resource;
   }
 }
 

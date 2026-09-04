@@ -17,3 +17,4 @@ import "./power.test.js";
 import "./factorial-gamma.test.js";
 import "./builtins-completion.test.js";
 import "./calculation-lifecycle.test.js";
+import "./hard-resource-safety.test.js";

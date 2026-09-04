@@ -1,4 +1,9 @@
-import { cancelledError, internalCalculationError, isCalcError } from "../errors/index.js";
+import {
+  cancelledError,
+  internalCalculationError,
+  isCalcError,
+  ResourceLimitException
+} from "../errors/index.js";
 import type { CalcError } from "../errors/index.js";
 import { parseExpression } from "../syntax/parser.js";
 import type { ExpressionNode } from "../syntax/ast.js";
@@ -23,6 +28,12 @@ export type CalculationHandleState =
 
 export interface CalculationHandleOptions extends EvaluationContextOptions {
   readonly now?: () => number;
+  readonly resourceLimits?: CalculationResourceLimits;
+}
+
+export interface CalculationResourceLimits {
+  readonly maxCheckpointsPerRun?: number;
+  readonly maxRequestedDigits?: number;
 }
 
 export type CalculationHandleFromSourceResult =
@@ -39,7 +50,7 @@ export function createCalculationHandle(
   root: EvaluationNode,
   options: CalculationHandleOptions = {}
 ): CalculationHandle {
-  const runtime = new CalculationRuntime(options.now ?? Date.now);
+  const runtime = new CalculationRuntime(options.now ?? Date.now, options.resourceLimits);
   const context = createLifecycleContext(options, runtime);
   const graph = createEvaluationGraph(root, context);
 
@@ -50,7 +61,7 @@ export function createCalculationHandleFromSource(
   source: string,
   options: CalculationHandleOptions = {}
 ): CalculationHandleFromSourceResult {
-  const runtime = new CalculationRuntime(options.now ?? Date.now);
+  const runtime = new CalculationRuntime(options.now ?? Date.now, options.resourceLimits);
   const context = createLifecycleContext(options, runtime);
   const parsed = parseExpression(source, context.registry);
 
@@ -73,6 +84,7 @@ class DefaultCalculationHandle implements CalculationHandle {
   private state: CalculationHandleState = "idle";
   private lastRequest: PrecisionRequest | null = null;
   private lastCompleted: CompletedResult | null = null;
+  private lastFailure: CalcError | null = null;
 
   constructor(
     private readonly graph: EvaluationGraph,
@@ -82,6 +94,14 @@ class DefaultCalculationHandle implements CalculationHandle {
   refine(request: PrecisionRequest): Promise<RefinementResult> {
     if (this.state === "cancelled") {
       return Promise.resolve(this.cancelledResult(request));
+    }
+
+    if (this.state === "failed") {
+      return Promise.resolve(
+        this.failedResult(
+          this.lastFailure ?? internalCalculationError("Failed calculation cannot be refined")
+        )
+      );
     }
 
     if (this.state === "running") {
@@ -96,6 +116,14 @@ class DefaultCalculationHandle implements CalculationHandle {
   continue(): Promise<RefinementResult> {
     if (this.state === "cancelled") {
       return Promise.resolve(this.cancelledResult(this.lastRequest));
+    }
+
+    if (this.state === "failed") {
+      return Promise.resolve(
+        this.failedResult(
+          this.lastFailure ?? internalCalculationError("Failed calculation cannot continue")
+        )
+      );
     }
 
     if (this.state !== "paused" || this.lastRequest === null) {
@@ -118,9 +146,11 @@ class DefaultCalculationHandle implements CalculationHandle {
 
   private async run(request: PrecisionRequest): Promise<RefinementResult> {
     this.state = "running";
-    this.runtime.start(this.graph.context.settings.maxCalculationTimeMs);
 
     try {
+      this.runtime.guardRequest(request.significantDigits);
+      this.runtime.start(this.graph.context.settings.maxCalculationTimeMs);
+
       const ball = await this.graph.refine(request);
       const value = verifiedNumberFromBall(ball, request, this.graph.context.backend);
       const completed: CompletedResult = Object.freeze({
@@ -130,6 +160,7 @@ class DefaultCalculationHandle implements CalculationHandle {
       });
 
       this.lastCompleted = completed;
+      this.lastFailure = null;
       this.state = "completed";
 
       return completed;
@@ -147,6 +178,7 @@ class DefaultCalculationHandle implements CalculationHandle {
       this.state = "failed";
 
       if (isCalcError(error)) {
+        this.lastFailure = error;
         return this.failedResult(error);
       }
 
@@ -194,13 +226,34 @@ class DefaultCalculationHandle implements CalculationHandle {
 }
 
 class CalculationRuntime {
+  private static readonly DEFAULT_MAX_CHECKPOINTS_PER_RUN = 1_000_000;
+  private static readonly DEFAULT_MAX_REQUESTED_DIGITS = 100_000;
+
   private deadlineMs: number | null = null;
   private cancelled = false;
+  private checkpointsThisRun = 0;
+  private readonly maxCheckpointsPerRun: number;
+  private readonly maxRequestedDigits: number;
 
-  constructor(private readonly now: () => number) {}
+  constructor(
+    private readonly now: () => number,
+    resourceLimits: CalculationResourceLimits = {}
+  ) {
+    this.maxCheckpointsPerRun = validatePositiveSafeInteger(
+      resourceLimits.maxCheckpointsPerRun,
+      CalculationRuntime.DEFAULT_MAX_CHECKPOINTS_PER_RUN,
+      "maxCheckpointsPerRun"
+    );
+    this.maxRequestedDigits = validatePositiveSafeInteger(
+      resourceLimits.maxRequestedDigits,
+      CalculationRuntime.DEFAULT_MAX_REQUESTED_DIGITS,
+      "maxRequestedDigits"
+    );
+  }
 
   start(maxCalculationTimeMs: number): void {
     this.deadlineMs = this.now() + Math.max(0, maxCalculationTimeMs);
+    this.checkpointsThisRun = 0;
   }
 
   stop(): void {
@@ -211,15 +264,46 @@ class CalculationRuntime {
     this.cancelled = true;
   }
 
+  guardRequest(significantDigits: number): void {
+    if (significantDigits > this.maxRequestedDigits) {
+      throw new ResourceLimitException(
+        "memory",
+        `Requested digits exceed hard size guard: ${String(significantDigits)} > ${String(this.maxRequestedDigits)}`
+      );
+    }
+  }
+
   checkpoint(): void {
     if (this.cancelled) {
       throw new CancelledSignal();
+    }
+
+    this.checkpointsThisRun += 1;
+    if (this.checkpointsThisRun > this.maxCheckpointsPerRun) {
+      throw new ResourceLimitException(
+        "hard-watchdog",
+        `Hard watchdog checkpoint limit reached: ${String(this.maxCheckpointsPerRun)}`
+      );
     }
 
     if (this.deadlineMs !== null && this.now() >= this.deadlineMs) {
       throw new SoftTimeoutSignal();
     }
   }
+}
+
+function validatePositiveSafeInteger(
+  value: number | undefined,
+  fallback: number,
+  name: string
+): number {
+  const resolved = value ?? fallback;
+
+  if (!Number.isSafeInteger(resolved) || resolved < 1) {
+    throw new Error(`${name} must be a positive safe integer`);
+  }
+
+  return resolved;
 }
 
 class SoftTimeoutSignal extends Error {
