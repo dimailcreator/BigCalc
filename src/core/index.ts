@@ -101,6 +101,21 @@ export type {
   VerifiedNumber,
   ZeroKind
 } from "./formatting/index.js";
+export {
+  createCalculationHandleFromHistoryEntry,
+  createHistoryAnsRegistry,
+  createHistoryService,
+  createInMemoryHistoryRepository
+} from "./history/index.js";
+export type {
+  HistoryAnsCalculationOptions,
+  HistoryCalculationHandleResult,
+  HistoryEntry,
+  HistoryRepository,
+  HistoryReevaluationOptions,
+  HistoryService,
+  RecordHistoryEntryInput
+} from "./history/index.js";
 export type { CoreSmokeProbe } from "./public.js";
 export { createCoreRegistry, createRegistry } from "./registry/index.js";
 export type {

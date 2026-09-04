@@ -19,3 +19,4 @@ import "./builtins-completion.test.js";
 import "./calculation-lifecycle.test.js";
 import "./hard-resource-safety.test.js";
 import "./display-formatter.test.js";
+import "./history-ans.test.js";

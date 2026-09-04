@@ -66,6 +66,7 @@ class DefaultCoreRegistry implements CoreRegistry {
         });
       } else {
         this.constants.set(definition.name, definition);
+        this.constants.set(key, definition);
         knownNames.push({
           kind: "constant",
           canonicalName: key,
