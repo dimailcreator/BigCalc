@@ -8,6 +8,7 @@ export const CORE_INTERNAL_MODULES = [
   "resources",
   "formatting",
   "history",
+  "transport",
   "errors"
 ] as const;
 

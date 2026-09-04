@@ -164,6 +164,30 @@ export type {
   TokenizationResult
 } from "./syntax/index.js";
 export {
+  createWorkerTransportHost,
+  serializeRefinementResult,
+  serializeVerifiedNumber
+} from "./transport/index.js";
+export type {
+  CancelCalculationCommandDto,
+  ContinueCalculationCommandDto,
+  CreateCalculationCommandDto,
+  DisposedCalculationResponseDto,
+  DisposeCalculationCommandDto,
+  RefineCalculationCommandDto,
+  VerifiedNumberDto,
+  WorkerCalculationOptionsDto,
+  WorkerCancelledResultDto,
+  WorkerCompletedResultDto,
+  WorkerFailedResultDto,
+  WorkerPausedResultDto,
+  WorkerRefinementResultDto,
+  WorkerTransportCommand,
+  WorkerTransportHost,
+  WorkerTransportHostOptions,
+  WorkerTransportResponse
+} from "./transport/index.js";
+export {
   addBall,
   applyPrecisionCutoff,
   ballToOutwardInterval,
