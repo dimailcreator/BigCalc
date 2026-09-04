@@ -12,3 +12,15 @@ export interface VerifiedNumber {
   readonly rounded: boolean;
   readonly zeroKind?: ZeroKind;
 }
+
+export interface NumberFormatOptions {
+  readonly decimalSeparator?: ",";
+  readonly scientificNotationThreshold?: number;
+  readonly ellipsis?: string;
+}
+
+export interface FormattedNumber {
+  readonly text: string;
+  readonly notation: "plain" | "scientific";
+  readonly usedVerifiedDigits: number;
+}

@@ -89,12 +89,18 @@ export {
   precisionBitsForRequest
 } from "./evaluation/index.js";
 export {
+  formatVerifiedNumber,
   precisionBitsForVerifiedDigits,
   verifiedNumberFromBall,
   verifiedNumberFromRational,
   verifiedNumberFromRealValue
 } from "./formatting/index.js";
-export type { VerifiedNumber, ZeroKind } from "./formatting/index.js";
+export type {
+  FormattedNumber,
+  NumberFormatOptions,
+  VerifiedNumber,
+  ZeroKind
+} from "./formatting/index.js";
 export type { CoreSmokeProbe } from "./public.js";
 export { createCoreRegistry, createRegistry } from "./registry/index.js";
 export type {

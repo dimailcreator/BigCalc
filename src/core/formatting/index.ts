@@ -1,4 +1,10 @@
-export type { VerifiedNumber, ZeroKind } from "./contracts.js";
+export type {
+  FormattedNumber,
+  NumberFormatOptions,
+  VerifiedNumber,
+  ZeroKind
+} from "./contracts.js";
+export { formatVerifiedNumber } from "./display.js";
 export {
   precisionBitsForVerifiedDigits,
   verifiedNumberFromBall,
