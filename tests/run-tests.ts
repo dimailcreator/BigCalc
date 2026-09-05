@@ -22,3 +22,5 @@ import "./display-formatter.test.js";
 import "./history-ans.test.js";
 import "./worker-transport.test.js";
 import "./correctness-stabilization.test.js";
+import "./high-precision-infrastructure.test.js";
+import "./scalable-exp-ln-log.test.js";

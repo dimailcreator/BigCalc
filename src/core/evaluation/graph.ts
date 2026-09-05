@@ -1449,6 +1449,13 @@ class LogEvaluationNode extends BaseEvaluationNode {
         continue;
       }
 
+      // A shared node denotes the same mathematical value on both sides. Once
+      // the log domain is proved, log_x(x) is exactly one and no duplicate ln
+      // refinement is necessary.
+      if (this.base === this.argument) {
+        return rationalToBall(RATIONAL_ONE, precisionBits, context.backend);
+      }
+
       const decimalDigits = operandDigits + DEFAULT_GUARD_DIGITS + 8;
       const numerator = lnPositiveInterval(argumentInterval, decimalDigits, context);
       const denominator = lnPositiveInterval(baseInterval, decimalDigits, context);
