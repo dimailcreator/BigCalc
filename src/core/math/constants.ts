@@ -15,7 +15,6 @@ const SIXTEEN = 16n;
 const TWO_HUNDRED_THIRTY_NINE = 239n;
 const DEFAULT_CONSTANT_GUARD_DIGITS = 6;
 const MACHIN_DECIMAL_GUARD_DIGITS = 8;
-const MAX_REFINEMENT_GROWTH_ATTEMPTS = 16;
 
 interface GraphLikeEvaluationContext extends EvaluationContext {
   readonly backend: BigFloatBackend;
@@ -29,6 +28,18 @@ interface ConstantLazyRealStateSnapshot {
   readonly completedTerms: number;
 }
 
+export interface PiProviderStateSnapshot {
+  readonly intervalRequests: number;
+  readonly cacheHits: number;
+  readonly highestRequestedDigits: number;
+  readonly completedTerms: number;
+}
+
+export interface PiRationalInterval {
+  readonly lower: Rational;
+  readonly upper: Rational;
+}
+
 type StatefulConstantLazyReal = LazyReal & {
   getStateSnapshot(): ConstantLazyRealStateSnapshot;
 };
@@ -40,6 +51,7 @@ type ScaledIntegerInterval = Readonly<{
 }>;
 
 const contextConstants = new WeakMap<EvaluationContext, Map<string, StatefulConstantLazyReal>>();
+const contextPiProviders = new WeakMap<EvaluationContext, PiProviderState>();
 
 export function createBuiltinConstantValue(name: "π" | "e", context: EvaluationContext): LazyReal {
   let constants = contextConstants.get(context);
@@ -54,7 +66,7 @@ export function createBuiltinConstantValue(name: "π" | "e", context: Evaluation
     return existing;
   }
 
-  const created = name === "π" ? new PiLazyReal() : new ELazyReal();
+  const created = name === "π" ? new PiLazyReal(getOrCreatePiProvider(context)) : new ELazyReal();
   constants.set(name, created);
 
   return created;
@@ -129,55 +141,47 @@ class PiLazyReal implements StatefulConstantLazyReal {
   readonly kind = "lazy-real";
   private refinementCalls = 0;
   private highestRequestedDigits = 0;
-  private completedTermCount = 0;
+
+  constructor(private readonly provider: PiProviderState) {}
 
   refine(request: PrecisionRequest, context: EvaluationContext): Promise<Ball> {
     const graphContext = requireGraphLikeContext(context);
     this.refinementCalls += 1;
     this.highestRequestedDigits = Math.max(this.highestRequestedDigits, request.significantDigits);
 
-    return Promise.resolve(
-      refineUntilVerified(
-        request,
-        graphContext,
-        (count) => {
-          this.generateTerms(count, graphContext);
-        },
-        (precisionBits, decimalDigits) =>
-          this.currentBall(precisionBits, decimalDigits, graphContext.backend)
-      )
-    );
+    const precisionBits = precisionBitsForConstantDigits(request.significantDigits);
+    let decimalDigits = request.significantDigits + MACHIN_DECIMAL_GUARD_DIGITS;
+
+    for (;;) {
+      graphContext.checkpoint();
+      const interval = this.provider.getInterval(decimalDigits, graphContext);
+      const ball = ballFromRationalInterval(
+        interval.lower,
+        interval.upper,
+        precisionBits,
+        graphContext.backend
+      );
+      const verified = verifiedNumberFromBall(ball, request, graphContext.backend);
+
+      if (verified.verifiedDigits >= request.significantDigits) {
+        return Promise.resolve(ball);
+      }
+
+      const missingDigits = request.significantDigits - verified.verifiedDigits;
+      decimalDigits += Math.max(DEFAULT_CONSTANT_GUARD_DIGITS, missingDigits);
+    }
   }
 
   getStateSnapshot(): ConstantLazyRealStateSnapshot {
     return Object.freeze({
       name: "π",
       refinementCalls: this.refinementCalls,
-      highestRequestedDigits: this.highestRequestedDigits,
-      completedTerms: this.completedTermCount
+      highestRequestedDigits: Math.max(
+        this.highestRequestedDigits,
+        this.provider.getSnapshot().highestRequestedDigits
+      ),
+      completedTerms: this.provider.getSnapshot().completedTerms
     });
-  }
-
-  private generateTerms(count: number, context: GraphLikeEvaluationContext): void {
-    for (let index = 0; index < count; index += 1) {
-      context.checkpoint();
-      this.completedTermCount += 1;
-    }
-  }
-
-  private currentBall(
-    precisionBits: number,
-    decimalDigits: number,
-    backend: BigFloatBackend
-  ): Ball {
-    const interval = machinPiInterval(this.completedTermCount, decimalDigits);
-
-    return ballFromRationalInterval(
-      createRational(interval.lower, interval.scale),
-      createRational(interval.upper, interval.scale),
-      precisionBits,
-      backend
-    );
   }
 }
 
@@ -192,7 +196,8 @@ function refineUntilVerified(
 
   generateTerms(DEFAULT_CONSTANT_GUARD_DIGITS);
 
-  for (let attempt = 0; attempt < MAX_REFINEMENT_GROWTH_ATTEMPTS; attempt += 1) {
+  for (;;) {
+    context.checkpoint();
     const ball = createBall(precisionBits, decimalDigits);
     const verified = verifiedNumberFromBall(ball, request, context.backend);
 
@@ -203,59 +208,142 @@ function refineUntilVerified(
     const missingDigits = request.significantDigits - verified.verifiedDigits;
     generateTerms(Math.max(DEFAULT_CONSTANT_GUARD_DIGITS, missingDigits));
   }
+}
 
-  throw new InternalCalculationException(
-    `Unable to refine constant to ${String(request.significantDigits)} digits`
+export function getPiRationalInterval(
+  context: EvaluationContext,
+  decimalDigits: number
+): PiRationalInterval {
+  return getOrCreatePiProvider(context).getInterval(
+    decimalDigits,
+    requireGraphLikeContext(context)
   );
 }
 
-function machinPiInterval(termCount: number, decimalDigits: number): ScaledIntegerInterval {
-  const scale = powerOfTen(decimalDigits);
-  const atanOneFifth = atanReciprocalScaledInterval(FIVE, termCount, scale);
-  const atanOneOver239 = atanReciprocalScaledInterval(TWO_HUNDRED_THIRTY_NINE, termCount, scale);
-
-  return {
-    lower: SIXTEEN * atanOneFifth.lower - FOUR * atanOneOver239.upper,
-    upper: SIXTEEN * atanOneFifth.upper - FOUR * atanOneOver239.lower,
-    scale
-  };
+export function getPiProviderStateSnapshot(context: EvaluationContext): PiProviderStateSnapshot {
+  return getOrCreatePiProvider(context).getSnapshot();
 }
 
-function atanReciprocalScaledInterval(
-  reciprocalDenominator: bigint,
-  termCount: number,
-  scale: bigint
-): ScaledIntegerInterval {
-  let lower = ZERO;
-  let upper = ZERO;
-  let powerDenominator = reciprocalDenominator;
-  const denominatorStep = reciprocalDenominator * reciprocalDenominator;
+class PiProviderState {
+  private intervalRequests = 0;
+  private cacheHits = 0;
+  private highestRequestedDigits = 0;
+  private completedTermCount = 0;
+  private cachedInterval: PiRationalInterval | null = null;
+  private readonly atanOneFifth = new AtanReciprocalState(FIVE);
+  private readonly atanOneOver239 = new AtanReciprocalState(TWO_HUNDRED_THIRTY_NINE);
 
-  for (let index = 0; index < termCount; index += 1) {
-    const termDenominator = powerDenominator * (TWO * BigInt(index) + ONE);
-    const termLower = scale / termDenominator;
-    const termUpper = ceilDiv(scale, termDenominator);
+  getInterval(decimalDigits: number, context: GraphLikeEvaluationContext): PiRationalInterval {
+    const digits = Math.max(1, decimalDigits);
+    this.intervalRequests += 1;
 
-    if (index % 2 === 0) {
-      lower += termLower;
-      upper += termUpper;
-    } else {
-      lower -= termUpper;
-      upper -= termLower;
+    if (this.cachedInterval !== null && digits <= this.highestRequestedDigits) {
+      this.cacheHits += 1;
+      return this.cachedInterval;
     }
 
-    powerDenominator *= denominatorStep;
+    const requiredTerms = digits + MACHIN_DECIMAL_GUARD_DIGITS;
+    while (this.completedTermCount < requiredTerms) {
+      context.checkpoint();
+      this.atanOneFifth.appendTerm();
+      this.atanOneOver239.appendTerm();
+      this.completedTermCount += 1;
+    }
+
+    const interval = this.machinInterval(digits, context);
+    this.highestRequestedDigits = digits;
+    this.cachedInterval = Object.freeze({
+      lower: createRational(interval.lower, interval.scale),
+      upper: createRational(interval.upper, interval.scale)
+    });
+
+    return this.cachedInterval;
   }
 
-  const nextTermUpper = ceilDiv(scale, powerDenominator * (TWO * BigInt(termCount) + ONE));
-
-  if (termCount % 2 === 0) {
-    upper += nextTermUpper;
-  } else {
-    lower -= nextTermUpper;
+  getSnapshot(): PiProviderStateSnapshot {
+    return Object.freeze({
+      intervalRequests: this.intervalRequests,
+      cacheHits: this.cacheHits,
+      highestRequestedDigits: this.highestRequestedDigits,
+      completedTerms: this.completedTermCount
+    });
   }
 
-  return { lower, upper, scale };
+  private machinInterval(
+    decimalDigits: number,
+    context: GraphLikeEvaluationContext
+  ): ScaledIntegerInterval {
+    const scale = powerOfTen(decimalDigits);
+    const atanOneFifth = this.atanOneFifth.scaledInterval(scale, context);
+    const atanOneOver239 = this.atanOneOver239.scaledInterval(scale, context);
+
+    return {
+      lower: SIXTEEN * atanOneFifth.lower - FOUR * atanOneOver239.upper,
+      upper: SIXTEEN * atanOneFifth.upper - FOUR * atanOneOver239.lower,
+      scale
+    };
+  }
+}
+
+function getOrCreatePiProvider(context: EvaluationContext): PiProviderState {
+  const existing = contextPiProviders.get(context);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const created = new PiProviderState();
+  contextPiProviders.set(context, created);
+  return created;
+}
+
+class AtanReciprocalState {
+  private readonly termDenominators: bigint[] = [];
+  private readonly denominatorStep: bigint;
+  private nextPowerDenominator: bigint;
+
+  constructor(reciprocalDenominator: bigint) {
+    this.nextPowerDenominator = reciprocalDenominator;
+    this.denominatorStep = reciprocalDenominator * reciprocalDenominator;
+  }
+
+  appendTerm(): void {
+    const index = this.termDenominators.length;
+    this.termDenominators.push(this.nextPowerDenominator * (TWO * BigInt(index) + ONE));
+    this.nextPowerDenominator *= this.denominatorStep;
+  }
+
+  scaledInterval(scale: bigint, context: GraphLikeEvaluationContext): ScaledIntegerInterval {
+    let lower = ZERO;
+    let upper = ZERO;
+
+    for (const [index, termDenominator] of this.termDenominators.entries()) {
+      context.checkpoint();
+      const termLower = scale / termDenominator;
+      const termUpper = ceilDiv(scale, termDenominator);
+
+      if (index % 2 === 0) {
+        lower += termLower;
+        upper += termUpper;
+      } else {
+        lower -= termUpper;
+        upper -= termLower;
+      }
+    }
+
+    const termCount = this.termDenominators.length;
+    const nextTermUpper = ceilDiv(
+      scale,
+      this.nextPowerDenominator * (TWO * BigInt(termCount) + ONE)
+    );
+
+    if (termCount % 2 === 0) {
+      upper += nextTermUpper;
+    } else {
+      lower -= nextTermUpper;
+    }
+
+    return { lower, upper, scale };
+  }
 }
 
 function ceilDiv(numerator: bigint, denominator: bigint): bigint {

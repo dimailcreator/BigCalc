@@ -110,7 +110,6 @@ export type OperandPrecisionStrategy = (
 ) => PrecisionRequest;
 
 const DEFAULT_GUARD_DIGITS = 2;
-const MAX_ADAPTIVE_REFINEMENT_ATTEMPTS = 16;
 
 export function createEvaluationGraph(
   root: EvaluationNode,
@@ -527,13 +526,9 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
     right: EvaluationNode
   ): Promise<Ball> {
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
-    let lastVerifiedDigits = 0;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
-      if (operandDigits > adaptiveOperandDigitLimit(request.significantDigits)) {
-        break;
-      }
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
       const leftBall = await left.refine(this.recordChildRequest(0, childRequest), context);
@@ -555,7 +550,6 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
         context
       );
       const verified = verifiedNumberFromBall(ball, request, context.backend);
-      lastVerifiedDigits = verified.verifiedDigits;
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return ball;
@@ -567,10 +561,6 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
-
-    throw new InternalCalculationException(
-      `Unable to prove ${String(request.significantDigits)} digits for ${this.nodeType}; last verified ${String(lastVerifiedDigits)}`
-    );
   }
 
   private applyOperation(
@@ -772,13 +762,9 @@ class PowEvaluationNode extends BaseEvaluationNode {
     exponent: EvaluationNode
   ): Promise<Ball> {
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
-    let lastVerifiedDigits = 0;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
-      if (operandDigits > adaptiveOperandDigitLimit(request.significantDigits)) {
-        break;
-      }
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
       const precisionBits = precisionBitsForRequest(childRequest);
@@ -804,11 +790,11 @@ class PowEvaluationNode extends BaseEvaluationNode {
       const resultInterval = powPositiveInterval(
         baseInterval,
         exponentInterval,
-        operandDigits + DEFAULT_GUARD_DIGITS + 8
+        operandDigits + DEFAULT_GUARD_DIGITS + 8,
+        context
       );
       const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
-      lastVerifiedDigits = verified.verifiedDigits;
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -820,10 +806,6 @@ class PowEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
-
-    throw new InternalCalculationException(
-      `Unable to prove ${String(request.significantDigits)} digits for power; last verified ${String(lastVerifiedDigits)}`
-    );
   }
 
   private refineSignedRationalBasePower(
@@ -834,21 +816,20 @@ class PowEvaluationNode extends BaseEvaluationNode {
   ): Promise<Ball> {
     const sign = exponent.numerator % 2n === 0n ? 1 : -1;
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
-    let lastVerifiedDigits = 0;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const precisionBits = precisionBitsForRequest({ significantDigits: operandDigits });
       const resultInterval = powPositiveInterval(
         createExactInterval(positiveBase),
         createExactInterval(exponent),
-        operandDigits + DEFAULT_GUARD_DIGITS + 8
+        operandDigits + DEFAULT_GUARD_DIGITS + 8,
+        context
       );
       const signedInterval = sign < 0 ? negateInterval(resultInterval) : resultInterval;
       const resultBall = intervalToRoundedBall(signedInterval, precisionBits, context.backend);
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
-      lastVerifiedDigits = verified.verifiedDigits;
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return Promise.resolve(resultBall);
@@ -860,10 +841,6 @@ class PowEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
-
-    throw new InternalCalculationException(
-      `Unable to prove ${String(request.significantDigits)} digits for negative rational power; last verified ${String(lastVerifiedDigits)}`
-    );
   }
 
   private async refineZeroBasePower(
@@ -882,7 +859,7 @@ class PowEvaluationNode extends BaseEvaluationNode {
 
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
@@ -904,8 +881,6 @@ class PowEvaluationNode extends BaseEvaluationNode {
 
       operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
     }
-
-    throw new InternalCalculationException("Unable to determine zero-base power domain");
   }
 
   private evaluateExactPowerOrNull(
@@ -962,7 +937,7 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
 
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
@@ -986,8 +961,6 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
 
       operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
     }
-
-    throw new InternalCalculationException("Unable to prove Gamma factorial domain");
   }
 
   protected evaluateUncached(context: EvaluationGraphContext): RealValue {
@@ -1024,7 +997,7 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
   ): Ball {
     let gammaDigits = decimalDigits;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const ball = this.tryRefineGammaInterval(gammaArgument, request, context, gammaDigits);
@@ -1034,8 +1007,6 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
 
       gammaDigits = nextOperandDigits(gammaDigits, request.significantDigits, 0);
     }
-
-    throw new InternalCalculationException("Unable to verify exact Gamma factorial interval");
   }
 
   private tryRefineGammaInterval(
@@ -1044,7 +1015,7 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
     context: EvaluationGraphContext,
     decimalDigits: number
   ): Ball | null {
-    const gammaInterval = gammaRealInterval(gammaArgument, decimalDigits);
+    const gammaInterval = gammaRealInterval(gammaArgument, decimalDigits, context);
 
     if (gammaInterval === null) {
       return null;
@@ -1190,9 +1161,8 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
   ): Promise<Ball> {
     const operand = this.onlyArgumentNode("abs");
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
-    let lastVerifiedDigits = 0;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
@@ -1202,7 +1172,6 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       const resultInterval = absInterval(operandInterval);
       const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
-      lastVerifiedDigits = verified.verifiedDigits;
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -1214,10 +1183,6 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
-
-    throw new InternalCalculationException(
-      `Unable to prove ${String(request.significantDigits)} digits for abs; last verified ${String(lastVerifiedDigits)}`
-    );
   }
 
   private async refineExp(
@@ -1243,7 +1208,7 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       operand,
       "exp",
       () => "ok",
-      expBallInterval
+      (interval, decimalDigits) => expBallInterval(interval, decimalDigits, context)
     );
   }
 
@@ -1263,7 +1228,7 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       operand,
       "ln",
       (interval) => lnDomainStatus(interval),
-      lnPositiveInterval
+      (interval, decimalDigits) => lnPositiveInterval(interval, decimalDigits, context)
     );
   }
 
@@ -1279,9 +1244,8 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     }
 
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
-    let lastVerifiedDigits = 0;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
@@ -1293,7 +1257,8 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         operation,
         operandInterval,
         decimalDigits,
-        context.settings.angleMode
+        context.settings.angleMode,
+        context
       );
 
       if (resultInterval === null) {
@@ -1308,7 +1273,6 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         context
       );
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
-      lastVerifiedDigits = verified.verifiedDigits;
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -1320,10 +1284,6 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
-
-    throw new InternalCalculationException(
-      `Unable to prove ${String(request.significantDigits)} digits for ${operation}; last verified ${String(lastVerifiedDigits)}`
-    );
   }
 
   private async refineUnaryTranscendental(
@@ -1338,9 +1298,8 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     ) => ReturnType<typeof expBallInterval>
   ): Promise<Ball> {
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
-    let lastVerifiedDigits = 0;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
@@ -1364,7 +1323,6 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       );
       const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
-      lastVerifiedDigits = verified.verifiedDigits;
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -1376,10 +1334,6 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
-
-    throw new InternalCalculationException(
-      `Unable to prove ${String(request.significantDigits)} digits for ${operation}; last verified ${String(lastVerifiedDigits)}`
-    );
   }
 
   private onlyArgumentNode(functionName: string): EvaluationNode {
@@ -1467,9 +1421,8 @@ class LogEvaluationNode extends BaseEvaluationNode {
     }
 
     let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
-    let lastVerifiedDigits = 0;
 
-    for (let attempt = 0; attempt < MAX_ADAPTIVE_REFINEMENT_ATTEMPTS; attempt += 1) {
+    for (;;) {
       context.checkpoint();
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
@@ -1497,8 +1450,8 @@ class LogEvaluationNode extends BaseEvaluationNode {
       }
 
       const decimalDigits = operandDigits + DEFAULT_GUARD_DIGITS + 8;
-      const numerator = lnPositiveInterval(argumentInterval, decimalDigits);
-      const denominator = lnPositiveInterval(baseInterval, decimalDigits);
+      const numerator = lnPositiveInterval(argumentInterval, decimalDigits, context);
+      const denominator = lnPositiveInterval(baseInterval, decimalDigits, context);
 
       if (intervalContainsRational(denominator, integerRational(0n))) {
         operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
@@ -1511,7 +1464,6 @@ class LogEvaluationNode extends BaseEvaluationNode {
         context.backend
       );
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
-      lastVerifiedDigits = verified.verifiedDigits;
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -1523,10 +1475,6 @@ class LogEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
-
-    throw new InternalCalculationException(
-      `Unable to prove ${String(request.significantDigits)} digits for log; last verified ${String(lastVerifiedDigits)}`
-    );
   }
 
   protected evaluateUncached(context: EvaluationGraphContext): RealValue {
@@ -1557,15 +1505,16 @@ function evaluateTrigInterval(
   operation: TrigFunctionName,
   interval: ReturnType<typeof rationalIntervalFromBall>,
   decimalDigits: number,
-  angleMode: "radians" | "degrees"
+  angleMode: "radians" | "degrees",
+  context: EvaluationGraphContext
 ): ReturnType<typeof sinAngleInterval> | null {
   switch (operation) {
     case "sin":
-      return sinAngleInterval(interval, decimalDigits, angleMode);
+      return sinAngleInterval(interval, decimalDigits, angleMode, context);
     case "cos":
-      return cosAngleInterval(interval, decimalDigits, angleMode);
+      return cosAngleInterval(interval, decimalDigits, angleMode, context);
     case "tan":
-      return tanAngleInterval(interval, decimalDigits, angleMode);
+      return tanAngleInterval(interval, decimalDigits, angleMode, context);
   }
 }
 
@@ -1784,10 +1733,6 @@ function nextOperandDigits(
   const doubled = currentDigits * 2;
 
   return Math.max(currentDigits + growth, doubled);
-}
-
-function adaptiveOperandDigitLimit(requestedDigits: number): number {
-  return Math.max(4096, requestedDigits * 16);
 }
 
 type DomainRefinementStatus = "ok" | "needs-refinement" | "domain-error";

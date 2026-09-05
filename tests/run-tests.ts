@@ -21,3 +21,4 @@ import "./hard-resource-safety.test.js";
 import "./display-formatter.test.js";
 import "./history-ans.test.js";
 import "./worker-transport.test.js";
+import "./correctness-stabilization.test.js";
