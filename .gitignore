@@ -3,3 +3,4 @@ dist-test/
 node_modules/
 coverage/
 *.tsbuildinfo
+IMPLEMENTATION_PLAN.md
