@@ -1,7 +1,7 @@
 # BigCalc Implementation Plan
 
 **Файл:** `IMPLEMENTATION_PLAN.md`  
-**Статус:** Draft 1  
+**Статус:** Draft 2 — этапы 0–22 завершены; добавлен обязательный блок математической стабилизации  
 **Основание:** `CORE_SPEC.md` Draft 2  
 **Область:** реализация математического ядра BigCalc до начала разработки прикладных калькуляторов и UI.
 
@@ -111,6 +111,18 @@ JavaScript `number` не используется как основное мат
 - единицы измерения;
 - прикладные калькуляторы;
 - UI.
+
+### 2.8. Область действия precision cutoff
+
+Ограничение `3000/3001` из этапа 11 **не является глобальным пределом точности ядра**.
+
+Оно относится только к операциям `+` и `-`, для которых cutoff явно определён `CORE_SPEC.md`.
+
+Для `π`, `e`, `sin`, `cos`, `tan`, `exp`, `ln`, `log`, powers, Gamma и других `LazyReal`-вычислений действует общий demand-driven контракт: потребитель запрашивает `N` verified digits, алгоритм уточняется до доказательства `N` цифр либо останавливается resource policy.
+
+Нельзя вводить скрытый математический потолок вроде `1000`, `3000`, `20000 terms` и т. п. Внутренние лимиты допустимы только как hard resource safety и не должны подменять математическую семантику.
+
+При оценке алгоритмов основной критерий — масштабирование времени и памяти как функции `N`, а не достаточность для фиксированного числа цифр.
 
 ---
 
@@ -898,7 +910,7 @@ still uncertain → refine/pause
 
 ## Цель
 
-Реализовать согласованное ограничение для `+`, `-` и соответствующих degree-функций.
+Реализовать согласованное ограничение только для `+` и `-`.
 
 ## Реализовать
 
@@ -1098,7 +1110,6 @@ log2(8) → 3
 
 - преобразование семантики аргумента;
 - точные rational degree fast paths;
-- precision cutoff там, где он предусмотрен спецификацией.
 
 Примеры exact degree paths:
 
@@ -1539,19 +1550,592 @@ Worker transport не должен менять математические и�
 
 ---
 
-# ЭТАП 23. Сквозное тестирование математического ядра
+# ЭТАП 23. Correctness stabilization после этапа 22
 
 ## Цель
 
-Проверить систему как единое целое.
+До performance-оптимизаций устранить найденные математические ошибки и архитектурные дублирования, которые могут приводить к неверному результату или к разным реализациям одной и той же математики.
+
+Этот этап является **блокирующим** для дальнейшего profiling и API freeze.
+
+## 23.1. Исправить range reduction `sin` / `cos`
+
+Текущая редукция вида:
+
+```text
+r = x - kπ
+```
+
+не должна терять parity/quadrant information.
+
+Новая редукция возвращает не только reduced interval, но и метаданные преобразования:
+
+```text
+reduced interval
+sin sign
+cos sign
+swap sin/cos
+pole/quadrant information
+```
+
+Предпочтительная каноническая область:
+
+```text
+[-π/4, +π/4]
+```
+
+с использованием симметрий относительно кратных `π/2`.
+
+Обязательные regression cases:
+
+```text
+sin(4)
+cos(4)
+sin(100°)
+cos(100°)
+значения во всех четырёх квадрантах
+границы около k·π/2
+очень большие положительные/отрицательные аргументы
+```
+
+Для interval, пересекающего границу выбора квадранта, нельзя выбирать ветку произвольно:
+
+```text
+refine argument / π
+или
+вернуть объединяющий безопасный interval
+```
+
+## 23.2. Единый источник `π`
+
+Удалить независимые вычислительные копии `piRationalInterval()` из функций высокого уровня.
+
+Все потребители `π` используют один context-scoped precision-aware provider:
+
+```text
+π constant state
+    ├─ trig range reduction
+    ├─ degree → radian
+    ├─ Gamma
+    └─ other future consumers
+```
+
+Требования:
+
+- повторный запрос той же или меньшей точности использует кэш;
+- больший запрос продолжает/расширяет существующее состояние;
+- одна операция не пересчитывает `π` несколько раз без необходимости;
+- наружу по-прежнему выдаётся строгий interval/ball.
+
+## 23.3. Удалить correctness-зависимость от фиксированных term limits
+
+Проверить:
+
+```text
+MAX_SERIES_TERMS
+MAX_REDUCTION_STEPS
+фиксированные 256 Bernoulli terms
+другие аналогичные constants
+```
+
+Если такой предел создаёт конечный математический потолок точности, алгоритм должен быть изменён.
+
+После этапа:
+
+- математический алгоритм определяется запросом `N`;
+- остановка по времени выполняется через soft timeout/checkpoints;
+- аварийная остановка — через hard resource safety;
+- фиксированный счётчик итераций не подменяет resource policy.
+
+## Тесты
+
+- regression tests на каждый найденный correctness bug;
+- tests с precision существенно выше прежних внутренних порогов в test-friendly конфигурации;
+- доказательство containment после range reduction;
+- отсутствие расхождения между разными потребителями `π`.
+
+## Definition of Done
+
+- известная ошибка знака `sin/cos` устранена;
+- нет независимых математически расходящихся реализаций `π`;
+- нет известного фиксированного внутреннего лимита, который сам по себе задаёт максимальную точность функции.
+
+---
+
+# ЭТАП 24. Shared high-precision infrastructure и константы
+
+## Цель
+
+Устранить повторные вычисления и заложить общую масштабируемую инфраструктуру для трансцендентных функций.
+
+## 24.1. `π`: Chudnovsky + binary splitting
+
+Основной алгоритм `π` заменить на Chudnovsky с binary splitting и строгой оценкой остатка.
+
+Требования:
+
+- число членов определяется требуемой точностью;
+- binary splitting используется для уменьшения стоимости больших Rational/BigInt операций;
+- вычисляется строгий interval, а не только центральное приближение;
+- state/context cache переиспользуется всеми ссылками на `π`;
+- увеличение requested precision не должно безусловно пересчитывать всё с нуля.
+
+Допускается block-based binary splitting:
+
+```text
+cached blocks
+new precision request
+    ↓
+append additional blocks
+    ↓
+combine tree
+```
+
+если это упрощает resumable refinement.
+
+Старая Machin-реализация может временно оставаться только как независимый test/reference path, но не как основной production algorithm.
+
+## 24.2. `e`: сохранить factorial series, исправить refinement
+
+Ряд:
+
+```text
+e = Σ 1/n!
+```
+
+сохраняется.
+
+Исправить стратегию продолжения:
+
+- не добавлять безусловно фиксированные 6 членов на каждый `refine`;
+- `missingDigits` не трактовать как число новых членов;
+- использовать текущую строгую tail bound для оценки, сколько членов действительно нужно;
+- уже вычисленные `partialNumerator`, `partialDenominator`, `completedTermCount` продолжаются без пересчёта;
+- верхнюю границу строить специализированно, без общего дорогого сложения Rational, если это уменьшает размер промежуточных чисел.
+
+Целевая стратегия:
+
+```text
+current tail bound
+requested N
+    ↓
+estimate next target term count
+    ↓
+extend state in chunk
+    ↓
+verify
+    ↓
+repeat only if necessary
+```
+
+## 24.3. Общие precision-aware caches
+
+Добавить context-scoped caches для дорогих фундаментальных значений, минимум:
+
+```text
+π
+ln(2)
+```
+
+Кэш должен хранить доказанное состояние/interval и уметь расширяться по точности.
+
+Нельзя кэшировать только decimal text.
+
+## 24.4. Общая fixed-point interval primitive
+
+Добавить внутреннюю primitive для вычислений вида:
+
+```text
+integer interval / 10^D
+```
+
+с outward rounding:
+
+```text
+mulScaled
+squareScaled
+divScaled
+rescale
+```
+
+Она должна использоваться там, где точный `Rational` создаёт бесконтрольный рост знаменателей без математической пользы.
+
+## Тесты
+
+- `π`: differential + containment на растущей последовательности точностей;
+- `e`: число реально добавленных terms должно расти в соответствии с tail bound, а не линейно с `missingDigits`;
+- shared `π`/`ln2` cache reuse;
+- fixed-point operations против exact Rational reference на малых значениях;
+- monotonic refinement.
+
+## Definition of Done
+
+- основной `π` масштабируется без Machin-term-count bottleneck;
+- `e` действительно продолжает вычисление по математической оценке остатка;
+- фундаментальные константы не пересчитываются независимо каждым вызовом;
+- есть reusable fixed-point interval layer для следующих этапов.
+
+---
+
+# ЭТАП 25. `exp`, `ln`, `log` — масштабируемая реализация
+
+## Цель
+
+Сохранить удачные математические формулы, но убрать найденные проблемы размеров Rational, лишней точности и повторных вычислений.
+
+## 25.1. `exp`
+
+Сохранить:
+
+```text
+x → r = x / 2^k
+exp(x) = exp(r)^(2^k)
+```
+
+и малый Taylor/factorial series.
+
+Изменить восстановление:
+
+- каждый square выполняется через fixed-point/outward interval arithmetic;
+- после каждого square рабочая точность возвращается к контролируемому масштабу;
+- нельзя позволять знаменателю Rational удваивать число разрядов при каждом squaring.
+
+Guard digits оценивать по накоплению ошибки, а не как безусловное `+k`:
+
+```text
+guard ≈ ceil(k * log10(2)) + safetyMargin
+```
+
+Финальное решение всё равно подтверждается через `verifiedNumberFromBall`.
+
+## 25.2. `ln`
+
+Сохранить формулу:
+
+```text
+z = (x - 1) / (x + 1)
+ln(x) = 2 * (z + z^3/3 + z^5/5 + ...)
+```
+
+Изменить argument reduction.
+
+Вместо последовательного деления/умножения на 2:
+
+- определять binary scale `k` напрямую по числителю/знаменателю;
+- приводить `x = r * 2^k` без `O(|k|)` reduction loop;
+- выбирать `r` ближе к `1`, например в рационально задаваемой полосе порядка `2/3 ≤ r ≤ 4/3`, чтобы уменьшить `|z|`.
+
+Исправить precision estimate для:
+
+```text
+ln(x) = ln(r) + k*ln(2)
+```
+
+Не использовать:
+
+```text
+decimalDigits + abs(k)
+```
+
+Использовать начальную оценку порядка:
+
+```text
+decimalDigits + digits10(abs(k)) + safetyMargin
+```
+
+с последующей обычной adaptive verification.
+
+`ln(2)` брать из общего precision-aware cache.
+
+## 25.3. `log`
+
+Основной путь сохранить:
+
+```text
+log_b(x) = ln(x) / ln(b)
+```
+
+Требования:
+
+- оба `ln` используют исправленную реализацию и общий `ln2` cache;
+- base около `1` продолжает вызывать adaptive refinement;
+- одинаковые child/value computations в одном graph не должны повторяться без необходимости.
+
+Расширить cheap exact path для рациональных логарифмов там, где результат можно доказать без общей факторизации.
+
+Минимальный дополнительный путь:
+
+```text
+для ограниченного малого denominator q:
+    проверить, является ли argument^q точной целой степенью base
+    если да:
+        log_base(argument) = p/q
+```
+
+Этот fast path является оптимизацией; при отсутствии доказательства используется общий LazyReal path.
+
+## Тесты
+
+- `exp` на аргументах, требующих много squaring;
+- большие положительные/отрицательные аргументы `ln`;
+- `ln(2^k)` при больших `|k|`;
+- `log` с base очень близкой к `1`;
+- exact cases `log4(2) = 1/2`, `log8(4) = 2/3`, если дополнительный exact path реализован;
+- профили размера промежуточных bigint/Rational на synthetic tests;
+- отсутствие linear-in-`|k|` reduction loops.
+
+## Definition of Done
+
+- `exp` не создаёт экспоненциальный рост Rational denominator при squaring;
+- `ln` не запрашивает `O(|k|)` лишних decimal digits и не делает `O(|k|)` reduction steps;
+- `ln2` переиспользуется;
+- `log` наследует эти улучшения и сохраняет корректную domain refinement.
+
+---
+
+# ЭТАП 26. `sin`, `cos`, `tan` — новая вычислительная ветка
+
+## Цель
+
+После correctness fix этапа 23 заменить дорогой Rational-based Taylor path на масштабируемую interval-реализацию.
+
+## 26.1. Canonical reduction
+
+Использовать единый reducer по кратным `π/2`, который возвращает:
+
+```text
+small reduced interval in [-π/4, π/4]
+quadrant
+sinSign
+cosSign
+swapSinCos
+```
+
+`π` берётся только из общего provider.
+
+Degree mode:
+
+- exact degree fast paths выполняются до перехода в approximate path;
+- для остальных значений degree → radian использует тот же cached `π`;
+- после conversion не выполнять независимые повторные вычисления `π`.
+
+## 26.2. Совместный `sincos`
+
+Реализовать внутренний evaluator:
+
+```text
+sincosSmallInterval(x, precision)
+    → { sinInterval, cosInterval }
+```
+
+Требования:
+
+- общие `x²` и reduction data вычисляются один раз;
+- series arithmetic использует scaled/fixed-point intervals, а не точные Rational с растущими знаменателями;
+- tail bounds остаются строгими;
+- для `sin` или `cos` по отдельности допускается вычислять только реально нужную ветку, если это дешевле;
+- `tan` переиспользует один совместный `sincos`, а не четыре независимых ряда.
+
+## 26.3. `tan`
+
+Сохраняется:
+
+```text
+tan = sin / cos
+```
+
+но:
+
+- pole detection использует quadrant/reduction metadata;
+- если denominator interval может содержать 0 — refinement;
+- если полюс доказан — `DomainError`;
+- никаких преждевременных domain errors.
+
+## Тесты
+
+- все квадранты;
+- `sin(4)`, `cos(4)`, `sin(100°)`, `cos(100°)`;
+- около `π/2 + kπ`;
+- large argument reduction;
+- сравнение reference semantics и нового `sincos`;
+- benchmark/profiling количества series evaluations для `tan`;
+- контроль размера bigint при high precision degree/radian inputs.
+
+## Definition of Done
+
+- исправлен знак во всех квадрантах;
+- reduced argument находится в `[-π/4, π/4]` либо используется доказуемо безопасный fallback;
+- `sin/cos/tan` не строят огромные точные Rational denominators из Taylor powers;
+- `tan` не считает независимо четыре ряда.
+
+---
+
+# ЭТАП 27. Powers и Gamma — precision-parametric algorithms
+
+## Цель
+
+Убрать ненужный `ln+exp` для рациональных корней и заменить Gamma-реализацию, имеющую фиксированный потолок точности.
+
+## 27.1. `nthRoot` как отдельная primitive
+
+Добавить rigorous positive-real `nthRoot` с adaptive precision, предпочтительно Newton:
+
+```text
+x_(k+1) = ((n-1) * x_k + a / x_k^(n-1)) / n
+```
+
+Требования:
+
+- outward interval/ball semantics;
+- quadratic convergence после достаточно хорошего initial approximation;
+- exact Rational root fast path остаётся первым;
+- state/refinement можно продолжать;
+- отрицательный Rational base + odd denominator обрабатывается через модуль и знак.
+
+## 27.2. Rational powers
+
+Для:
+
+```text
+a^(p/q)
+```
+
+стратегия:
+
+```text
+1. exact rational root?
+   → exact Rational
+
+2. q имеет допустимый practical size?
+   → rigorous nthRoot(a, q)
+   → integer power p
+
+3. otherwise
+   → general exp((p/q) * ln(a))
+```
+
+Не задавать математический фиксированный максимум `q`; practical choice должен определяться cost model/resource policy.
+
+## 27.3. General real powers
+
+Для positive real base и general real exponent сохранить:
+
+```text
+exp(y * ln(x))
+```
+
+после исправлений этапа 25.
+
+Domain uncertainty около нуля продолжает решаться adaptive refinement.
+
+## 27.4. Gamma: заменить fixed-256 Stirling engine
+
+Текущая схема:
+
+```text
+shift target ≈ decimalDigits
+Stirling corrections
+hard-coded max 256 Bernoulli terms
+```
+
+не допускается как production algorithm, потому что создаёт конечный precision ceiling.
+
+Новая Gamma должна быть **precision-parametric**.
+
+Предпочтительный production path:
+
+```text
+Spouge approximation with rigorous real error bound
+```
+
+для положительного аргумента после корректной domain reduction.
+
+Требования к Spouge path:
+
+- параметр `a` выбирается из requested precision `N`;
+- коэффициенты вычисляются/кэшируются precision-aware;
+- используется strict interval arithmetic;
+- truncation/error bound явно входит в returned interval;
+- нет фиксированного term count, определяющего максимальную точность;
+- cooperative checkpoints встроены в coefficient generation и summation.
+
+Если в ходе реализации будет доказано, что adaptive Stirling даёт более простой и быстрый строгий путь, допускается оставить Stirling **только при одновременном выполнении**:
+
+```text
+term count определяется N
+shift и term count выбираются совместно
+Bernoulli генерируются инкрементально/эффективно
+powers z переиспользуются
+нет fixed 256 ceiling
+```
+
+Изменение между Spouge и adaptive Stirling фиксируется коротким ADR/engineering note с benchmark и error-bound derivation.
+
+## 27.5. Gamma reduction и отрицательные аргументы
+
+Сохранить:
+
+- exact integer factorial fast path;
+- half-integer fast path;
+- pole detection/refinement.
+
+Для general Gamma:
+
+- не строить последовательным умножением гигантский exact recurrence product, если затем нужен только его logarithm/magnitude;
+- использовать balanced product tree либо log-domain accumulation с доказуемыми bounds;
+- для отрицательных нецелых аргументов рассмотреть reflection formula:
+  ```text
+  Γ(x) = π / (sin(πx) Γ(1-x))
+  ```
+  если она уменьшает стоимость и domain/pole analysis остаётся строгим;
+- выбирать recurrence/reflection по cost model, не по фиксированному диапазону.
+
+## 27.6. Устранить наследуемые дублирования
+
+Gamma должна использовать:
+
+```text
+shared π provider
+shared ln2 cache
+исправленный ln
+исправленный exp
+новый nthRoot для sqrt(π), где применимо
+```
+
+## Тесты
+
+- integer factorial exact path;
+- half-integers;
+- positive non-half-integers;
+- negative non-integers между полюсами;
+- значения очень близко к poles;
+- sequential refinement на растущих `N`;
+- test configuration, превышающая старый предел 256 corrections;
+- differential comparison с независимым high-precision Gamma;
+- отсутствие заранее заданного precision ceiling.
+
+## Definition of Done
+
+- рациональные дробные powers не обязаны проходить через `ln+exp`;
+- Gamma не имеет фиксированного математического потолка, заданного term count;
+- все Gamma branches имеют строгую error bound;
+- poles/domain uncertainty сохраняют корректную refinement-семантику.
+
+---
+
+# ЭТАП 28. Сквозное тестирование математического ядра
+
+## Цель
+
+Проверить систему как единое целое после математической стабилизации.
 
 ## Test suites
 
-### 23.1. Parser → exact result
+### 28.1. Parser → exact result
 
 Большая таблица выражений и точных rational результатов.
 
-### 23.2. Parser → lazy result → verified digits
+### 28.2. Parser → lazy result → verified digits
 
 Примеры с:
 
@@ -1568,7 +2152,7 @@ powers
 Gamma
 ```
 
-### 23.3. Containment tests
+### 28.3. Containment tests
 
 Для каждой approximate операции:
 
@@ -1576,30 +2160,34 @@ Gamma
 referenceValue ∈ returnedBall
 ```
 
-### 23.4. Monotonic refinement
+### 28.4. Monotonic refinement
 
-Для последовательности:
+Базовая последовательность:
 
 ```text
 10 → 20 → 50 → 100 → 300 → 1000 digits
 ```
 
-старый verified prefix никогда не меняется.
+используется как regression suite, но **не считается максимальной поддерживаемой точностью**.
 
-### 23.5. Differential tests
+Дополнительно должны существовать parameterized tests на дальнейший рост `N` в пределах test resource budget.
+
+Старый verified prefix никогда не меняется.
+
+### 28.5. Differential tests
 
 Сравнение с независимым high-precision reference backend/implementation.
 
 Reference не должен быть тем же кодом, который тестируется.
 
-### 23.6. Resource lifecycle
+### 28.6. Resource lifecycle
 
 - timeout;
 - continue;
 - cancel;
 - hard limit.
 
-### 23.7. Domain boundaries
+### 28.7. Domain boundaries
 
 Особенно:
 
@@ -1612,59 +2200,133 @@ negative-base powers
 Gamma poles
 ```
 
-### 23.8. Cutoff
+### 28.8. Cutoff
 
 Production cutoff 3000/3001 и уменьшенный test cutoff.
+
+Отдельно проверить, что cutoff не ограничивает напрямую precision requests к:
+
+```text
+π/e/trig/exp/ln/log/pow/Gamma
+```
+
+если выражение не проходит через cutoff-операцию.
+
+### 28.9. Regression suite найденных проблем
+
+Обязательные regression groups:
+
+```text
+π state reuse / no duplicate Machin path
+e term-growth strategy
+sin/cos quadrant sign
+trig shared π
+trig Rational denominator growth
+tan duplicate series work
+exp repeated squaring growth
+ln large |binary scale|
+ln2 reuse
+log near-one base
+rational fractional powers
+Gamma precision beyond old 256-term ceiling
+```
 
 ## Definition of Done
 
 Нет известного нарушения фундаментальных инвариантов `CORE_SPEC.md`.
 
+Все проблемы, зафиксированные этапами 23–27, имеют regression tests.
+
 ---
 
-# ЭТАП 24. Performance profiling и безопасные оптимизации
+# ЭТАП 29. Performance profiling и безопасные оптимизации
 
 ## Цель
 
-Оптимизировать только после появления корректного end-to-end ядра.
+Проверить уже исправленные алгоритмы на реальном scaling и оптимизировать только при сохранении строгих bounds.
 
 ## Измерять
 
-- стоимость refinement;
-- повторное использование lazy-state;
+- время и память как функцию requested precision `N`;
+- стоимость последовательного refinement `N1 → N2 → N3` против одного прямого запроса `N3`;
+- reuse lazy-state;
 - allocation pressure;
 - conversion `Rational → Ball`;
 - interval ↔ ball conversions;
 - constants;
-- trig range reduction;
+- Chudnovsky/binary splitting;
+- trig range reduction и `sincos`;
+- `exp` fixed-point squaring;
+- `ln` reduction;
+- `nthRoot`;
+- Gamma;
 - verified decimal extraction;
 - large Rational normalization.
 
+## Обязательные scaling benchmarks
+
+Не фиксировать benchmark только на `3000`.
+
+Использовать геометрическую последовательность доступных для CI/local machine точностей, например:
+
+```text
+100
+300
+1000
+3000
+10000
+...
+```
+
+и продолжать выше там, где позволяет ресурсный бюджет.
+
+Benchmark должен показывать тренд:
+
+```text
+time(N)
+memory(N)
+termCount(N)
+peakBigIntDigits(N)
+```
+
+а не только одно абсолютное время.
+
 ## Допустимые оптимизации
 
-- прямые доказанные ball formulas;
+- direct proven ball formulas;
 - memoization;
 - shared constant states;
-- binary splitting;
+- block/binary splitting;
 - chunked series;
-- более эффективные exact root checks;
-- adaptive precision growth.
+- Newton iterations;
+- balanced product trees;
+- adaptive precision growth;
+- cached coefficient tables;
+- backend-specific fast path за доказуемым adapter boundary.
 
 ## Запрещённый подход
 
-Нельзя ослаблять error bounds или пропускать directed rounding ради benchmark.
+Нельзя:
+
+- ослаблять error bounds;
+- пропускать directed rounding;
+- вводить скрытый fixed precision ceiling;
+- считать soft timeout математической ошибкой;
+- оптимизировать только под 3000 digits, ухудшая асимптотику произвольного `N`.
 
 ## Definition of Done
 
 Каждая существенная оптимизация имеет benchmark и regression/math tests.
 
+Для основных `LazyReal`-алгоритмов известна наблюдаемая scaling-кривая и нет очевидного искусственного потолка точности раньше resource policy.
+
 ---
 
-# ЭТАП 25. Freeze первого публичного Core API
+# ЭТАП 30. Freeze первого публичного Core API
 
 ## Цель
 
-После стабилизации ядра подготовить его к использованию будущими плагинами.
+После математической стабилизации и profiling подготовить ядро к использованию будущими плагинами.
 
 ## Провести аудит
 
@@ -1674,7 +2336,8 @@ Production cutoff 3000/3001 и уменьшенный test cutoff.
 - нет ли DOM/Worker transport leakage;
 - возможно ли добавить будущий третий вид `RealValue` для сверхбольших чисел;
 - возможно ли регистрировать функции/константы без изменения grammar;
-- можно ли использовать core без основного Calculator UI.
+- можно ли использовать core без основного Calculator UI;
+- не просочились ли во внешний API внутренние алгоритмические детали: Chudnovsky, Spouge/Stirling, fixed-point scale, coefficient caches.
 
 ## Результат
 
@@ -1690,9 +2353,8 @@ Production cutoff 3000/3001 и уменьшенный test cutoff.
 - обработать pause/error;
 - использовать настройки;
 
-не зная конкретного arbitrary-precision backend.
+не зная конкретного arbitrary-precision backend или внутреннего алгоритма функции.
 
----
 
 # 4. Зависимости этапов
 
@@ -1744,11 +2406,21 @@ Production cutoff 3000/3001 и уменьшенный test cutoff.
         ↓
 22 Worker transport
         ↓
-23 full verification
+23 correctness stabilization
         ↓
-24 optimization
+24 shared high-precision infrastructure + constants
         ↓
-25 public API freeze
+25 exp/ln/log stabilization
+        ↓
+26 trig stabilization
+        ↓
+27 powers/Gamma stabilization
+        ↓
+28 full verification
+        ↓
+29 scaling/profile optimization
+        ↓
+30 public API freeze
 ```
 
 На практике некоторые этапы можно разрабатывать частично параллельно, но нельзя объявлять зависящий этап завершённым до завершения его математических зависимостей.
@@ -1853,22 +2525,39 @@ Gamma mode
 
 ---
 
-## Milestone E — Core Ready
+## Milestone E — Mathematical Stabilization
 
 Включает:
 
 ```text
-23–25
+23–27
+```
+
+Требуется:
+
+- устранить найденные correctness issues;
+- заменить искусственно ограниченные/плохо масштабируемые алгоритмы;
+- унифицировать фундаментальные high-precision primitives и caches;
+- подтвердить отсутствие глобального precision ceiling, не предусмотренного `CORE_SPEC.md`.
+
+---
+
+## Milestone F — Core Ready
+
+Включает:
+
+```text
+28–30
 ```
 
 Требуется:
 
 - полный набор обязательных тестов;
-- profiling;
-- исправление correctness issues;
+- scaling-oriented profiling;
+- исправление оставшихся correctness/performance issues;
 - public API audit/freeze.
 
-Только после **Milestone E** начинается разработка прикладных калькуляторов/плагинов.
+Только после **Milestone F** начинается разработка прикладных калькуляторов/плагинов.
 
 ---
 
@@ -1899,8 +2588,15 @@ Gamma mode
 21. ядро совместимо с Worker transport;
 22. сторонние numeric types не входят в public API;
 23. unit/property/differential/containment/monotonic tests проходят;
-24. нет известных нарушений фундаментальных инвариантов;
-25. public API прошёл финальный аудит.
+24. cutoff `3000/3001` не трактуется как глобальный предел precision для `LazyReal`;
+25. `π` использует единый shared precision-aware provider и масштабируемый production algorithm;
+26. `sin/cos` корректно сохраняют quadrant/sign information при range reduction;
+27. `exp` не раздувает Rational denominator повторным exact squaring;
+28. `ln` не использует `O(|k|)` precision overhead/reduction loop для binary scale;
+29. rational fractional powers используют direct `nthRoot`, когда это дешевле общего `ln+exp`;
+30. Gamma не имеет fixed-term precision ceiling и использует precision-parametric error-bounded algorithm;
+31. нет известных нарушений фундаментальных инвариантов;
+32. public API прошёл финальный аудит.
 
 ---
 
@@ -1942,7 +2638,7 @@ Gamma mode
 
 ### 7.5. Изменение public API
 
-До Milestone E public API может эволюционировать, но изменение должно быть осознанным и сопровождаться обновлением тестов/потребителей.
+До Milestone F public API может эволюционировать, но изменение должно быть осознанным и сопровождаться обновлением тестов/потребителей.
 
 После API freeze изменения требуют отдельного решения.
 
@@ -1952,31 +2648,47 @@ Gamma mode
 
 ---
 
-# 8. Первые задачи для Codex
+# 8. Следующие задачи для Codex после завершения этапа 22
 
-Когда документы готовы, работу рекомендуется начинать не запросом «реализуй BigCalc», а последовательностью ограниченных задач.
+Этапы `0–22` считаются реализованной базой. Следующая работа должна идти небольшими завершёнными задачами по блоку математической стабилизации.
 
-### Task 1
+### Task 23.1
 
-Создать TypeScript-проект ядра, strict configuration, tests и базовую модульную структуру. Не реализовывать математику.
+Исправить `sin/cos` range reduction так, чтобы сохранялись quadrant/parity/sign. Добавить regression tests `sin(4)`, `cos(4)`, `sin(100°)`, `cos(100°)` и границы квадрантов.
 
-### Task 2
+### Task 23.2
 
-Реализовать `Rational` и его property-based tests.
+Унифицировать получение `π`: убрать локальные независимые production-вычисления и перевести trig/Gamma/degree conversion на общий context-scoped precision-aware provider.
 
-### Task 3
+### Task 24.1
 
-Реализовать registry/tokenizer contracts и тесты разбиения имён.
+Заменить production `π` на Chudnovsky + binary splitting со строгим interval/error bound и reuse состояния.
 
-### Task 4
+### Task 24.2
 
-Реализовать parser + immutable AST со всей таблицей precedence.
+Исправить `e` refinement: target term count выводится из tail bound, без `missingDigits → terms` и без безусловных `+6` на каждый refine.
 
-### Task 5
+### Task 24.3
 
-Исследовать допустимые arbitrary-precision backends и подготовить ADR. Не подключать выбранный backend в публичные API.
+Добавить общий scaled/fixed-point interval primitive и precision-aware cache `ln(2)`.
 
-Только после принятия результата Task 5 переходить к строгой ball arithmetic.
+### Task 25
+
+Перевести `exp` squaring на scaled interval arithmetic; исправить `ln` binary reduction и precision estimate; затем проверить `log`.
+
+### Task 26
+
+Перевести trig Taylor evaluation на shared `sincos` + scaled intervals и canonical `[-π/4, π/4]` reduction.
+
+### Task 27.1
+
+Добавить rigorous `nthRoot` и подключить его к rational fractional powers.
+
+### Task 27.2
+
+Заменить Gamma engine на precision-parametric implementation без fixed 256-term ceiling; зафиксировать выбранный Spouge/adaptive-Stirling вариант engineering note с доказанной error bound.
+
+После этапа 27 переходить к новому сквозному этапу 28.
 
 ---
 
