@@ -24,3 +24,4 @@ import "./worker-transport.test.js";
 import "./correctness-stabilization.test.js";
 import "./high-precision-infrastructure.test.js";
 import "./scalable-exp-ln-log.test.js";
+import "./scalable-trig.test.js";

@@ -11,3 +11,8 @@ and rescaling without exposing backend types.
 its binary scale directly and reuses the context-scoped `ln(2)` cache. Their guard precision
 grows with the decimal digit count of the amplification factor, not linearly with the binary
 scale. Small rational logarithms also have a bounded exact fractional-exponent path.
+
+Trigonometric evaluation uses one canonical reduction to `[-π/4, π/4]` and a joint
+fixed-point `sincos` series with outward rounding. `tan` consumes that shared result and
+checks reducer pole metadata before starting the series. Degree conversion passes the same
+cached `π` interval into reduction.
