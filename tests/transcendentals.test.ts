@@ -33,6 +33,8 @@ void describe("exp, ln, and log", () => {
     assertExpressionRational("log2(8)", integerRational(3n));
     assertExpressionRational("log{2+3}(125)", integerRational(3n));
     assertExpressionRational("log2(1/8)", integerRational(-3n));
+    assertExpressionRational("log4(2)", createRational(1n, 2n));
+    assertExpressionRational("log8(4)", createRational(2n, 3n));
   });
 
   void it("produces verified digits for exp, ln, and default log", async () => {

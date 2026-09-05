@@ -108,23 +108,23 @@ void describe("stage 23 correctness stabilization", () => {
     assert.equal(getPiProviderStateSnapshot(context).cacheHits > afterGamma.cacheHits, true);
   });
 
-  void it("lets lifecycle checkpoints, rather than the former reduction count, stop long work", () => {
+  void it("lets lifecycle checkpoints stop exp reconstruction work", () => {
     const sentinel = new Error("checkpoint sentinel");
     let checkpoints = 0;
 
     assert.throws(
       () =>
-        expRationalInterval(integerRational(2n ** 8193n), 1, {
+        expRationalInterval(integerRational(1024n), 20, {
           checkpoint(): void {
             checkpoints += 1;
-            if (checkpoints === 8193) {
+            if (checkpoints === 10) {
               throw sentinel;
             }
           }
         }),
       (error: unknown) => error === sentinel
     );
-    assert.equal(checkpoints, 8193);
+    assert.equal(checkpoints, 10);
   });
 });
 

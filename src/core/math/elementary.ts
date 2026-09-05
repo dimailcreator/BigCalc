@@ -2,7 +2,16 @@ import { internalFloatToRational } from "../backend/index.js";
 import type { BigFloatBackend } from "../backend/index.js";
 import { InternalCalculationException } from "../errors/index.js";
 import type { EvaluationCheckpoint, EvaluationContext } from "../evaluation/contracts.js";
-import { getPiRationalInterval } from "./constants.js";
+import { getLn2RationalInterval, getPiRationalInterval } from "./constants.js";
+import {
+  createScaledInterval,
+  decimalScale,
+  divScaled,
+  scaledIntervalFromRationalBounds,
+  scaledIntervalToRationalBounds,
+  squareScaled,
+  type ScaledInterval
+} from "./scaled-interval.js";
 import { ballToOutwardInterval, createInternalInterval, intervalToBall } from "../values/ball.js";
 import type { Ball, Rational, Sign } from "../values/contracts.js";
 import {
@@ -19,7 +28,6 @@ import {
   multiplyRational,
   negateRational,
   powRational,
-  reciprocalRational,
   signOfRational,
   subtractRational
 } from "../values/rational.js";
@@ -31,12 +39,30 @@ const FOUR = 4n;
 const TEN = 10n;
 const TAIL_STOP_UNITS = 8n;
 const DEFAULT_INTERVAL_GUARD_DIGITS = 8;
+const EXP_RECONSTRUCTION_SAFETY_DIGITS = 10;
+const LN_SCALE_SAFETY_DIGITS = 8;
+const MAX_EXACT_LOG_DENOMINATOR = 16;
+const LOG10_TWO = Math.LOG10E * Math.log(2);
 const MIN_GAMMA_STIRLING_ARGUMENT = 64;
 const BERNOULLI_CACHE = new Map<number, Rational>([[0, RATIONAL_ONE]]);
 
 export interface RationalInterval {
   readonly lower: Rational;
   readonly upper: Rational;
+}
+
+export interface ExpIntervalProfile {
+  readonly reductionPower: number;
+  readonly workingScaleDigits: number;
+  readonly squaringSteps: number;
+  readonly peakEndpointDecimalDigits: number;
+  readonly resultDenominatorDecimalDigits: number;
+}
+
+export interface LnIntervalProfile {
+  readonly binaryScale: number;
+  readonly scaleSelectionComparisons: number;
+  readonly workingDigits: number;
 }
 
 type MathComputationContext = EvaluationContext & EvaluationCheckpoint;
@@ -75,32 +101,72 @@ export function expRationalInterval(
   decimalDigits: number,
   control?: EvaluationCheckpoint
 ): RationalInterval {
+  return expRationalIntervalWithProfile(value, decimalDigits, control).interval;
+}
+
+export function expRationalIntervalWithProfile(
+  value: Rational,
+  decimalDigits: number,
+  control?: EvaluationCheckpoint
+): { readonly interval: RationalInterval; readonly profile: ExpIntervalProfile } {
   if (isZeroRational(value)) {
-    return createRationalInterval(RATIONAL_ONE, RATIONAL_ONE);
+    return Object.freeze({
+      interval: createRationalInterval(RATIONAL_ONE, RATIONAL_ONE),
+      profile: createExpIntervalProfile(0, decimalDigits, 0, 1, 1)
+    });
   }
 
   if (signOfRational(value) < 0) {
-    const positive = expRationalInterval(absRational(value), decimalDigits, control);
-
-    return createRationalInterval(
-      reciprocalRational(positive.upper),
-      reciprocalRational(positive.lower)
+    const positive = expRationalIntervalWithProfile(absRational(value), decimalDigits, control);
+    const scaleDigits = positive.profile.workingScaleDigits;
+    const scale = decimalScale(scaleDigits);
+    const reciprocal = divScaled(
+      createScaledInterval(scale, scale, scaleDigits),
+      scaledIntervalFromRationalBounds(positive.interval, scaleDigits),
+      scaleDigits
     );
+    const interval = scaledIntervalToRationalInterval(reciprocal);
+
+    return Object.freeze({
+      interval,
+      profile: createExpIntervalProfile(
+        positive.profile.reductionPower,
+        scaleDigits,
+        positive.profile.squaringSteps,
+        maxScaledEndpointDecimalDigits(reciprocal),
+        maxRationalDenominatorDecimalDigits(interval)
+      )
+    });
   }
 
   const reduction = reduceExpArgument(value, control);
-  let result = expSmallNonNegativeInterval(
-    reduction.value,
-    decimalDigits + reduction.power + 8,
-    control
-  );
+  const workingScaleDigits =
+    decimalDigits + Math.ceil(reduction.power * LOG10_TWO) + EXP_RECONSTRUCTION_SAFETY_DIGITS;
+  let result = expSmallNonNegativeScaledInterval(reduction.value, workingScaleDigits, control);
+  let peakEndpointDecimalDigits = maxScaledEndpointDecimalDigits(result);
 
   for (let index = 0; index < reduction.power; index += 1) {
     control?.checkpoint();
-    result = multiplyPositiveIntervals(result, result);
+    // Every reconstruction step is rounded outward back to the same decimal scale.
+    // This prevents the denominator from being squared at every step.
+    result = squareScaled(result, workingScaleDigits);
+    peakEndpointDecimalDigits = Math.max(
+      peakEndpointDecimalDigits,
+      maxScaledEndpointDecimalDigits(result)
+    );
   }
 
-  return result;
+  const interval = scaledIntervalToRationalInterval(result);
+  return Object.freeze({
+    interval,
+    profile: createExpIntervalProfile(
+      reduction.power,
+      workingScaleDigits,
+      reduction.power,
+      peakEndpointDecimalDigits,
+      maxRationalDenominatorDecimalDigits(interval)
+    )
+  });
 }
 
 export function expBallInterval(
@@ -117,33 +183,63 @@ export function expBallInterval(
 export function lnPositiveRationalInterval(
   value: Rational,
   decimalDigits: number,
-  control?: EvaluationCheckpoint
+  control?: MathComputationContext
 ): RationalInterval {
+  return lnPositiveRationalIntervalWithProfile(value, decimalDigits, control).interval;
+}
+
+export function lnPositiveRationalIntervalWithProfile(
+  value: Rational,
+  decimalDigits: number,
+  control?: MathComputationContext
+): { readonly interval: RationalInterval; readonly profile: LnIntervalProfile } {
   if (signOfRational(value) <= 0) {
     throw new InternalCalculationException("lnPositiveRationalInterval requires x > 0");
   }
 
   if (equalsRational(value, RATIONAL_ONE)) {
-    return createRationalInterval(RATIONAL_ZERO, RATIONAL_ZERO);
+    return Object.freeze({
+      interval: createRationalInterval(RATIONAL_ZERO, RATIONAL_ZERO),
+      profile: createLnIntervalProfile(0, 0, decimalDigits)
+    });
   }
 
   const reduction = reduceLnArgument(value, control);
-  const reducedDigits = decimalDigits + absNumber(reduction.power) + 8;
+  const reducedDigits =
+    decimalDigits + decimalDigitsForIntegerMagnitude(reduction.power) + LN_SCALE_SAFETY_DIGITS;
   const reducedLog = lnReducedPositiveRationalInterval(reduction.value, reducedDigits, control);
 
   if (reduction.power === 0) {
-    return reducedLog;
+    return Object.freeze({
+      interval: reducedLog,
+      profile: createLnIntervalProfile(
+        reduction.power,
+        reduction.scaleSelectionComparisons,
+        reducedDigits
+      )
+    });
   }
 
-  const lnTwo = lnReducedPositiveRationalInterval(integerRational(TWO), reducedDigits, control);
+  const lnTwo =
+    control === undefined
+      ? lnReducedPositiveRationalInterval(integerRational(TWO), reducedDigits)
+      : getLn2RationalInterval(control, reducedDigits);
 
-  return addIntervals(reducedLog, scaleIntervalByInteger(lnTwo, BigInt(reduction.power)));
+  const interval = addIntervals(reducedLog, scaleIntervalByInteger(lnTwo, BigInt(reduction.power)));
+  return Object.freeze({
+    interval,
+    profile: createLnIntervalProfile(
+      reduction.power,
+      reduction.scaleSelectionComparisons,
+      reducedDigits
+    )
+  });
 }
 
 export function lnPositiveInterval(
   argument: RationalInterval,
   decimalDigits: number,
-  control?: EvaluationCheckpoint
+  control?: MathComputationContext
 ): RationalInterval {
   const lower = lnPositiveRationalInterval(argument.lower, decimalDigits, control);
   const upper = lnPositiveRationalInterval(argument.upper, decimalDigits, control);
@@ -173,7 +269,7 @@ export function powPositiveInterval(
   base: RationalInterval,
   exponent: RationalInterval,
   decimalDigits: number,
-  control?: EvaluationCheckpoint
+  control?: MathComputationContext
 ): RationalInterval {
   if (intervalSignLower(base) <= 0) {
     throw new InternalCalculationException("powPositiveInterval requires base > 0");
@@ -302,7 +398,27 @@ export function exactLogRational(base: Rational, argument: Rational): Rational |
     return RATIONAL_ZERO;
   }
 
-  return searchExactIntegerLog(base, argument);
+  const integerLog = searchExactIntegerLog(base, argument);
+  if (integerLog !== null) {
+    return integerLog;
+  }
+
+  if (!isCheapExactFractionalLogCandidate(base, argument)) {
+    return null;
+  }
+
+  // This is intentionally a small, local exact path rather than a symbolic
+  // factorisation engine: argument^q = base^p proves log_base(argument) = p/q.
+  let argumentPower = argument;
+  for (let denominator = 2; denominator <= MAX_EXACT_LOG_DENOMINATOR; denominator += 1) {
+    argumentPower = multiplyRational(argumentPower, argument);
+    const numerator = searchExactIntegerLog(base, argumentPower);
+    if (numerator !== null) {
+      return createRational(numerator.numerator, BigInt(denominator));
+    }
+  }
+
+  return null;
 }
 
 export function createRationalInterval(lower: Rational, upper: Rational): RationalInterval {
@@ -698,57 +814,74 @@ function reduceExpArgument(
   value: Rational,
   control?: EvaluationCheckpoint
 ): { readonly value: Rational; readonly power: number } {
-  let reduced = value;
-  let power = 0;
   const limit = createRational(ONE, FOUR);
+  if (compareRational(value, limit) <= 0) {
+    return Object.freeze({ value, power: 0 });
+  }
 
-  while (compareRational(reduced, limit) > 0) {
-    control?.checkpoint();
-    reduced = divideRational(reduced, integerRational(TWO));
+  control?.checkpoint();
+  const binaryExponent = positiveFloorBinaryExponent(value).exponent;
+  let power = binaryExponent + 2;
+  if (comparePositiveRationalToPowerOfTwo(value, binaryExponent) > 0) {
     power += 1;
   }
 
+  const reduced = scaleRationalByPowerOfTwo(value, -power);
+  control?.checkpoint();
   return Object.freeze({ value: reduced, power });
 }
 
 function searchExactIntegerLog(base: Rational, argument: Rational): Rational | null {
   const baseAboveOne = compareRational(base, RATIONAL_ONE) > 0;
   const argumentAboveOne = compareRational(argument, RATIONAL_ONE) > 0;
-  let current = RATIONAL_ONE;
+  const exponentSign = baseAboveOne === argumentAboveOne ? 1n : -1n;
+  const effectiveBase = exponentSign > ZERO ? base : divideRational(RATIONAL_ONE, base);
+  const maxMagnitude = 512;
+  const maxPower = powRational(effectiveBase, BigInt(maxMagnitude));
+  const maxComparison = compareRational(maxPower, argument);
 
-  for (let magnitude = 1; magnitude <= 512; magnitude += 1) {
-    current =
-      baseAboveOne === argumentAboveOne
-        ? multiplyRational(current, base)
-        : divideRational(current, base);
+  if ((argumentAboveOne && maxComparison < 0) || (!argumentAboveOne && maxComparison > 0)) {
+    return null;
+  }
 
-    const comparison = compareRational(current, argument);
+  let lower = 1;
+  let upper = maxMagnitude;
+  while (lower <= upper) {
+    const magnitude = Math.floor((lower + upper) / 2);
+    const comparison = compareRational(powRational(effectiveBase, BigInt(magnitude)), argument);
     if (comparison === 0) {
-      return integerRational(
-        baseAboveOne === argumentAboveOne ? BigInt(magnitude) : -BigInt(magnitude)
-      );
+      return integerRational(exponentSign * BigInt(magnitude));
     }
 
-    if (baseAboveOne === argumentAboveOne) {
-      if ((baseAboveOne && comparison > 0) || (!baseAboveOne && comparison < 0)) {
-        return null;
-      }
-    } else if ((baseAboveOne && comparison < 0) || (!baseAboveOne && comparison > 0)) {
-      return null;
+    if (argumentAboveOne ? comparison < 0 : comparison > 0) {
+      lower = magnitude + 1;
+    } else {
+      upper = magnitude - 1;
     }
   }
 
   return null;
 }
 
-function expSmallNonNegativeInterval(
+function isCheapExactFractionalLogCandidate(base: Rational, argument: Rational): boolean {
+  const componentBitLimit = 16;
+  return [base.numerator, base.denominator, argument.numerator, argument.denominator].every(
+    (component) => bigintBitLength(component) <= componentBitLimit
+  );
+}
+
+function expSmallNonNegativeScaledInterval(
   value: Rational,
   decimalDigits: number,
   control?: EvaluationCheckpoint
-): RationalInterval {
-  const scale = powerOfTen(decimalDigits);
-  const valueLower = rationalToScaledFloor(value, scale);
-  const valueUpper = rationalToScaledCeil(value, scale);
+): ScaledInterval {
+  const scale = decimalScale(decimalDigits);
+  const valueInterval = scaledIntervalFromRationalBounds(
+    createRationalInterval(value, value),
+    decimalDigits
+  );
+  const valueLower = valueInterval.lower;
+  const valueUpper = valueInterval.upper;
   let sumLower = scale;
   let sumUpper = scale;
   let termLower = scale;
@@ -767,10 +900,7 @@ function expSmallNonNegativeInterval(
     const tailUpper = TWO * nextTermUpper;
 
     if (tailUpper <= TAIL_STOP_UNITS) {
-      return createRationalInterval(
-        createRational(sumLower, scale),
-        createRational(sumUpper + tailUpper, scale)
-      );
+      return createScaledInterval(sumLower, sumUpper + tailUpper, decimalDigits);
     }
 
     index += 1;
@@ -780,25 +910,24 @@ function expSmallNonNegativeInterval(
 function reduceLnArgument(
   value: Rational,
   control?: EvaluationCheckpoint
-): { readonly value: Rational; readonly power: number } {
-  let reduced = value;
-  let power = 0;
-  const half = createRational(ONE, TWO);
-  const two = integerRational(TWO);
+): {
+  readonly value: Rational;
+  readonly power: number;
+  readonly scaleSelectionComparisons: number;
+} {
+  control?.checkpoint();
+  const exponentResult = positiveFloorBinaryExponent(value);
+  let power = exponentResult.exponent;
+  let reduced = scaleRationalByPowerOfTwo(value, -power);
+  const scaleSelectionComparisons = exponentResult.comparisons + 1;
 
-  while (compareRational(reduced, two) > 0) {
-    control?.checkpoint();
-    reduced = divideRational(reduced, two);
+  if (compareRational(reduced, createRational(FOUR, 3n)) > 0) {
     power += 1;
+    reduced = scaleRationalByPowerOfTwo(reduced, -1);
   }
 
-  while (compareRational(reduced, half) < 0) {
-    control?.checkpoint();
-    reduced = multiplyRational(reduced, two);
-    power -= 1;
-  }
-
-  return Object.freeze({ value: reduced, power });
+  control?.checkpoint();
+  return Object.freeze({ value: reduced, power, scaleSelectionComparisons });
 }
 
 function lnReducedPositiveRationalInterval(
@@ -855,16 +984,6 @@ function lnReducedPositiveRationalInterval(
     power = nextPower;
     index += 1;
   }
-}
-
-function multiplyPositiveIntervals(
-  left: RationalInterval,
-  right: RationalInterval
-): RationalInterval {
-  return createRationalInterval(
-    multiplyRational(left.lower, right.lower),
-    multiplyRational(left.upper, right.upper)
-  );
 }
 
 function multiplyIntervals(left: RationalInterval, right: RationalInterval): RationalInterval {
@@ -1173,6 +1292,99 @@ function maxRational(values: readonly Rational[]): Rational {
   return result;
 }
 
-function absNumber(value: number): number {
-  return value < 0 ? -value : value;
+function positiveFloorBinaryExponent(value: Rational): {
+  readonly exponent: number;
+  readonly comparisons: number;
+} {
+  if (signOfRational(value) <= 0) {
+    throw new InternalCalculationException("Binary exponent requires a positive rational");
+  }
+
+  let exponent = bigintBitLength(value.numerator) - bigintBitLength(value.denominator);
+  let comparisons = 1;
+
+  if (comparePositiveRationalToPowerOfTwo(value, exponent) < 0) {
+    exponent -= 1;
+  } else {
+    comparisons += 1;
+    if (comparePositiveRationalToPowerOfTwo(value, exponent + 1) >= 0) {
+      exponent += 1;
+    }
+  }
+
+  return Object.freeze({ exponent, comparisons });
+}
+
+function comparePositiveRationalToPowerOfTwo(value: Rational, exponent: number): -1 | 0 | 1 {
+  const comparison =
+    exponent >= 0
+      ? value.numerator - (value.denominator << BigInt(exponent))
+      : (value.numerator << BigInt(-exponent)) - value.denominator;
+
+  return comparison < ZERO ? -1 : comparison > ZERO ? 1 : 0;
+}
+
+function scaleRationalByPowerOfTwo(value: Rational, exponent: number): Rational {
+  if (!Number.isSafeInteger(exponent)) {
+    throw new InternalCalculationException("Binary scale exponent must be a safe integer");
+  }
+
+  return exponent >= 0
+    ? createRational(value.numerator << BigInt(exponent), value.denominator)
+    : createRational(value.numerator, value.denominator << BigInt(-exponent));
+}
+
+function bigintBitLength(value: bigint): number {
+  const magnitude = value < ZERO ? -value : value;
+  return magnitude === ZERO ? 0 : magnitude.toString(2).length;
+}
+
+function decimalDigitsForIntegerMagnitude(value: number): number {
+  const magnitude = value < 0 ? -value : value;
+  return magnitude === 0 ? 0 : Math.trunc(magnitude).toString().length;
+}
+
+function scaledIntervalToRationalInterval(interval: ScaledInterval): RationalInterval {
+  const bounds = scaledIntervalToRationalBounds(interval);
+  return createRationalInterval(bounds.lower, bounds.upper);
+}
+
+function maxScaledEndpointDecimalDigits(interval: ScaledInterval): number {
+  return Math.max(bigintDecimalDigits(interval.lower), bigintDecimalDigits(interval.upper));
+}
+
+function maxRationalDenominatorDecimalDigits(interval: RationalInterval): number {
+  return Math.max(
+    bigintDecimalDigits(interval.lower.denominator),
+    bigintDecimalDigits(interval.upper.denominator)
+  );
+}
+
+function bigintDecimalDigits(value: bigint): number {
+  const magnitude = value < ZERO ? -value : value;
+  return magnitude.toString().length;
+}
+
+function createExpIntervalProfile(
+  reductionPower: number,
+  workingScaleDigits: number,
+  squaringSteps: number,
+  peakEndpointDecimalDigits: number,
+  resultDenominatorDecimalDigits: number
+): ExpIntervalProfile {
+  return Object.freeze({
+    reductionPower,
+    workingScaleDigits,
+    squaringSteps,
+    peakEndpointDecimalDigits,
+    resultDenominatorDecimalDigits
+  });
+}
+
+function createLnIntervalProfile(
+  binaryScale: number,
+  scaleSelectionComparisons: number,
+  workingDigits: number
+): LnIntervalProfile {
+  return Object.freeze({ binaryScale, scaleSelectionComparisons, workingDigits });
 }
