@@ -16,3 +16,8 @@ Trigonometric evaluation uses one canonical reduction to `[-π/4, π/4]` and a j
 fixed-point `sincos` series with outward rounding. `tan` consumes that shared result and
 checks reducer pole metadata before starting the series. Degree conversion passes the same
 cached `π` interval into reduction.
+
+Rational fractional powers use a rigorous, resumable fixed-point `nthRoot` primitive when
+the precision-dependent cost model selects it; general real powers retain the `ln`/`exp`
+path. Gamma uses precision-parametric adaptive Stirling corrections, an incremental exact
+Bernoulli cache, reusable fixed-point inverse powers, and balanced recurrence products.
