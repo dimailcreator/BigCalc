@@ -2,10 +2,11 @@
 
 Arithmetic, powers, factorial/Gamma, trigonometric functions, logarithms, exp, and constants live here.
 
-Fundamental high-precision infrastructure is context-scoped: `π` uses cached Chudnovsky
-binary-splitting blocks, `ln(2)` uses a reusable rigorous series state, and decimal
-fixed-point interval operations provide outward-rounded multiplication, squaring, division,
-and rescaling without exposing backend types.
+Fundamental high-precision infrastructure is context-scoped: `π` retains compact
+Chudnovsky binary-splitting levels, derives its tail coefficient from those levels, and
+continues a rigorous cached `sqrt(10005)` interval. `ln(2)` uses a reusable rigorous series
+state, and decimal fixed-point interval operations provide outward-rounded multiplication,
+squaring, division, and rescaling without exposing backend types.
 
 `exp` reconstructs reduced arguments with fixed-scale outward squaring, while `ln` selects
 its binary scale directly and reuses the context-scoped `ln(2)` cache. Their guard precision

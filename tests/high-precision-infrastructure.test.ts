@@ -53,7 +53,7 @@ void describe("stage 24 high-precision infrastructure", () => {
 
       assert.equal(snapshot.algorithm, "chudnovsky-binary-splitting");
       assert.equal(snapshot.completedTerms >= previousTerms, true);
-      assert.equal(snapshot.cachedBlocks * 4, snapshot.completedTerms);
+      assert.equal(snapshot.completedBlocks * 4, snapshot.completedTerms);
       assert.equal(snapshot.completedTerms < significantDigits / 2 + 8, true);
       assert.equal(verified.digits.startsWith(previousDigits), true);
       assert.equal(verified.digits.startsWith(PI_PREFIX_200.slice(0, significantDigits)), true);
@@ -62,7 +62,7 @@ void describe("stage 24 high-precision infrastructure", () => {
     }
   });
 
-  void it("reuses pi blocks and cached intervals across increasing and repeated requests", () => {
+  void it("reuses pi split state and cached intervals across increasing and repeated requests", () => {
     const context = createEvaluationContext();
     const first = getPiRationalInterval(context, 40);
     const firstState = getPiProviderStateSnapshot(context);
@@ -75,7 +75,7 @@ void describe("stage 24 high-precision infrastructure", () => {
     assert.equal(repeatedState.cacheHits, firstState.cacheHits + 1);
     assert.equal(repeatedState.completedTerms, firstState.completedTerms);
     assert.equal(extendedState.completedTerms > firstState.completedTerms, true);
-    assert.equal(extendedState.cachedBlocks > firstState.cachedBlocks, true);
+    assert.equal(extendedState.completedBlocks > firstState.completedBlocks, true);
     assertPiPrefixContainment(extended, PI_PREFIX_200);
   });
 
