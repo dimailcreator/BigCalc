@@ -1,5 +1,5 @@
 export const CORE_PUBLIC_API_VERSION = "0.0.0";
-export const CORE_STAGE = "stage-26";
+export const CORE_STAGE = "stage-27";
 
 export interface CoreSmokeProbe {
   readonly apiVersion: typeof CORE_PUBLIC_API_VERSION;

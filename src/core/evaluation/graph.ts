@@ -22,8 +22,11 @@ import {
   intervalToRoundedBall,
   lnPositiveInterval,
   powPositiveInterval,
+  powRationalViaNthRootInterval,
+  createNthRootRefinementState,
   createRationalInterval,
   type RationalInterval,
+  type NthRootRefinementState,
   rationalIntervalFromBall,
   sinAngleInterval,
   tanAngleInterval
@@ -693,6 +696,8 @@ class PercentEvaluationNode extends BaseEvaluationNode {
 }
 
 class PowEvaluationNode extends BaseEvaluationNode {
+  private readonly nthRootState: NthRootRefinementState = createNthRootRefinementState();
+
   constructor(base: EvaluationNode, exponent: EvaluationNode) {
     super("pow", [base, exponent]);
   }
@@ -717,6 +722,17 @@ class PowEvaluationNode extends BaseEvaluationNode {
 
     if (baseValue.kind === "rational" && isZeroRational(baseValue)) {
       return this.refineZeroBasePower(request, context, exponent, exponentValue);
+    }
+
+    if (
+      baseValue.kind === "rational" &&
+      exponentValue.kind === "rational" &&
+      exponentValue.denominator !== 1n
+    ) {
+      const direct = this.refineRationalFractionalPower(request, context, baseValue, exponentValue);
+      if (direct !== null) {
+        return direct;
+      }
     }
 
     if (baseValue.kind === "rational" && signOfRational(baseValue) < 0) {
@@ -841,6 +857,65 @@ class PowEvaluationNode extends BaseEvaluationNode {
         verified.verifiedDigits
       );
     }
+  }
+
+  private refineRationalFractionalPower(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext,
+    base: Rational,
+    exponent: Rational
+  ): Promise<Ball> | null {
+    if (signOfRational(base) < 0) {
+      assertNegativeRationalPowerDomain(exponent);
+    }
+
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS + 8;
+    const first = powRationalViaNthRootInterval(
+      absRational(base),
+      exponent,
+      operandDigits,
+      context,
+      this.nthRootState
+    );
+    if (first === null) {
+      return null;
+    }
+
+    const sign = signOfRational(base) < 0 && exponent.numerator % 2n !== 0n ? -1 : 1;
+    const refine = (): Promise<Ball> => {
+      for (;;) {
+        context.checkpoint();
+        const interval =
+          operandDigits === request.significantDigits + DEFAULT_GUARD_DIGITS + 8
+            ? first
+            : powRationalViaNthRootInterval(
+                absRational(base),
+                exponent,
+                operandDigits,
+                context,
+                this.nthRootState
+              );
+        if (interval === null) {
+          throw new InternalCalculationException("nthRoot cost model regressed during refinement");
+        }
+
+        const signed = sign < 0 ? negateInterval(interval) : interval;
+        const precisionBits = precisionBitsForRequest({ significantDigits: operandDigits });
+        const ball = intervalToRoundedBall(signed, precisionBits, context.backend);
+        const verified = verifiedNumberFromBall(ball, request, context.backend);
+        if (verifiedDigitsSatisfyRequest(verified, request)) {
+          return Promise.resolve(ball);
+        }
+
+        operandDigits = nextOperandDigits(
+          operandDigits,
+          request.significantDigits,
+          verified.verifiedDigits
+        );
+      }
+    };
+
+    return refine();
   }
 
   private async refineZeroBasePower(
@@ -1032,12 +1107,8 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
       return null;
     }
 
-    return applyPrecisionCutoff(
-      ball,
-      context.settings.precisionCutoffDigits,
-      precisionBits,
-      context.backend
-    );
+    // CORE_SPEC limits precision cutoff to add/sub and applicable degree-mode functions.
+    return ball;
   }
 
   private evaluateExactFactorialOrNull(
