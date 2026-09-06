@@ -26,3 +26,4 @@ import "./high-precision-infrastructure.test.js";
 import "./scalable-exp-ln-log.test.js";
 import "./scalable-trig.test.js";
 import "./precision-parametric-powers-gamma.test.js";
+import "./constant-state-scaling.test.js";

@@ -21,9 +21,11 @@ import {
   ceilDiv,
   createScaledInterval,
   decimalScale,
+  rescaleScaled,
   scaledIntervalFromRationalBounds,
   scaledIntervalToRationalBounds
 } from "./scaled-interval.js";
+import type { ScaledInterval } from "./scaled-interval.js";
 
 const ZERO = 0n;
 const ONE = 1n;
@@ -53,16 +55,40 @@ interface ConstantLazyRealStateSnapshot {
   readonly highestRequestedDigits: number;
   readonly completedTerms: number;
   readonly lastRefinementAddedTerms?: number;
+  readonly lastRefinementReusedTerms?: number;
   readonly lastTargetTermCount?: number;
+  readonly peakBigIntDigits?: number;
+  readonly cachedBigIntDigits?: number;
 }
 
 export interface PiProviderStateSnapshot {
   readonly algorithm: "chudnovsky-binary-splitting";
   readonly intervalRequests: number;
   readonly cacheHits: number;
-  readonly highestRequestedDigits: number;
+  readonly userRequestedDigits: number | null;
+  readonly providerWorkingDigits: number;
+  readonly highestUserRequestedDigits: number;
+  readonly highestProviderWorkingDigits: number;
   readonly completedTerms: number;
-  readonly cachedBlocks: number;
+  readonly completedBlocks: number;
+  readonly retainedSplitNodes: number;
+  readonly splitStateBigIntCount: number;
+  readonly splitStateBigIntDigits: number;
+  readonly tailCoefficientSource: "split-levels";
+  readonly tailStateBigIntCount: 0;
+  readonly sqrtRefinementCalls: number;
+  readonly sqrtReuseCount: number;
+  readonly sqrtWorkingDigits: number;
+  readonly sqrtNewtonIterations: number;
+  readonly sqrtInterval: PiRationalInterval | null;
+  readonly peakBigIntDigits: number;
+  readonly cachedBigIntDigits: number;
+}
+
+export interface PiTailBoundSnapshot {
+  readonly completedTerms: number;
+  readonly coefficientSource: "split-levels";
+  readonly bound: Rational;
 }
 
 export interface Ln2ProviderStateSnapshot {
@@ -90,6 +116,21 @@ interface BinarySplit {
 interface CachedBinarySplit extends BinarySplit {
   readonly start: number;
   readonly end: number;
+}
+
+interface ChudnovskyTailBound {
+  readonly numerator: bigint;
+  readonly denominator: bigint;
+}
+
+interface SqrtStateSnapshot {
+  readonly refinementCalls: number;
+  readonly reuseCount: number;
+  readonly workingDigits: number;
+  readonly totalNewtonIterations: number;
+  readonly interval: PiRationalInterval | null;
+  readonly peakBigIntDigits: number;
+  readonly cachedBigIntDigits: number;
 }
 
 const contextConstants = new WeakMap<EvaluationContext, Map<string, StatefulConstantLazyReal>>();
@@ -120,13 +161,16 @@ class ELazyReal implements StatefulConstantLazyReal {
   private partialDenominator = ONE;
   private log10CompletedFactorial = 0;
   private lastRefinementAddedTerms = 0;
+  private lastRefinementReusedTerms = 0;
   private lastTargetTermCount = 0;
+  private peakBigIntDigits = 1;
 
   refine(request: PrecisionRequest, context: EvaluationContext): Promise<Ball> {
     const graphContext = requireGraphLikeContext(context);
     this.refinementCalls += 1;
     this.highestRequestedDigits = Math.max(this.highestRequestedDigits, request.significantDigits);
     const before = this.completedTermCount;
+    this.lastRefinementReusedTerms = before;
     let targetTailDigits = request.significantDigits + CONSTANT_GUARD_DIGITS;
 
     for (;;) {
@@ -156,7 +200,11 @@ class ELazyReal implements StatefulConstantLazyReal {
       highestRequestedDigits: this.highestRequestedDigits,
       completedTerms: this.completedTermCount,
       lastRefinementAddedTerms: this.lastRefinementAddedTerms,
-      lastTargetTermCount: this.lastTargetTermCount
+      lastRefinementReusedTerms: this.lastRefinementReusedTerms,
+      lastTargetTermCount: this.lastTargetTermCount,
+      peakBigIntDigits: this.peakBigIntDigits,
+      cachedBigIntDigits:
+        bigintDecimalDigits(this.partialNumerator) + bigintDecimalDigits(this.partialDenominator)
     });
   }
 
@@ -184,24 +232,38 @@ class ELazyReal implements StatefulConstantLazyReal {
       }
       this.completedTermCount += 1;
       this.log10CompletedFactorial += Math.log10(this.completedTermCount);
+      this.peakBigIntDigits = Math.max(
+        this.peakBigIntDigits,
+        bigintDecimalDigits(this.partialNumerator),
+        bigintDecimalDigits(this.partialDenominator)
+      );
     }
   }
 
   private tailFits(targetDigits: number): boolean {
     const tailDenominator = this.partialDenominator * BigInt(Math.max(1, this.completedTermCount));
-    return TWO * decimalScale(targetDigits) <= tailDenominator;
+    const targetScale = TWO * decimalScale(targetDigits);
+    this.recordPeak(tailDenominator, targetScale);
+    return targetScale <= tailDenominator;
   }
 
   private currentBall(precisionBits: number, backend: BigFloatBackend): Ball {
     const termCount = BigInt(Math.max(1, this.completedTermCount));
     const denominator = this.partialDenominator * termCount;
     const lowerNumerator = this.partialNumerator * termCount;
+    this.recordPeak(denominator, lowerNumerator, lowerNumerator + TWO);
     return ballFromRationalInterval(
       createRational(lowerNumerator, denominator),
       createRational(lowerNumerator + TWO, denominator),
       precisionBits,
       backend
     );
+  }
+
+  private recordPeak(...values: readonly bigint[]): void {
+    for (const value of values) {
+      this.peakBigIntDigits = Math.max(this.peakBigIntDigits, bigintDecimalDigits(value));
+    }
   }
 }
 
@@ -221,7 +283,11 @@ class PiLazyReal implements StatefulConstantLazyReal {
 
     for (;;) {
       graphContext.checkpoint();
-      const interval = this.provider.getInterval(decimalDigits, graphContext);
+      const interval = this.provider.getInterval(
+        decimalDigits,
+        graphContext,
+        request.significantDigits
+      );
       const ball = ballFromRationalInterval(
         interval.lower,
         interval.upper,
@@ -242,10 +308,7 @@ class PiLazyReal implements StatefulConstantLazyReal {
     return Object.freeze({
       name: "π",
       refinementCalls: this.refinementCalls,
-      highestRequestedDigits: Math.max(
-        this.highestRequestedDigits,
-        provider.highestRequestedDigits
-      ),
+      highestRequestedDigits: this.highestRequestedDigits,
       completedTerms: provider.completedTerms
     });
   }
@@ -253,16 +316,22 @@ class PiLazyReal implements StatefulConstantLazyReal {
 
 export function getPiRationalInterval(
   context: EvaluationContext,
-  decimalDigits: number
+  decimalDigits: number,
+  userRequestedDigits: number | null = null
 ): PiRationalInterval {
   return getOrCreatePiProvider(context).getInterval(
     decimalDigits,
-    requireGraphLikeContext(context)
+    requireGraphLikeContext(context),
+    userRequestedDigits
   );
 }
 
 export function getPiProviderStateSnapshot(context: EvaluationContext): PiProviderStateSnapshot {
   return getOrCreatePiProvider(context).getSnapshot();
+}
+
+export function getPiTailBoundSnapshot(context: EvaluationContext): PiTailBoundSnapshot {
+  return getOrCreatePiProvider(context).getTailBoundSnapshot(requireGraphLikeContext(context));
 }
 
 export function getLn2RationalInterval(
@@ -281,39 +350,105 @@ export function getLn2ProviderStateSnapshot(
 class PiProviderState {
   private intervalRequests = 0;
   private cacheHits = 0;
-  private highestRequestedDigits = 0;
+  private userRequestedDigits: number | null = null;
+  private providerWorkingDigits = 0;
+  private highestUserRequestedDigits = 0;
+  private highestProviderWorkingDigits = 0;
+  private highestOutputDigits = 0;
   private completedTermCount = 0;
+  private completedBlockCount = 0;
   private cachedInterval: PiRationalInterval | null = null;
-  private readonly cachedBlocks: CachedBinarySplit[] = [];
   private readonly splitLevels: (CachedBinarySplit | undefined)[] = [];
-  private nextTermFactorNumerator = ONE;
-  private nextTermFactorDenominator = ONE;
+  private readonly sqrtState = new ScaledSqrtState();
+  private peakBigIntDigits = 1;
 
-  getInterval(decimalDigits: number, context: GraphLikeEvaluationContext): PiRationalInterval {
+  getInterval(
+    decimalDigits: number,
+    context: GraphLikeEvaluationContext,
+    userRequestedDigits: number | null = null
+  ): PiRationalInterval {
     const digits = Math.max(1, decimalDigits);
+    const workingDigits = digits + CONSTANT_GUARD_DIGITS;
     this.intervalRequests += 1;
-    if (this.cachedInterval !== null && digits <= this.highestRequestedDigits) {
+    this.userRequestedDigits = userRequestedDigits;
+    this.providerWorkingDigits = workingDigits;
+    this.highestUserRequestedDigits = Math.max(
+      this.highestUserRequestedDigits,
+      userRequestedDigits ?? 0
+    );
+    this.highestProviderWorkingDigits = Math.max(this.highestProviderWorkingDigits, workingDigits);
+
+    if (this.cachedInterval !== null && digits <= this.highestOutputDigits) {
       this.cacheHits += 1;
       return this.cachedInterval;
     }
 
-    const tailDigits = digits + CONSTANT_GUARD_DIGITS;
-    while (this.completedTermCount === 0 || !this.tailFits(tailDigits)) this.appendBlock(context);
+    let split: BinarySplit;
+    let tail: ChudnovskyTailBound;
+    for (;;) {
+      if (this.completedTermCount === 0) this.appendBlock(context);
+      split = this.combinedSplit(context);
+      tail = this.tailBoundFromSplit(split);
+      if (this.tailFits(tail, workingDigits)) break;
+      this.appendBlock(context);
+    }
 
-    const interval = this.computePiInterval(digits, tailDigits, context);
-    this.highestRequestedDigits = digits;
+    const interval = this.computePiInterval(digits, workingDigits, split, tail, context);
+    this.highestOutputDigits = digits;
     this.cachedInterval = interval;
     return interval;
   }
 
   getSnapshot(): PiProviderStateSnapshot {
+    const retainedSplits = this.splitLevels.filter(
+      (split): split is CachedBinarySplit => split !== undefined
+    );
+    const splitStateBigIntDigits = retainedSplits.reduce(
+      (total, split) =>
+        total +
+        bigintDecimalDigits(split.p) +
+        bigintDecimalDigits(split.q) +
+        bigintDecimalDigits(split.t),
+      0
+    );
+    const sqrt = this.sqrtState.getSnapshot();
+    const cachedIntervalDigits = rationalIntervalBigIntDigits(this.cachedInterval);
+
     return Object.freeze({
       algorithm: "chudnovsky-binary-splitting",
       intervalRequests: this.intervalRequests,
       cacheHits: this.cacheHits,
-      highestRequestedDigits: this.highestRequestedDigits,
+      userRequestedDigits: this.userRequestedDigits,
+      providerWorkingDigits: this.providerWorkingDigits,
+      highestUserRequestedDigits: this.highestUserRequestedDigits,
+      highestProviderWorkingDigits: this.highestProviderWorkingDigits,
       completedTerms: this.completedTermCount,
-      cachedBlocks: this.cachedBlocks.length
+      completedBlocks: this.completedBlockCount,
+      retainedSplitNodes: retainedSplits.length,
+      splitStateBigIntCount: retainedSplits.length * 3,
+      splitStateBigIntDigits,
+      tailCoefficientSource: "split-levels",
+      tailStateBigIntCount: 0,
+      sqrtRefinementCalls: sqrt.refinementCalls,
+      sqrtReuseCount: sqrt.reuseCount,
+      sqrtWorkingDigits: sqrt.workingDigits,
+      sqrtNewtonIterations: sqrt.totalNewtonIterations,
+      sqrtInterval: sqrt.interval,
+      peakBigIntDigits: Math.max(this.peakBigIntDigits, sqrt.peakBigIntDigits),
+      cachedBigIntDigits: splitStateBigIntDigits + sqrt.cachedBigIntDigits + cachedIntervalDigits
+    });
+  }
+
+  getTailBoundSnapshot(context: EvaluationCheckpoint): PiTailBoundSnapshot {
+    if (this.completedTermCount === 0) {
+      throw new InternalCalculationException("Chudnovsky tail is unavailable before refinement");
+    }
+    const split = this.combinedSplit(context);
+    const tail = this.tailBoundFromSplit(split);
+    return Object.freeze({
+      completedTerms: this.completedTermCount,
+      coefficientSource: "split-levels",
+      bound: this.tailBoundRational(tail)
     });
   }
 
@@ -321,23 +456,17 @@ class PiProviderState {
     const start = this.completedTermCount;
     const end = start + CHUDNOVSKY_BLOCK_SIZE;
     const block = Object.freeze({ ...binarySplit(start, end, context), start, end });
-    this.cachedBlocks.push(block);
-    this.appendSplitLevel(block);
-
-    for (let index = start; index < end; index += 1) {
-      context.checkpoint();
-      const nextIndex = BigInt(index + 1);
-      this.nextTermFactorNumerator *=
-        (6n * nextIndex - 5n) * (2n * nextIndex - ONE) * (6n * nextIndex - ONE);
-      this.nextTermFactorDenominator *= nextIndex * nextIndex * nextIndex * CHUDNOVSKY_C3_OVER_24;
-    }
+    this.recordPeak(block.p, block.q, block.t);
+    this.appendSplitLevel(block, context);
     this.completedTermCount = end;
+    this.completedBlockCount += 1;
   }
 
-  private appendSplitLevel(block: CachedBinarySplit): void {
+  private appendSplitLevel(block: CachedBinarySplit, context: EvaluationCheckpoint): void {
     let carry = block;
     let level = 0;
     while (this.splitLevels[level] !== undefined) {
+      context.checkpoint();
       const left = this.splitLevels[level];
       if (left === undefined) break;
       carry = Object.freeze({
@@ -345,17 +474,19 @@ class PiProviderState {
         start: left.start,
         end: carry.end
       });
+      this.recordPeak(carry.p, carry.q, carry.t);
       this.splitLevels[level] = undefined;
       level += 1;
     }
     this.splitLevels[level] = carry;
   }
 
-  private combinedSplit(): BinarySplit {
+  private combinedSplit(context: EvaluationCheckpoint): BinarySplit {
     let combined: CachedBinarySplit | null = null;
     for (let level = this.splitLevels.length - 1; level >= 0; level -= 1) {
       const split = this.splitLevels[level];
       if (split === undefined) continue;
+      context.checkpoint();
       combined =
         combined === null
           ? split
@@ -364,6 +495,7 @@ class PiProviderState {
               start: combined.start,
               end: split.end
             });
+      this.recordPeak(combined.p, combined.q, combined.t);
     }
     if (combined === null) {
       throw new InternalCalculationException("Chudnovsky state has no completed block");
@@ -371,41 +503,49 @@ class PiProviderState {
     return combined;
   }
 
-  private tailBound(): Rational {
+  private tailBoundFromSplit(split: BinarySplit): ChudnovskyTailBound {
     const index = BigInt(this.completedTermCount);
-    return createRational(
-      this.nextTermFactorNumerator *
-        (CHUDNOVSKY_A + CHUDNOVSKY_B * index) *
-        CHUDNOVSKY_RATIO_DENOMINATOR,
-      this.nextTermFactorDenominator * (CHUDNOVSKY_RATIO_DENOMINATOR - ONE)
-    );
+    const nextP = (6n * index - 5n) * (2n * index - ONE) * (6n * index - ONE);
+    const nextQ = index * index * index * CHUDNOVSKY_C3_OVER_24;
+    const numerator =
+      split.p * nextP * (CHUDNOVSKY_A + CHUDNOVSKY_B * index) * CHUDNOVSKY_RATIO_DENOMINATOR;
+    const denominator = split.q * nextQ * (CHUDNOVSKY_RATIO_DENOMINATOR - ONE);
+    this.recordPeak(numerator, denominator);
+    return Object.freeze({ numerator, denominator });
   }
 
-  private tailFits(decimalDigits: number): boolean {
-    const index = BigInt(this.completedTermCount);
-    const numerator =
-      this.nextTermFactorNumerator *
-      (CHUDNOVSKY_A + CHUDNOVSKY_B * index) *
-      CHUDNOVSKY_RATIO_DENOMINATOR;
-    const denominator = this.nextTermFactorDenominator * (CHUDNOVSKY_RATIO_DENOMINATOR - ONE);
-    return numerator * decimalScale(decimalDigits) <= denominator;
+  private tailBoundRational(tail: ChudnovskyTailBound): Rational {
+    return createRational(tail.numerator, tail.denominator);
+  }
+
+  private tailFits(tail: ChudnovskyTailBound, decimalDigits: number): boolean {
+    const scaledNumerator = tail.numerator * decimalScale(decimalDigits);
+    this.recordPeak(scaledNumerator);
+    return scaledNumerator <= tail.denominator;
+  }
+
+  private recordPeak(...values: readonly bigint[]): void {
+    for (const value of values) {
+      this.peakBigIntDigits = Math.max(this.peakBigIntDigits, bigintDecimalDigits(value));
+    }
   }
 
   private computePiInterval(
     digits: number,
     workingDigits: number,
+    split: BinarySplit,
+    tailData: ChudnovskyTailBound,
     context: GraphLikeEvaluationContext
   ): PiRationalInterval {
-    const split = this.combinedSplit();
     const sum = createRational(split.t, split.q);
-    const tail = this.tailBound();
+    const tail = this.tailBoundRational(tailData);
     const sumLower = subtractRational(sum, tail);
     const sumUpper = addRational(sum, tail);
     if (compareRational(sumLower, integerRational(ZERO)) <= 0) {
       throw new InternalCalculationException("Chudnovsky reciprocal-pi interval crossed zero");
     }
 
-    const sqrt = sqrtScaledInterval(CHUDNOVSKY_RADICAND, workingDigits, context);
+    const sqrt = this.sqrtState.refine(CHUDNOVSKY_RADICAND, workingDigits, context);
     const factor = integerRational(CHUDNOVSKY_SQRT_FACTOR);
     const rawLower = divideRational(multiplyRational(factor, sqrt.lower), sumUpper);
     const rawUpper = divideRational(multiplyRational(factor, sqrt.upper), sumLower);
@@ -508,28 +648,78 @@ function combineBinarySplits(left: BinarySplit, right: BinarySplit): BinarySplit
   });
 }
 
-function sqrtScaledInterval(
-  radicand: bigint,
-  scaleDigits: number,
-  context: EvaluationCheckpoint
-): PiRationalInterval {
-  const scale = decimalScale(scaleDigits);
-  const scaledRadicand = radicand * scale * scale;
-  const lower = integerSqrtFloor(scaledRadicand, context);
-  const upper = lower * lower === scaledRadicand ? lower : lower + ONE;
-  return scaledIntervalToRationalBounds(createScaledInterval(lower, upper, scaleDigits));
+class ScaledSqrtState {
+  private interval: ScaledInterval | null = null;
+  private refinementCalls = 0;
+  private reuseCount = 0;
+  private workingDigits = 0;
+  private totalNewtonIterations = 0;
+  private peakBigIntDigits = 1;
+
+  refine(radicand: bigint, scaleDigits: number, context: EvaluationCheckpoint): PiRationalInterval {
+    this.refinementCalls += 1;
+    if (this.interval !== null && scaleDigits <= this.workingDigits) {
+      this.reuseCount += 1;
+      return scaledIntervalToRationalBounds(this.interval);
+    }
+
+    const previous = this.interval === null ? null : rescaleScaled(this.interval, scaleDigits);
+    if (previous !== null) this.reuseCount += 1;
+
+    const scale = decimalScale(scaleDigits);
+    const scaledRadicand = radicand * scale * scale;
+    const result = integerSqrtFloor(scaledRadicand, context, previous?.upper);
+    const computedUpper =
+      result.root * result.root === scaledRadicand ? result.root : result.root + ONE;
+    const lower = previous === null ? result.root : maxBigInt(result.root, previous.lower);
+    const upper = previous === null ? computedUpper : minBigInt(computedUpper, previous.upper);
+    this.interval = createScaledInterval(lower, upper, scaleDigits);
+    this.workingDigits = scaleDigits;
+    this.totalNewtonIterations += result.iterations;
+    this.peakBigIntDigits = Math.max(
+      this.peakBigIntDigits,
+      bigintDecimalDigits(scaledRadicand),
+      bigintDecimalDigits(lower),
+      bigintDecimalDigits(upper)
+    );
+    return scaledIntervalToRationalBounds(this.interval);
+  }
+
+  getSnapshot(): SqrtStateSnapshot {
+    return Object.freeze({
+      refinementCalls: this.refinementCalls,
+      reuseCount: this.reuseCount,
+      workingDigits: this.workingDigits,
+      totalNewtonIterations: this.totalNewtonIterations,
+      interval: this.interval === null ? null : scaledIntervalToRationalBounds(this.interval),
+      peakBigIntDigits: this.peakBigIntDigits,
+      cachedBigIntDigits:
+        this.interval === null
+          ? 0
+          : bigintDecimalDigits(this.interval.lower) + bigintDecimalDigits(this.interval.upper)
+    });
+  }
 }
 
-function integerSqrtFloor(value: bigint, context: EvaluationCheckpoint): bigint {
+function integerSqrtFloor(
+  value: bigint,
+  context: EvaluationCheckpoint,
+  initialUpper?: bigint
+): { readonly root: bigint; readonly iterations: number } {
   if (value < ZERO)
     throw new InternalCalculationException("Cannot take sqrt of a negative integer");
-  if (value < TWO) return value;
+  if (value < TWO) return Object.freeze({ root: value, iterations: 0 });
 
-  let estimate = ONE << BigInt(Math.ceil(value.toString(2).length / 2));
+  let estimate =
+    initialUpper !== undefined && initialUpper > ZERO && initialUpper * initialUpper >= value
+      ? initialUpper
+      : ONE << BigInt(Math.ceil(value.toString(2).length / 2));
+  let iterations = 0;
   for (;;) {
     context.checkpoint();
+    iterations += 1;
     const next = (estimate + value / estimate) / TWO;
-    if (next >= estimate) return estimate;
+    if (next >= estimate) return Object.freeze({ root: estimate, iterations });
     estimate = next;
   }
 }
@@ -570,6 +760,28 @@ function ballFromRationalInterval(
 
 function precisionBitsForConstantDigits(significantDigits: number): number {
   return Math.max(64, Math.ceil((significantDigits + CONSTANT_GUARD_DIGITS) * Math.log2(10)) + 64);
+}
+
+function rationalIntervalBigIntDigits(interval: PiRationalInterval | null): number {
+  if (interval === null) return 0;
+  return (
+    bigintDecimalDigits(interval.lower.numerator) +
+    bigintDecimalDigits(interval.lower.denominator) +
+    bigintDecimalDigits(interval.upper.numerator) +
+    bigintDecimalDigits(interval.upper.denominator)
+  );
+}
+
+function bigintDecimalDigits(value: bigint): number {
+  return (value < ZERO ? -value : value).toString().length;
+}
+
+function minBigInt(left: bigint, right: bigint): bigint {
+  return left < right ? left : right;
+}
+
+function maxBigInt(left: bigint, right: bigint): bigint {
+  return left > right ? left : right;
 }
 
 function requireGraphLikeContext(context: EvaluationContext): GraphLikeEvaluationContext {

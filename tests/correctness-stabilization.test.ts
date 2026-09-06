@@ -92,7 +92,10 @@ void describe("stage 23 correctness stabilization", () => {
     const angle = createRationalInterval(integerRational(100n), integerRational(100n));
     assert.ok(sinAngleInterval(angle, 30, "degrees", context) !== null);
     const afterTrig = getPiProviderStateSnapshot(context);
-    assert.equal(afterTrig.highestRequestedDigits > afterFirst.highestRequestedDigits, true);
+    assert.equal(
+      afterTrig.highestProviderWorkingDigits > afterFirst.highestProviderWorkingDigits,
+      true
+    );
 
     const half = createRational(1n, 2n);
     assert.ok(gammaRealInterval(createRationalInterval(half, half), 20, context) !== null);

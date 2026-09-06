@@ -1,7 +1,7 @@
 # BigCalc Implementation Plan
 
 **Файл:** `IMPLEMENTATION_PLAN.md`  
-**Статус:** Draft 2 — этапы 0–22 завершены; добавлен обязательный блок математической стабилизации  
+**Статус:** Draft 4 — этапы 0–27 завершены; post-stage-27 remediation разделён на этапы 28–32  
 **Основание:** `CORE_SPEC.md` Draft 2  
 **Область:** реализация математического ядра BigCalc до начала разработки прикладных калькуляторов и UI.
 
@@ -2123,7 +2123,688 @@ shared ln2 cache
 
 ---
 
-# ЭТАП 28. Сквозное тестирование математического ядра
+## Общее ограничение этапов 28–32
+
+Этапы `28–32` устраняют уже найденные проблемы production-реализации после завершения этапа 27.
+
+В этих этапах **не принимается решение о переходе на другие семейства рядов/аппроксимаций**.
+
+В частности, здесь не требуется заменять:
+
+```text
+e factorial series
+trig Taylor series
+ln atanh-series
+Gamma adaptive Stirling
+```
+
+на альтернативные ряды или методы только ради асимптотики.
+
+Допускается оптимизировать:
+
+- resumable state;
+- binary/block summation того же ряда;
+- argument reduction/reconstruction;
+- caches;
+- exact fast paths;
+- cost models;
+- bigint algorithms;
+- product trees;
+- outward fixed-point representation;
+- cooperative resource checkpoints;
+- повторное использование промежуточных значений.
+
+Если локальный или общий profiling показывает необходимость **смены семейства ряда/аппроксимации**, это фиксируется отдельным engineering decision и обсуждается отдельно.
+
+Каждый из этапов `28–32` обязан иметь локальные regression/scaling tests. Они не заменяют общий profiling этапа 34.
+
+---
+
+# ЭТАП 28. `π` и `e` — state и scaling remediation
+
+## Цель
+
+Устранить оставшиеся проблемы состояния и масштабирования констант после этапа 24, не меняя выбранные production-ряды.
+
+### `π`: убрать последовательный tail-factor bottleneck
+
+Основная Chudnovsky-сумма уже использует binary splitting, но данные для оценки следующего члена не должны независимо накапливаться как длинная последовательная цепочка giant `bigint` произведений.
+
+Нужно:
+
+- получить коэффициент/границу следующего члена из уже имеющегося binary-splitting/block state либо из совместимого balanced state;
+- не поддерживать вторую последовательную гигантскую дробь только ради tail bound;
+- сохранить текущую строгую error bound.
+
+### `π`: продолжать/кэшировать `sqrt(10005)`
+
+При последовательном увеличении precision:
+
+```text
+N1 → N2 → N3
+```
+
+не пересчитывать `sqrt(10005)` с нуля, если можно безопасно продолжить предыдущий rigorous interval/state.
+
+Требования:
+
+- старый interval не теряется;
+- новая граница должна быть не шире старой;
+- cache остаётся context-scoped.
+
+### `π`: убрать лишнее дублирование block state
+
+Проверить необходимость полного `cachedBlocks`, если production continuation фактически выполняется через `splitLevels`.
+
+Если отдельные blocks не нужны для дальнейшего refinement:
+
+```text
+cachedBlocks[]
+→ compact counters / metadata
+```
+
+при сохранении тестируемой observability.
+
+Также отделить в диагностике:
+
+```text
+userRequestedDigits
+providerWorkingDigits
+```
+
+чтобы внутренние guard digits не выглядели как пользовательский запрос.
+
+### `e`: сохранить текущий ряд, проверить стоимость последовательного state
+
+Факториальный ряд `e = Σ1/n!` в этом этапе **не заменять**.
+
+Нужно:
+
+- benchmark'ить sequential recurrence при растущем `N`;
+- подтвердить отсутствие перерасчёта уже готового prefix/state;
+- если bottleneck подтверждается, допускается block/balanced summation **того же самого ряда**, не меняя его математическую основу;
+- не выполнять такую перестройку без benchmark.
+
+## Тесты
+
+- `π` sequential refinement с reuse Chudnovsky state и `sqrt(10005)`;
+- tail bound после перехода на shared/balanced coefficient state;
+- отсутствие лишнего линейного накопителя Chudnovsky coefficients;
+- `e` continuation `N1 → N2 → N3` без пересчёта предыдущих членов;
+- profiling counters для размера cached state.
+
+---
+
+## Локальный profiling
+
+Минимально измерять:
+
+```text
+π tail-state growth
+sqrt(10005) reuse
+cached Chudnovsky state size
+e continuation term count
+peakBigIntDigits
+cachedBigIntDigits
+time(N1 → N2 → N3)
+```
+
+## Definition of Done
+
+- `π` не содержит отдельного последовательного giant tail-factor accumulator;
+- `sqrt(10005)` переиспользует ранее доказанное состояние/interval при увеличении precision;
+- Chudnovsky cache не хранит заведомо лишний дублирующий block state;
+- diagnostics различают пользовательскую precision и внутреннюю working precision;
+- `e` продолжает factorial-series state без пересчёта старых членов;
+- если `e` state перестраивается, это обосновано benchmark и сохраняет тот же математический ряд;
+- есть regression + scaling tests.
+
+---
+
+# ЭТАП 29. `sin`, `cos`, `tan` — post-stabilization
+
+## Цель
+
+Устранить оставшиеся лишние вычисления и dependency/range-reduction corner cases в уже исправленной тригонометрии.
+
+### Degree mode: exact period reduction до умножения на `π`
+
+Для degree mode сначала выполнять точную rational reduction:
+
+```text
+sin/cos: x mod 360°
+tan:     x mod 180°
+```
+
+и только затем переходить к radians.
+
+Это особенно важно для огромных аргументов:
+
+```text
+sin((10^100000 + 1)°)
+```
+
+не должен требовать `π` с ~100000 лишними digits только из-за величины исходного degree argument.
+
+Требования:
+
+- modulo/reduction выполняется точно на `Rational`;
+- exact degree fast paths применяются после reduction;
+- `π` precision зависит от reduced argument и requested `N`, а не от исходного огромного integer part.
+
+### Standalone `sin` / `cos`: не считать ненужный второй ряд
+
+Совместный `sincos` сохранить для `tan` и других случаев, где нужны обе функции.
+
+Для одиночного:
+
+```text
+sin(x)
+cos(x)
+```
+
+kernel должен уметь вычислять только реально нужную базовую ветку:
+
+```text
+needSin
+needCos
+```
+
+После quadrant metadata заранее учитывать `swapSinCos`, чтобы не вычислять второй Taylor series без необходимости.
+
+### `tan`: использовать монотонность после доказательства отсутствия полюса
+
+После canonical reduction и доказательства, что interval не пересекает pole, рассмотреть endpoint evaluation:
+
+```text
+tan([a,b]) = [tan(a), tan(b)]
+```
+
+на одном непрерывном участке.
+
+Цель:
+
+- не терять корреляцию между `sin(r)` и `cos(r)` через независимое interval division;
+- уменьшить число лишних refinement cycles около полюсов.
+
+Текущий общий interval division остаётся корректным fallback.
+
+### Rational multiples of `π`: локальные structural fast paths
+
+Добавить regression tests минимум для:
+
+```text
+sin(π)
+sin(2π)
+cos(π)
+tan(π)
+tan(π/2)
+tan(3π/2)
+```
+
+Проверить, что потеря зависимости между argument interval и shared `π` не приводит к бесконечному/бессмысленному refinement.
+
+Если проблема подтверждается, разрешён локальный structural fast path только для дешёво распознаваемой формы:
+
+```text
+q * π, q ∈ Rational
+```
+
+без общей CAS/символьной алгебры.
+
+## Тесты
+
+- huge degree arguments с малым reduced angle;
+- профиль standalone `sin`/`cos`: ненужный второй ряд не запускается;
+- `tan` endpoint/hull containment;
+- exact/domain regression для rational multiples of `π`;
+- отдельно `tan(π/2)` должен завершаться доказанным `DomainError`, а не бесконечным refinement.
+
+---
+
+## Локальный profiling
+
+Минимально измерять:
+
+```text
+π precision for huge degree inputs
+range-reduction calls
+point evaluations
+sin-series evaluations
+cos-series evaluations
+refinement retries near tan poles
+peakBigIntDigits
+```
+
+## Definition of Done
+
+- huge degree arguments точно редуцируются до использования `π`;
+- standalone `sin`/`cos` не обязаны считать ненужный второй ряд;
+- `tan` после доказанного отсутствия pole не теряет лишнюю точность из-за очевидной interval-correlation проблемы, если endpoint path выгоднее;
+- `sin(π)`, `cos(π)`, `tan(π)` завершаются корректно;
+- `tan(π/2)` и аналогичные дешёвые rational multiples of `π` не застревают в бесконечном refinement;
+- все изменения покрыты containment/regression/scaling tests.
+
+---
+
+# ЭТАП 30. `exp`, `ln`, `log` — exponent/cache/exact-path remediation
+
+## Цель
+
+Исправить оставшиеся representation и cache bottlenecks без смены малого `exp`-ряда, `ln` atanh-series и общей формулы логарифма.
+
+### `exp`: reconstruction через binary exponent, а не absolute decimal scale
+
+Сохранить текущий малый ряд `exp(r)`.
+
+Изменить большую reduction/reconstruction схему на форму порядка:
+
+```text
+x = k*ln(2) + r
+exp(x) = 2^k * exp(r)
+```
+
+с малым `r`.
+
+Требования:
+
+- `k` определяется строго;
+- `r` содержит true value;
+- множитель `2^k` применяется через backend/internal binary exponent (`scaleByPowerOfTwo` или эквивалент), а не материализацией огромного decimal fixed-point integer;
+- большие отрицательные аргументы не должны требовать hundreds/thousands дополнительных decimal scale digits только чтобы представить малый результат;
+- большие положительные аргументы не должны раздувать mantissa пропорционально decimal exponent результата.
+
+Примеры regression/performance cases:
+
+```text
+exp(1024)
+exp(-1024)
+exp(10^6)
+exp(-10^6)
+```
+
+в пределах resource budget.
+
+### `ln(2)` cache: убрать квадратичное хранение последовательных giant denominators
+
+Сохранить текущий математический ряд `ln(2)`.
+
+Переработать resumable state так, чтобы не хранить все:
+
+```text
+(2k+1) * 3^(2k+1)
+```
+
+как отдельные всё более длинные `bigint`, если это даёт суммарную память порядка `O(N^2)` digits.
+
+Допустимы:
+
+- compact recurrence state;
+- block state;
+- balanced/binary summation того же ряда;
+- cache только действительно необходимых промежуточных данных.
+
+Требования:
+
+- меньший повторный запрос → cache hit;
+- больший запрос → continuation;
+- старый verified prefix сохраняется.
+
+### `log`: убрать фиксированный exact-integer exponent search limit
+
+Не ограничивать exact integer logarithm искусственным:
+
+```text
+|p| <= 512
+```
+
+Вместо перебора до фиксированного потолка:
+
+1. оценить возможный exponent по bit/decimal magnitude numerator/denominator;
+2. получить небольшой набор кандидатов;
+3. проверить кандидата точным Rational power comparison.
+
+Примеры:
+
+```text
+log2(2^1000) = 1000
+log2(2^100000) = 100000
+```
+
+при допустимом resource budget должны сохранять exact path.
+
+### `log_x(x)`
+
+Если base и argument являются одним graph node/value:
+
+```text
+log_x(x) = 1
+```
+
+после доказательства:
+
+```text
+x > 0
+x != 1
+```
+
+разрешён exact local fast path.
+
+Он не должен обходить domain refinement.
+
+### `ln` / `log`: series family не менять в этом этапе
+
+Текущий `ln` atanh-series и общий:
+
+```text
+log_b(x) = ln(x) / ln(b)
+```
+
+сохраняются.
+
+На этапе 28 разрешены только cache/state/cost optimizations и regression tests. Замена ряда обсуждается отдельно.
+
+## Тесты
+
+- `exp(±large)` не требует precision, пропорциональной decimal exponent результата;
+- backend exponent scaling не увеличивает mantissa без необходимости;
+- `ln2` cache memory/state growth;
+- exact logs с exponent существенно больше 512;
+- `log_x(x)` exact fast path после domain proof;
+- near-one base regression сохраняется.
+
+---
+
+## Локальный profiling
+
+Минимально измерять:
+
+```text
+exp large ±x: mantissa digits
+exp large ±x: exponent magnitude
+exp refinement retries
+ln2 cachedBigIntDigits
+ln2 term/state count
+exact-log path time
+near-one log refinement retries
+```
+
+## Definition of Done
+
+- large `exp(±x)` использует exponent-aware reconstruction и не требует absolute decimal scale, пропорционального порядку результата;
+- binary exponent применяется через backend/internal representation, а не giant decimal mantissa;
+- `ln2` cache не хранит очевидно квадратичную по `N` последовательность giant denominators;
+- exact integer `log` не ограничен фиксированным exponent ceiling `512`;
+- `log_x(x)` может вернуть exact `1` после доказательства domain;
+- текущие семейства рядов сохранены;
+- есть regression + scaling tests.
+
+---
+
+# ЭТАП 31. Powers и `nthRoot` — algorithm/resource remediation
+
+## Цель
+
+Устранить pathological exact-root/power algorithms и сделать direct `nthRoot` cost-aware без математического ограничения знаменателя `q`.
+
+### Полностью заменить `exactNthRootBigInt`
+
+Текущий exact root search не должен использовать:
+
+```text
+binary search [1, value]
++
+q последовательных умножений для каждого candidate
+```
+
+Новая реализация должна использовать:
+
+- bit-length estimate для initial bound;
+- integer Newton либо другой scalable exact `q`-th-root algorithm;
+- exponentiation-by-squaring для power checks;
+- early abort при доказанном превышении limit;
+- cooperative checkpoints там, где цикл может быть долгим.
+
+Exact fast path должен оставаться первым, но сам fast path не должен становиться самым дорогим этапом вычисления.
+
+### Direct `nthRoot`: исправить cost model
+
+Текущий direct scaled-root путь не должен бездумно разрешать промежуточный объект порядка:
+
+```text
+10^(N*q)
+```
+
+при `q ≈ N`.
+
+Cost model должен учитывать минимум:
+
+```text
+estimated peak bigint digits
+q
+requested N
+expected Newton/power cost
+cost of fallback ln+exp
+resource policy
+```
+
+Не задавать математический фиксированный максимум `q`.
+
+### Direct `nthRoot`: не материализовать `O(N*q)` digits при больших `q`
+
+Если direct root должен оставаться выгодным для более крупных `q`, перейти к fixed-scale/interval Newton, где рабочие bigint остаются порядка `O(N)` digits, а не строится целое `10^(N*q)`.
+
+До такой реализации large-`q` cases должны корректно уходить в fallback, а не создавать pathological allocation.
+
+### Route switching при refinement
+
+Выбор:
+
+```text
+direct nthRoot
+vs
+ln+exp fallback
+```
+
+не должен приводить к `InternalCalculationError`, если cost model при следующем refinement предпочитает другой путь.
+
+Допустимо:
+
+- закрепить выбранную стратегию для node state;
+- либо безопасно переключить strategy с сохранением containment.
+
+### Exact integer powers и resource lifecycle
+
+Огромные exact powers не должны запускать одну некооперативную BigInt-операцию, обходящую soft timeout/hard resource policy.
+
+Нужно:
+
+- preflight size estimate;
+- checkpoint-aware exponentiation-by-squaring для тяжёлых случаев;
+- hard resource guard до очевидно невозможной allocation;
+- exact semantics сохраняются, если вычисление разрешено resource policy.
+
+## Тесты
+
+- exact roots больших perfect powers;
+- non-perfect roots с большим `bigint`;
+- large `q` не создаёт `O(N^2)`-digit object только из-за cost model;
+- strategy continuation/switch не создаёт internal error;
+- timeout/cancel на тяжёлой exact power/root операции;
+- negative-base odd-denominator semantics не регрессируют.
+
+---
+
+## Локальный profiling
+
+Минимально измерять:
+
+```text
+exact root iterations
+power-check multiplications
+direct nthRoot peakBigIntDigits
+estimated N*q allocation
+fallback ln+exp cost
+strategy chosen
+refinement strategy changes
+timeout/cancel responsiveness
+```
+
+## Definition of Done
+
+- `exactNthRootBigInt` не использует binary search `[1,value]` с линейным `q`-fold power check;
+- exact root использует scalable initial bound/root iteration и быстрые power checks;
+- direct `nthRoot` cost model не допускает pathological `O(N*q)` allocation без обоснования;
+- large-`q` случаи безопасно уходят в fallback либо используют fixed-scale Newton с `O(N)`-scale bigint;
+- изменение preferred strategy при refinement не создаёт `InternalCalculationError`;
+- huge exact powers подчиняются soft timeout/cancel/hard resource policy;
+- negative-base real semantics не регрессируют;
+- есть regression + scaling tests.
+
+---
+
+# ЭТАП 32. Gamma и exact factorial — resource/scaling remediation
+
+## Цель
+
+Устранить оставшиеся линейные fast-path traps и resource bottlenecks Gamma/factorial, сохранив precision-parametric adaptive Stirling.
+
+### Half-integer fast path должен иметь cost model
+
+Специальный путь через:
+
+```text
+Γ(1/2) = sqrt(π)
+```
+
+и recurrence использовать только когда число recurrence steps действительно мало.
+
+Нельзя выполнять:
+
+```text
+O(|x|)
+```
+
+последовательных шагов для huge half-integer только потому, что аргумент распознан как half-integer.
+
+Для больших расстояний разрешено:
+
+- перейти к general adaptive Stirling/reflection;
+- либо использовать balanced/product-tree closed form с доказанными bounds.
+
+Примеры:
+
+```text
+Γ(10^9 + 1/2)
+Γ(-10^9 + 1/2)
+```
+
+должны попадать в resource-aware strategy, а не в миллиардный linear loop.
+
+### Exact factorial: scalable product + checkpoints
+
+Точный integer factorial сохраняется.
+
+Но production implementation не должен оставаться безусловным:
+
+```text
+for factor = 2..n:
+    result *= factor
+```
+
+без checkpoints.
+
+Для больших `n`:
+
+- использовать balanced range product / product tree;
+- встроить cooperative checkpoints;
+- добавить preflight/hard resource estimate;
+- small `n` может сохранять простой fast path.
+
+### Bernoulli generation: оптимизировать текущий Stirling, не менять семейство аппроксимации
+
+Adaptive Stirling в этапе 28 **сохраняется**.
+
+Проверить scaling текущего exact Bernoulli cache, у которого последовательное построение коэффициентов может давать примерно квадратичное количество Rational-работы.
+
+Если benchmark подтверждает bottleneck:
+
+- оптимизировать generation/caching;
+- уменьшить повторные gcd/normalization costs;
+- использовать block/balanced generation, если сохраняется тот же Stirling expansion и строгий remainder proof.
+
+Переход `Stirling → Spouge` или к другому семейству аппроксимаций в этот этап не входит.
+
+### Recurrence product
+
+Balanced product tree уже используется.
+
+Дополнительно измерять:
+
+```text
+peakBigIntDigits
+peak memory
+time
+```
+
+для giant recurrence product перед `ln`.
+
+Если этот объект становится отдельным memory bottleneck, допускается заменить его на strict log-domain/balanced accumulation, но только с явной containment proof.
+
+### Реальный regression выше старого 256-term ceiling
+
+Добавить тест, который **фактически выполняет** больше 256 Stirling corrections, а не только проверяет, что plan разрешает `minimumCorrectionTerms > 256`.
+
+Минимум:
+
+```text
+correctionTerms >= 257
+returned interval contains independent reference
+```
+
+в test-friendly конфигурации.
+
+## Тесты
+
+- huge half-integer routing не использует linear recurrence;
+- factorial product-tree exactness;
+- timeout/cancel/checkpoints для large exact factorial;
+- Bernoulli cache continuation и scaling counters;
+- production computation с >256 corrections;
+- reflection/direct choice сохраняет containment;
+- near-pole tests остаются обязательными.
+
+---
+
+## Локальный profiling
+
+Минимально измерять:
+
+```text
+half-integer selected strategy
+factorial product-tree depth
+factorial checkpoint frequency
+Bernoulli generation time
+Bernoulli cache size
+Gamma correctionTerms
+Gamma recurrence-product peakBigIntDigits
+reflection/direct strategy
+```
+
+## Definition of Done
+
+- huge half-integer Gamma не идёт по `O(|x|)` recurrence только из-за fast-path classification;
+- large exact factorial использует balanced/checkpointed strategy либо эквивалентный scalable path;
+- heavy exact factorial подчиняется soft timeout/cancel/hard resource policy;
+- Bernoulli generation имеет измеренную scaling-кривую и устранены очевидные повторные/квадратичные издержки, если они подтверждены profiling;
+- giant recurrence product измерен и не остаётся необоснованным memory bottleneck;
+- regression suite **фактически** выполняет более 256 Stirling corrections и проверяет containment;
+- adaptive Stirling остаётся текущим production family до отдельного решения;
+- есть regression + scaling tests.
+
+---
+
+# ЭТАП 33. Сквозное тестирование математического ядра
 
 ## Цель
 
@@ -2131,11 +2812,11 @@ shared ln2 cache
 
 ## Test suites
 
-### 28.1. Parser → exact result
+### 33.1. Parser → exact result
 
 Большая таблица выражений и точных rational результатов.
 
-### 28.2. Parser → lazy result → verified digits
+### 33.2. Parser → lazy result → verified digits
 
 Примеры с:
 
@@ -2152,7 +2833,7 @@ powers
 Gamma
 ```
 
-### 28.3. Containment tests
+### 33.3. Containment tests
 
 Для каждой approximate операции:
 
@@ -2160,7 +2841,7 @@ Gamma
 referenceValue ∈ returnedBall
 ```
 
-### 28.4. Monotonic refinement
+### 33.4. Monotonic refinement
 
 Базовая последовательность:
 
@@ -2174,20 +2855,20 @@ referenceValue ∈ returnedBall
 
 Старый verified prefix никогда не меняется.
 
-### 28.5. Differential tests
+### 33.5. Differential tests
 
 Сравнение с независимым high-precision reference backend/implementation.
 
 Reference не должен быть тем же кодом, который тестируется.
 
-### 28.6. Resource lifecycle
+### 33.6. Resource lifecycle
 
 - timeout;
 - continue;
 - cancel;
 - hard limit.
 
-### 28.7. Domain boundaries
+### 33.7. Domain boundaries
 
 Особенно:
 
@@ -2200,7 +2881,7 @@ negative-base powers
 Gamma poles
 ```
 
-### 28.8. Cutoff
+### 33.8. Cutoff
 
 Production cutoff 3000/3001 и уменьшенный test cutoff.
 
@@ -2212,7 +2893,7 @@ Production cutoff 3000/3001 и уменьшенный test cutoff.
 
 если выражение не проходит через cutoff-операцию.
 
-### 28.9. Regression suite найденных проблем
+### 33.9. Regression suite найденных проблем
 
 Обязательные regression groups:
 
@@ -2239,7 +2920,7 @@ Gamma precision beyond old 256-term ceiling
 
 ---
 
-# ЭТАП 29. Performance profiling и безопасные оптимизации
+# ЭТАП 34. Performance profiling и безопасные оптимизации
 
 ## Цель
 
@@ -2322,7 +3003,7 @@ peakBigIntDigits(N)
 
 ---
 
-# ЭТАП 30. Freeze первого публичного Core API
+# ЭТАП 35. Freeze первого публичного Core API
 
 ## Цель
 
@@ -2416,11 +3097,21 @@ peakBigIntDigits(N)
         ↓
 27 powers/Gamma stabilization
         ↓
-28 full verification
+28 π/e remediation
         ↓
-29 scaling/profile optimization
+29 trig remediation
         ↓
-30 public API freeze
+30 exp/ln/log remediation
+        ↓
+31 powers/nthRoot remediation
+        ↓
+32 Gamma/factorial remediation
+        ↓
+33 full verification
+        ↓
+34 scaling/profile optimization
+        ↓
+35 public API freeze
 ```
 
 На практике некоторые этапы можно разрабатывать частично параллельно, но нельзя объявлять зависящий этап завершённым до завершения его математических зависимостей.
@@ -2530,7 +3221,7 @@ Gamma mode
 Включает:
 
 ```text
-23–27
+23–32
 ```
 
 Требуется:
@@ -2547,7 +3238,7 @@ Gamma mode
 Включает:
 
 ```text
-28–30
+33–35
 ```
 
 Требуется:
@@ -2595,8 +3286,17 @@ Gamma mode
 28. `ln` не использует `O(|k|)` precision overhead/reduction loop для binary scale;
 29. rational fractional powers используют direct `nthRoot`, когда это дешевле общего `ln+exp`;
 30. Gamma не имеет fixed-term precision ceiling и использует precision-parametric error-bounded algorithm;
-31. нет известных нарушений фундаментальных инвариантов;
-32. public API прошёл финальный аудит.
+31. huge degree arguments редуцируются до умножения на `π`;
+32. standalone `sin/cos` не обязаны считать ненужный второй ряд;
+33. large `exp(±x)` использует exponent-aware reconstruction без absolute-scale blow-up;
+34. `ln2` cache не имеет очевидного квадратичного giant-denominator storage;
+35. exact integer `log` не ограничен фиксированным exponent ceiling;
+36. exact/direct `nthRoot` не используют pathological algorithms/allocation при больших входах;
+37. huge exact powers/factorials подчиняются cooperative resource lifecycle;
+38. huge half-integer Gamma не использует линейную recurrence только из-за fast-path classification;
+39. regression suite реально выполняет Gamma с более чем 256 Stirling corrections;
+40. нет известных нарушений фундаментальных инвариантов;
+41. public API прошёл финальный аудит.
 
 ---
 
@@ -2648,47 +3348,59 @@ Gamma mode
 
 ---
 
-# 8. Следующие задачи для Codex после завершения этапа 22
+# 8. Следующие задачи для Codex после завершения этапа 27
 
-Этапы `0–22` считаются реализованной базой. Следующая работа должна идти небольшими завершёнными задачами по блоку математической стабилизации.
+Этапы `0–27` считаются завершённой базой. Post-stage-27 remediation теперь разбит на пять самостоятельных этапов.
 
-### Task 23.1
+### Этап 28 — `π/e`
 
-Исправить `sin/cos` range reduction так, чтобы сохранялись quadrant/parity/sign. Добавить regression tests `sin(4)`, `cos(4)`, `sin(100°)`, `cos(100°)` и границы квадрантов.
+1. убрать последовательный giant tail-factor accumulator Chudnovsky;
+2. сделать resumable/cache path для `sqrt(10005)`;
+3. убрать ненужное дублирование Chudnovsky block state;
+4. отделить user precision от provider working precision в diagnostics;
+5. проверить scaling `e` continuation без смены factorial series.
 
-### Task 23.2
+### Этап 29 — trig
 
-Унифицировать получение `π`: убрать локальные независимые production-вычисления и перевести trig/Gamma/degree conversion на общий context-scoped precision-aware provider.
+1. exact degree modulo `360/180` до `π`;
+2. selective `needSin/needCos` kernel;
+3. endpoint monotonic path для `tan`, если он сужает interval после pole proof;
+4. regression `sin(π)`, `cos(π)`, `tan(π)`, `tan(π/2)`;
+5. локальный `q*π` fast path только если dependency problem подтверждается.
 
-### Task 24.1
+### Этап 30 — `exp/ln/log`
 
-Заменить production `π` на Chudnovsky + binary splitting со строгим interval/error bound и reuse состояния.
+1. large-argument `exp`: `x = k ln2 + r`, `2^k * exp(r)` с backend exponent scaling;
+2. уменьшить memory growth `ln2` cache без смены ряда;
+3. убрать fixed `512` limit exact integer log;
+4. `log_x(x)=1` после domain proof;
+5. сохранить текущие series families.
 
-### Task 24.2
+### Этап 31 — powers / `nthRoot`
 
-Исправить `e` refinement: target term count выводится из tail bound, без `missingDigits → terms` и без безусловных `+6` на каждый refine.
+1. заменить `exactNthRootBigInt`;
+2. исправить direct `nthRoot` cost model;
+3. не материализовать pathological `10^(N*q)`;
+4. сделать strategy selection/refinement безопасным;
+5. подключить huge exact powers к cooperative resource lifecycle.
 
-### Task 24.3
+### Этап 32 — Gamma / factorial
 
-Добавить общий scaled/fixed-point interval primitive и precision-aware cache `ln(2)`.
+1. cost-gate half-integer fast path;
+2. large exact factorial → balanced/checkpointed range product;
+3. benchmark/оптимизировать Bernoulli generation, сохраняя adaptive Stirling;
+4. измерить giant recurrence product;
+5. добавить реальный computation regression с `>256` Stirling corrections.
 
-### Task 25
+После этапа 32 перейти к:
 
-Перевести `exp` squaring на scaled interval arithmetic; исправить `ln` binary reduction и precision estimate; затем проверить `log`.
+```text
+33 full verification
+34 global scaling/profile optimization
+35 public API freeze
+```
 
-### Task 26
-
-Перевести trig Taylor evaluation на shared `sincos` + scaled intervals и canonical `[-π/4, π/4]` reduction.
-
-### Task 27.1
-
-Добавить rigorous `nthRoot` и подключить его к rational fractional powers.
-
-### Task 27.2
-
-Заменить Gamma engine на precision-parametric implementation без fixed 256-term ceiling; зафиксировать выбранный Spouge/adaptive-Stirling вариант engineering note с доказанной error bound.
-
-После этапа 27 переходить к новому сквозному этапу 28.
+**Отдельно:** переход функций на другие виды рядов/аппроксимаций не входит в этапы `28–32` и обсуждается отдельным решением.
 
 ---
 
