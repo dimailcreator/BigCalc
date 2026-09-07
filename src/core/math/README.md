@@ -4,14 +4,17 @@ Arithmetic, powers, factorial/Gamma, trigonometric functions, logarithms, exp, a
 
 Fundamental high-precision infrastructure is context-scoped: `π` retains compact
 Chudnovsky binary-splitting levels, derives its tail coefficient from those levels, and
-continues a rigorous cached `sqrt(10005)` interval. `ln(2)` uses a reusable rigorous series
-state, and decimal fixed-point interval operations provide outward-rounded multiplication,
-squaring, division, and rescaling without exposing backend types.
+continues a rigorous cached `sqrt(10005)` interval. The `ln(2)` provider keeps a compact
+recurrence frontier instead of a quadratic collection of growing denominators. Decimal
+fixed-point interval operations provide outward-rounded multiplication, squaring, division,
+and rescaling without exposing backend types.
 
-`exp` reconstructs reduced arguments with fixed-scale outward squaring, while `ln` selects
-its binary scale directly and reuses the context-scoped `ln(2)` cache. Their guard precision
-grows with the decimal digit count of the amplification factor, not linearly with the binary
-scale. Small rational logarithms also have a bounded exact fractional-exponent path.
+The production `exp` path reduces `x = k*ln(2) + r`, evaluates the existing small series at
+`r`, and applies `2^k` through the backend binary exponent without growing the mantissa.
+`ln` selects its binary scale directly and reuses the context-scoped `ln(2)` cache. Exact
+integer logarithms derive a small candidate set from bigint magnitude and verify candidates
+with exact rational powers, without a fixed exponent ceiling. Small rational logarithms keep
+their bounded exact fractional-exponent path.
 
 Trigonometric evaluation uses one canonical reduction to `[-π/4, π/4]` and a joint
 fixed-point `sincos` kernel with outward rounding. Standalone `sin`/`cos` select only the

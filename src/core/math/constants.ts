@@ -96,6 +96,12 @@ export interface Ln2ProviderStateSnapshot {
   readonly cacheHits: number;
   readonly highestRequestedDigits: number;
   readonly completedTerms: number;
+  readonly lastRefinementAddedTerms: number;
+  readonly summationPasses: number;
+  readonly retainedGrowingDenominators: 0;
+  readonly recurrenceStateBigIntCount: 1;
+  readonly peakBigIntDigits: number;
+  readonly cachedBigIntDigits: number;
 }
 
 export interface PiRationalInterval {
@@ -559,8 +565,11 @@ class Ln2ProviderState {
   private intervalRequests = 0;
   private cacheHits = 0;
   private highestRequestedDigits = 0;
+  private completedTerms = 0;
+  private lastRefinementAddedTerms = 0;
+  private summationPasses = 0;
+  private peakBigIntDigits = 1;
   private cachedInterval: PiRationalInterval | null = null;
-  private readonly termDenominators: bigint[] = [];
   private nextPowerDenominator = THREE;
 
   getInterval(decimalDigits: number, context: EvaluationCheckpoint): PiRationalInterval {
@@ -568,28 +577,40 @@ class Ln2ProviderState {
     this.intervalRequests += 1;
     if (this.cachedInterval !== null && digits <= this.highestRequestedDigits) {
       this.cacheHits += 1;
+      this.lastRefinementAddedTerms = 0;
       return this.cachedInterval;
     }
 
     const tailDigits = digits + 2;
+    const previousCompletedTerms = this.completedTerms;
     while (!this.tailFits(tailDigits)) {
       context.checkpoint();
-      const index = this.termDenominators.length;
-      this.termDenominators.push(this.nextPowerDenominator * (2n * BigInt(index) + ONE));
       this.nextPowerDenominator *= NINE;
+      this.completedTerms += 1;
     }
+    this.lastRefinementAddedTerms = this.completedTerms - previousCompletedTerms;
 
-    const workingDigits = digits + this.termDenominators.length.toString().length + 3;
+    const workingDigits = digits + this.completedTerms.toString().length + 3;
     const scale = decimalScale(workingDigits);
     let lower = ZERO;
     let upper = ZERO;
-    for (const denominator of this.termDenominators) {
+    let powerDenominator = THREE;
+    this.summationPasses += 1;
+    for (let index = 0; index < this.completedTerms; index += 1) {
       context.checkpoint();
+      const denominator = powerDenominator * (TWO * BigInt(index) + ONE);
       lower += scale / denominator;
       upper += ceilDiv(scale, denominator);
+      powerDenominator *= NINE;
+      this.peakBigIntDigits = Math.max(
+        this.peakBigIntDigits,
+        bigintDecimalDigits(denominator),
+        bigintDecimalDigits(lower),
+        bigintDecimalDigits(upper)
+      );
     }
 
-    const nextIndex = BigInt(this.termDenominators.length);
+    const nextIndex = BigInt(this.completedTerms);
     const tailUpper = ceilDiv(
       NINE * scale,
       FOUR * this.nextPowerDenominator * (TWO * nextIndex + ONE)
@@ -609,12 +630,20 @@ class Ln2ProviderState {
       intervalRequests: this.intervalRequests,
       cacheHits: this.cacheHits,
       highestRequestedDigits: this.highestRequestedDigits,
-      completedTerms: this.termDenominators.length
+      completedTerms: this.completedTerms,
+      lastRefinementAddedTerms: this.lastRefinementAddedTerms,
+      summationPasses: this.summationPasses,
+      retainedGrowingDenominators: 0,
+      recurrenceStateBigIntCount: 1,
+      peakBigIntDigits: this.peakBigIntDigits,
+      cachedBigIntDigits:
+        bigintDecimalDigits(this.nextPowerDenominator) +
+        rationalIntervalBigIntDigits(this.cachedInterval)
     });
   }
 
   private tailFits(decimalDigits: number): boolean {
-    const nextIndex = BigInt(this.termDenominators.length);
+    const nextIndex = BigInt(this.completedTerms);
     // ln(2)=2*sum(1/((2k+1)3^(2k+1))); bounding later odd denominators by
     // the first omitted one turns the remaining powers into a geometric 1/9 tail.
     const denominator = FOUR * this.nextPowerDenominator * (TWO * nextIndex + ONE);

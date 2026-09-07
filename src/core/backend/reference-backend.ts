@@ -2,14 +2,10 @@ import type { BigFloatBackend, InternalFloat, RoundingMode } from "./contracts.j
 import {
   RATIONAL_ZERO,
   absRational,
-  addRational,
-  compareRational,
   createRational,
   divideRational,
   isZeroRational,
-  multiplyRational,
-  signOfRational,
-  subtractRational
+  signOfRational
 } from "../values/rational.js";
 import type { Rational, Sign } from "../values/contracts.js";
 
@@ -21,32 +17,35 @@ export function createReferenceBigFloatBackend(): BigFloatBackend {
     fromRational: roundRationalToInternalFloat,
     compare: compareInternalFloat,
     add(left, right, precisionBits, roundingMode) {
-      return roundRationalToInternalFloat(
-        addRational(internalFloatToRational(left), internalFloatToRational(right)),
-        precisionBits,
-        roundingMode
-      );
+      return addInternalFloats(left, right, precisionBits, roundingMode);
     },
     sub(left, right, precisionBits, roundingMode) {
-      return roundRationalToInternalFloat(
-        subtractRational(internalFloatToRational(left), internalFloatToRational(right)),
-        precisionBits,
-        roundingMode
-      );
+      return addInternalFloats(left, negateInternalFloat(right), precisionBits, roundingMode);
     },
     mul(left, right, precisionBits, roundingMode) {
-      return roundRationalToInternalFloat(
-        multiplyRational(internalFloatToRational(left), internalFloatToRational(right)),
+      if (left.sign === 0 || right.sign === 0) return canonicalZero();
+      return roundSignedDyadic(
+        BigInt(left.sign * right.sign) * left.significand * right.significand,
+        left.exponent + right.exponent,
         precisionBits,
         roundingMode
       );
     },
     div(left, right, precisionBits, roundingMode) {
-      return roundRationalToInternalFloat(
-        divideRational(internalFloatToRational(left), internalFloatToRational(right)),
+      if (right.sign === 0) {
+        return roundRationalToInternalFloat(
+          divideRational(internalFloatToRational(left), RATIONAL_ZERO),
+          precisionBits,
+          roundingMode
+        );
+      }
+      if (left.sign === 0) return canonicalZero();
+      const quotient = roundRationalToInternalFloat(
+        createRational(BigInt(left.sign * right.sign) * left.significand, right.significand),
         precisionBits,
         roundingMode
       );
+      return scaleInternalFloat(quotient, left.exponent - right.exponent);
     },
     round(value, precisionBits, roundingMode) {
       return roundRationalToInternalFloat(
@@ -56,16 +55,7 @@ export function createReferenceBigFloatBackend(): BigFloatBackend {
       );
     },
     negate(value) {
-      if (value.sign === 0) {
-        return canonicalZero();
-      }
-
-      return makeInternalFloat(
-        value.sign === 1 ? -1 : 1,
-        value.significand,
-        value.exponent,
-        value.precisionBits
-      );
+      return negateInternalFloat(value);
     },
     abs(value) {
       if (value.sign === 0) {
@@ -75,16 +65,7 @@ export function createReferenceBigFloatBackend(): BigFloatBackend {
       return makeInternalFloat(1, value.significand, value.exponent, value.precisionBits);
     },
     scaleByPowerOfTwo(value, exponentDelta) {
-      if (value.sign === 0) {
-        return canonicalZero();
-      }
-
-      return makeInternalFloat(
-        value.sign,
-        value.significand,
-        value.exponent + exponentDelta,
-        value.precisionBits
-      );
+      return scaleInternalFloat(value, exponentDelta);
     }
   };
 }
@@ -139,7 +120,115 @@ function roundRationalToInternalFloat(
 }
 
 function compareInternalFloat(left: InternalFloat, right: InternalFloat): Sign {
-  return compareRational(internalFloatToRational(left), internalFloatToRational(right));
+  if (left.sign !== right.sign) return left.sign < right.sign ? -1 : 1;
+  if (left.sign === 0) return 0;
+
+  const magnitudeComparison = compareInternalFloatMagnitudes(left, right);
+  if (left.sign === 1 || magnitudeComparison === 0) return magnitudeComparison;
+  return magnitudeComparison === 1 ? -1 : 1;
+}
+
+function compareInternalFloatMagnitudes(left: InternalFloat, right: InternalFloat): Sign {
+  const leftTop = left.exponent + BigInt(bitLength(left.significand));
+  const rightTop = right.exponent + BigInt(bitLength(right.significand));
+  if (leftTop !== rightTop) return leftTop < rightTop ? -1 : 1;
+
+  const commonExponent = left.exponent < right.exponent ? left.exponent : right.exponent;
+  const leftMagnitude = left.significand << (left.exponent - commonExponent);
+  const rightMagnitude = right.significand << (right.exponent - commonExponent);
+  return leftMagnitude < rightMagnitude ? -1 : leftMagnitude > rightMagnitude ? 1 : 0;
+}
+
+function addInternalFloats(
+  left: InternalFloat,
+  right: InternalFloat,
+  precisionBits: number,
+  roundingMode: RoundingMode
+): InternalFloat {
+  assertValidPrecisionBits(precisionBits);
+  if (left.sign === 0) return roundInternalFloat(right, precisionBits, roundingMode);
+  if (right.sign === 0) return roundInternalFloat(left, precisionBits, roundingMode);
+
+  const commonExponent = left.exponent < right.exponent ? left.exponent : right.exponent;
+  const leftCoefficient =
+    BigInt(left.sign) * left.significand * (ONE << (left.exponent - commonExponent));
+  const rightCoefficient =
+    BigInt(right.sign) * right.significand * (ONE << (right.exponent - commonExponent));
+  return roundSignedDyadic(
+    leftCoefficient + rightCoefficient,
+    commonExponent,
+    precisionBits,
+    roundingMode
+  );
+}
+
+function roundInternalFloat(
+  value: InternalFloat,
+  precisionBits: number,
+  roundingMode: RoundingMode
+): InternalFloat {
+  if (value.sign === 0) return canonicalZero();
+  return roundSignedDyadic(
+    BigInt(value.sign) * value.significand,
+    value.exponent,
+    precisionBits,
+    roundingMode
+  );
+}
+
+function roundSignedDyadic(
+  coefficient: bigint,
+  exponent: bigint,
+  precisionBits: number,
+  roundingMode: RoundingMode
+): InternalFloat {
+  assertValidPrecisionBits(precisionBits);
+  if (coefficient === ZERO) return canonicalZero();
+
+  const sign: Sign = coefficient < ZERO ? -1 : 1;
+  const magnitude = coefficient < ZERO ? -coefficient : coefficient;
+  const discardedBits = bitLength(magnitude) - precisionBits;
+  if (discardedBits <= 0) {
+    return makeInternalFloat(sign, magnitude, exponent, precisionBits);
+  }
+
+  const shift = BigInt(discardedBits);
+  let roundedSignificand = magnitude >> shift;
+  const remainder = magnitude - (roundedSignificand << shift);
+  const magnitudeMode = directedModeForMagnitude(sign, roundingMode);
+  if (
+    remainder !== ZERO &&
+    (magnitudeMode === "ceil" || (magnitudeMode === "nearest" && remainder * 2n >= ONE << shift))
+  ) {
+    roundedSignificand += ONE;
+  }
+
+  let roundedExponent = exponent + shift;
+  if (bitLength(roundedSignificand) > precisionBits) {
+    roundedSignificand >>= ONE;
+    roundedExponent += ONE;
+  }
+  return makeInternalFloat(sign, roundedSignificand, roundedExponent, precisionBits);
+}
+
+function negateInternalFloat(value: InternalFloat): InternalFloat {
+  if (value.sign === 0) return canonicalZero();
+  return makeInternalFloat(
+    value.sign === 1 ? -1 : 1,
+    value.significand,
+    value.exponent,
+    value.precisionBits
+  );
+}
+
+function scaleInternalFloat(value: InternalFloat, exponentDelta: bigint): InternalFloat {
+  if (value.sign === 0) return canonicalZero();
+  return makeInternalFloat(
+    value.sign,
+    value.significand,
+    value.exponent + exponentDelta,
+    value.precisionBits
+  );
 }
 
 function directedModeForMagnitude(
