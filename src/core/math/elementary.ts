@@ -14,7 +14,12 @@ import {
   squareScaled,
   type ScaledInterval
 } from "./scaled-interval.js";
-import { ballToOutwardInterval, createInternalInterval, intervalToBall } from "../values/ball.js";
+import {
+  ballToOutwardInterval,
+  createBall,
+  createInternalInterval,
+  intervalToBall
+} from "../values/ball.js";
 import type { Ball, Rational, Sign } from "../values/contracts.js";
 import {
   RATIONAL_ONE,
@@ -59,6 +64,23 @@ export interface ExpIntervalProfile {
   readonly squaringSteps: number;
   readonly peakEndpointDecimalDigits: number;
   readonly resultDenominatorDecimalDigits: number;
+}
+
+export interface ExpBinaryReconstructionProfile {
+  readonly binaryExponent: bigint;
+  readonly ln2RequestedDigits: number;
+  readonly reductionRetries: number;
+  readonly mantissaScaleDigits: number;
+  readonly mantissaPeakDecimalDigits: number;
+  readonly resultSignificandBits: number;
+  readonly resultExponentMagnitude: bigint;
+}
+
+export interface ExactLogProfile {
+  readonly estimatedExponent: bigint | null;
+  readonly candidateCount: number;
+  readonly exactPowerChecks: number;
+  readonly matchedExponent: bigint | null;
 }
 
 export interface LnIntervalProfile {
@@ -219,6 +241,74 @@ export function expBallInterval(
   const upper = expRationalInterval(argument.upper, decimalDigits, control);
 
   return createRationalInterval(lower.lower, upper.upper);
+}
+
+/**
+ * Production exp path. The small exp series is evaluated only for the reduced
+ * mantissa; the potentially huge 2^k factor stays in InternalFloat.exponent.
+ */
+export function expIntervalBall(
+  argument: RationalInterval,
+  decimalDigits: number,
+  precisionBits: number,
+  backend: BigFloatBackend,
+  control: MathComputationContext
+): Ball | null {
+  return expIntervalBallWithProfile(argument, decimalDigits, precisionBits, backend, control).ball;
+}
+
+export function expIntervalBallWithProfile(
+  argument: RationalInterval,
+  decimalDigits: number,
+  precisionBits: number,
+  backend: BigFloatBackend,
+  control: MathComputationContext
+): { readonly ball: Ball | null; readonly profile: ExpBinaryReconstructionProfile | null } {
+  const reduction = reduceExpIntervalByLn2(argument, decimalDigits, control);
+  if (reduction === null) {
+    return Object.freeze({ ball: null, profile: null });
+  }
+
+  const mantissaScaleDigits = decimalDigits + EXP_RECONSTRUCTION_SAFETY_DIGITS;
+  const lower = expSmallNonNegativeScaledInterval(
+    reduction.remainder.lower,
+    mantissaScaleDigits,
+    control
+  );
+  const upper = expSmallNonNegativeScaledInterval(
+    reduction.remainder.upper,
+    mantissaScaleDigits,
+    control
+  );
+  const mantissaInterval = createRationalInterval(
+    scaledIntervalToRationalBounds(lower).lower,
+    scaledIntervalToRationalBounds(upper).upper
+  );
+  const mantissaBall = intervalToRoundedBall(mantissaInterval, precisionBits, backend);
+  const center = backend.scaleByPowerOfTwo(mantissaBall.center, reduction.binaryExponent);
+  const radius = backend.scaleByPowerOfTwo(mantissaBall.radius, reduction.binaryExponent);
+  const ball = createBall(center, radius);
+  const resultSignificandBits = Math.max(
+    bigintBitLength(center.significand),
+    bigintBitLength(radius.significand)
+  );
+  const resultExponentMagnitude = center.exponent < ZERO ? -center.exponent : center.exponent;
+
+  return Object.freeze({
+    ball,
+    profile: Object.freeze({
+      binaryExponent: reduction.binaryExponent,
+      ln2RequestedDigits: reduction.ln2RequestedDigits,
+      reductionRetries: reduction.reductionRetries,
+      mantissaScaleDigits,
+      mantissaPeakDecimalDigits: Math.max(
+        maxScaledEndpointDecimalDigits(lower),
+        maxScaledEndpointDecimalDigits(upper)
+      ),
+      resultSignificandBits,
+      resultExponentMagnitude
+    })
+  });
 }
 
 export function lnPositiveRationalInterval(
@@ -730,6 +820,13 @@ export function intervalSignLower(interval: RationalInterval): Sign {
 }
 
 export function exactLogRational(base: Rational, argument: Rational): Rational | null {
+  return exactLogRationalWithProfile(base, argument).value;
+}
+
+export function exactLogRationalWithProfile(
+  base: Rational,
+  argument: Rational
+): { readonly value: Rational | null; readonly profile: ExactLogProfile } {
   if (signOfRational(argument) <= 0) {
     throw new InternalCalculationException(
       "log argument domain must be checked before exactLogRational"
@@ -743,30 +840,54 @@ export function exactLogRational(base: Rational, argument: Rational): Rational |
   }
 
   if (equalsRational(argument, RATIONAL_ONE)) {
-    return RATIONAL_ZERO;
+    return exactLogProfileResult(RATIONAL_ZERO, null, 0, 0);
   }
 
   const integerLog = searchExactIntegerLog(base, argument);
-  if (integerLog !== null) {
-    return integerLog;
+  if (integerLog.value !== null) {
+    return exactLogProfileResult(
+      integerLog.value,
+      integerLog.estimatedExponent,
+      integerLog.candidateCount,
+      integerLog.exactPowerChecks
+    );
   }
 
   if (!isCheapExactFractionalLogCandidate(base, argument)) {
-    return null;
+    return exactLogProfileResult(
+      null,
+      integerLog.estimatedExponent,
+      integerLog.candidateCount,
+      integerLog.exactPowerChecks
+    );
   }
 
   // This is intentionally a small, local exact path rather than a symbolic
   // factorisation engine: argument^q = base^p proves log_base(argument) = p/q.
   let argumentPower = argument;
+  let candidateCount = integerLog.candidateCount;
+  let exactPowerChecks = integerLog.exactPowerChecks;
   for (let denominator = 2; denominator <= MAX_EXACT_LOG_DENOMINATOR; denominator += 1) {
     argumentPower = multiplyRational(argumentPower, argument);
     const numerator = searchExactIntegerLog(base, argumentPower);
-    if (numerator !== null) {
-      return createRational(numerator.numerator, BigInt(denominator));
+    candidateCount += numerator.candidateCount;
+    exactPowerChecks += numerator.exactPowerChecks;
+    if (numerator.value !== null) {
+      return exactLogProfileResult(
+        createRational(numerator.value.numerator, BigInt(denominator)),
+        numerator.estimatedExponent,
+        candidateCount,
+        exactPowerChecks
+      );
     }
   }
 
-  return null;
+  return exactLogProfileResult(
+    null,
+    integerLog.estimatedExponent,
+    candidateCount,
+    exactPowerChecks
+  );
 }
 
 export function createRationalInterval(lower: Rational, upper: Rational): RationalInterval {
@@ -1528,36 +1649,143 @@ function reduceExpArgument(
   return Object.freeze({ value: reduced, power });
 }
 
-function searchExactIntegerLog(base: Rational, argument: Rational): Rational | null {
+function reduceExpIntervalByLn2(
+  argument: RationalInterval,
+  decimalDigits: number,
+  control: MathComputationContext
+): {
+  readonly binaryExponent: bigint;
+  readonly remainder: RationalInterval;
+  readonly ln2RequestedDigits: number;
+  readonly reductionRetries: number;
+} | null {
+  if (
+    equalsRational(argument.lower, RATIONAL_ZERO) &&
+    equalsRational(argument.upper, RATIONAL_ZERO)
+  ) {
+    return Object.freeze({
+      binaryExponent: ZERO,
+      remainder: argument,
+      ln2RequestedDigits: 0,
+      reductionRetries: 0
+    });
+  }
+
+  const exactArgument = equalsRational(argument.lower, argument.upper);
+  let ln2RequestedDigits =
+    decimalDigits + decimalMagnitudeUpperBound(argument) + EXP_RECONSTRUCTION_SAFETY_DIGITS;
+  let reductionRetries = 0;
+
+  for (;;) {
+    control.checkpoint();
+    const lnTwo = getLn2RationalInterval(control, ln2RequestedDigits);
+    const quotient = divideIntervals(argument, lnTwo);
+    const lowerExponent = floorRational(quotient.lower);
+    const upperExponent = floorRational(quotient.upper);
+
+    // A boundary-straddling quotient is still safe: choosing the proven lower
+    // integer keeps r non-negative and below roughly 2*ln(2). This avoids an
+    // infinite refinement loop when the true argument is exactly k*ln(2).
+    if (upperExponent === lowerExponent || upperExponent === lowerExponent + ONE) {
+      const remainder = subtractIntervals(argument, scaleIntervalByInteger(lnTwo, lowerExponent));
+      if (intervalSignLower(remainder) < 0) {
+        throw new InternalCalculationException("exp ln(2) reduction produced a negative remainder");
+      }
+
+      return Object.freeze({
+        binaryExponent: lowerExponent,
+        remainder,
+        ln2RequestedDigits,
+        reductionRetries
+      });
+    }
+
+    if (!exactArgument) {
+      return null;
+    }
+
+    reductionRetries += 1;
+    ln2RequestedDigits = Math.max(ln2RequestedDigits + 16, ln2RequestedDigits * 2);
+  }
+}
+
+interface ExactIntegerLogSearchResult {
+  readonly value: Rational | null;
+  readonly estimatedExponent: bigint;
+  readonly candidateCount: number;
+  readonly exactPowerChecks: number;
+}
+
+function searchExactIntegerLog(base: Rational, argument: Rational): ExactIntegerLogSearchResult {
   const baseAboveOne = compareRational(base, RATIONAL_ONE) > 0;
   const argumentAboveOne = compareRational(argument, RATIONAL_ONE) > 0;
   const exponentSign = baseAboveOne === argumentAboveOne ? 1n : -1n;
-  const effectiveBase = exponentSign > ZERO ? base : divideRational(RATIONAL_ONE, base);
-  const maxMagnitude = 512;
-  const maxPower = powRational(effectiveBase, BigInt(maxMagnitude));
-  const maxComparison = compareRational(maxPower, argument);
+  const effectiveBase = baseAboveOne ? base : divideRational(RATIONAL_ONE, base);
+  const effectiveArgument = argumentAboveOne ? argument : divideRational(RATIONAL_ONE, argument);
+  const estimatedExponent = estimateIntegerPowerExponent(
+    effectiveBase.numerator,
+    effectiveArgument.numerator
+  );
+  const candidates = nearbyPositiveIntegerCandidates(estimatedExponent);
+  let exactPowerChecks = 0;
 
-  if ((argumentAboveOne && maxComparison < 0) || (!argumentAboveOne && maxComparison > 0)) {
-    return null;
-  }
-
-  let lower = 1;
-  let upper = maxMagnitude;
-  while (lower <= upper) {
-    const magnitude = Math.floor((lower + upper) / 2);
-    const comparison = compareRational(powRational(effectiveBase, BigInt(magnitude)), argument);
-    if (comparison === 0) {
-      return integerRational(exponentSign * BigInt(magnitude));
-    }
-
-    if (argumentAboveOne ? comparison < 0 : comparison > 0) {
-      lower = magnitude + 1;
-    } else {
-      upper = magnitude - 1;
+  for (const magnitude of candidates) {
+    exactPowerChecks += 1;
+    if (equalsRational(powRational(effectiveBase, magnitude), effectiveArgument)) {
+      return Object.freeze({
+        value: integerRational(exponentSign * magnitude),
+        estimatedExponent,
+        candidateCount: candidates.length,
+        exactPowerChecks
+      });
     }
   }
 
-  return null;
+  return Object.freeze({
+    value: null,
+    estimatedExponent,
+    candidateCount: candidates.length,
+    exactPowerChecks
+  });
+}
+
+function estimateIntegerPowerExponent(base: bigint, argument: bigint): bigint {
+  const estimate = Math.round(approximateLog2BigInt(argument) / approximateLog2BigInt(base));
+  return BigInt(Math.max(1, estimate));
+}
+
+function approximateLog2BigInt(value: bigint): number {
+  const bitLength = bigintBitLength(value);
+  const retainedBits = Math.min(53, bitLength);
+  const shift = bitLength - retainedBits;
+  const leading = Number(value >> BigInt(shift));
+  return Math.log2(leading) + shift;
+}
+
+function nearbyPositiveIntegerCandidates(estimate: bigint): readonly bigint[] {
+  const candidates: bigint[] = [];
+  for (let offset = -3n; offset <= 3n; offset += ONE) {
+    const candidate = estimate + offset;
+    if (candidate > ZERO) candidates.push(candidate);
+  }
+  return Object.freeze(candidates);
+}
+
+function exactLogProfileResult(
+  value: Rational | null,
+  estimatedExponent: bigint | null,
+  candidateCount: number,
+  exactPowerChecks: number
+): { readonly value: Rational | null; readonly profile: ExactLogProfile } {
+  return Object.freeze({
+    value,
+    profile: Object.freeze({
+      estimatedExponent,
+      candidateCount,
+      exactPowerChecks,
+      matchedExponent: value?.denominator === ONE ? value.numerator : null
+    })
+  });
 }
 
 function isCheapExactFractionalLogCandidate(base: Rational, argument: Rational): boolean {

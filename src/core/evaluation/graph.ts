@@ -16,6 +16,7 @@ import {
   gammaRealInterval,
   cosAngleInterval,
   expBallInterval,
+  expIntervalBall,
   intervalContainsRational,
   intervalSignLower,
   intervalSignUpper,
@@ -1292,14 +1293,46 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       return lnArgument.refine(request, context);
     }
 
-    return this.refineUnaryTranscendental(
-      request,
-      context,
-      operand,
-      "exp",
-      () => "ok",
-      (interval, decimalDigits) => expBallInterval(interval, decimalDigits, context)
-    );
+    const operandValue = operand.evaluate(context);
+    let operandDigits = request.significantDigits + DEFAULT_GUARD_DIGITS;
+
+    for (;;) {
+      context.checkpoint();
+      const childRequest = Object.freeze({ significantDigits: operandDigits });
+      const resultDigits = operandDigits + DEFAULT_GUARD_DIGITS + 8;
+      const precisionBits = precisionBitsForRequest({ significantDigits: resultDigits });
+      const operandInterval =
+        operandValue.kind === "rational"
+          ? createRationalInterval(operandValue, operandValue)
+          : rationalIntervalFromBall(
+              await operand.refine(this.recordChildRequest(0, childRequest), context),
+              precisionBits,
+              context.backend
+            );
+      const resultBall = expIntervalBall(
+        operandInterval,
+        resultDigits,
+        precisionBits,
+        context.backend,
+        context
+      );
+
+      if (resultBall === null) {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      if (verifiedDigitsSatisfyRequest(verified, request)) {
+        return resultBall;
+      }
+
+      operandDigits = nextOperandDigits(
+        operandDigits,
+        request.significantDigits,
+        verified.verifiedDigits
+      );
+    }
   }
 
   private async refineLn(
