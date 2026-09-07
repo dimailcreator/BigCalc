@@ -71,7 +71,10 @@ void describe("stage 26 scalable trigonometry", () => {
     assert.equal(result.profile.sincosIntervalEvaluations, 1);
     assert.equal(result.profile.pointEvaluations, 2);
     assert.equal(result.profile.sharedSquareEvaluations, 2);
+    assert.equal(result.profile.sinSeriesEvaluations, 2);
+    assert.equal(result.profile.cosSeriesEvaluations, 2);
     assert.equal(result.profile.independentSeriesEvaluations, 0);
+    assert.equal(result.profile.tanEndpointHullEvaluations, 1);
     assert.equal(result.profile.resultDenominatorDecimalDigits <= 102, true);
   });
 
@@ -93,6 +96,7 @@ void describe("stage 26 scalable trigonometry", () => {
     assert.equal(result.interval, null);
     assert.equal(result.profile.sincosIntervalEvaluations, 0);
     assert.equal(result.profile.pointEvaluations, 0);
+    assert.equal(result.profile.poleRejections > 0, true);
   });
 
   void it("reuses the same cached pi interval for degree conversion and reduction", () => {

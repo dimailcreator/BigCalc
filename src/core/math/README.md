@@ -14,9 +14,10 @@ grows with the decimal digit count of the amplification factor, not linearly wit
 scale. Small rational logarithms also have a bounded exact fractional-exponent path.
 
 Trigonometric evaluation uses one canonical reduction to `[-π/4, π/4]` and a joint
-fixed-point `sincos` series with outward rounding. `tan` consumes that shared result and
-checks reducer pole metadata before starting the series. Degree conversion passes the same
-cached `π` interval into reduction.
+fixed-point `sincos` kernel with outward rounding. Standalone `sin`/`cos` select only the
+base series required after quadrant mapping, while `tan` forms a monotone endpoint hull on
+each proven pole-free branch. Degree inputs are reduced exactly modulo their period before
+requesting the shared `π`; cheap rational multiples of `π` have local structural fast paths.
 
 Rational fractional powers use a rigorous, resumable fixed-point `nthRoot` primitive when
 the precision-dependent cost model selects it; general real powers retain the `ln`/`exp`

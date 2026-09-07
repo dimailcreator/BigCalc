@@ -377,6 +377,10 @@ class ConstantEvaluationNode extends BaseEvaluationNode {
     super("constant");
   }
 
+  isNamed(name: string): boolean {
+    return this.name === name;
+  }
+
   protected refineUncached(
     request: PrecisionRequest,
     context: EvaluationGraphContext
@@ -409,7 +413,7 @@ class ConstantEvaluationNode extends BaseEvaluationNode {
 
 class UnaryEvaluationNode extends BaseEvaluationNode {
   constructor(
-    private readonly operator: "+" | "-",
+    readonly operator: "+" | "-",
     operand: EvaluationNode,
     private readonly operandPrecisionStrategy: OperandPrecisionStrategy = defaultOperandPrecision
   ) {
@@ -1166,6 +1170,21 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
   }
 
   protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    if (
+      isTrigFunctionName(this.functionName) &&
+      context.settings.angleMode === "radians" &&
+      this.children.length === 1
+    ) {
+      const operand = this.children[0];
+      if (operand !== undefined) {
+        const piMultiple = exactRationalMultipleOfPi(operand, context);
+        if (piMultiple !== null) {
+          const exact = exactTrigRationalPiMultiple(this.functionName, piMultiple);
+          if (exact !== null) return exact;
+        }
+      }
+    }
+
     const args = this.children.map((child) => child.evaluate(context));
 
     if (this.functionName === "abs" && args.length === 1) {
@@ -1309,7 +1328,17 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     operation: TrigFunctionName
   ): Promise<Ball> {
     const operand = this.onlyArgumentNode(operation);
-    const exactValue = this.evaluateExactTrigNodeOrNull(operand, context);
+    const piMultiple =
+      context.settings.angleMode === "radians" ? exactRationalMultipleOfPi(operand, context) : null;
+    const exactPiMultiple =
+      piMultiple === null ? null : exactTrigRationalPiMultiple(operation, piMultiple);
+    if (exactPiMultiple !== null) {
+      return rationalToBall(exactPiMultiple, precisionBitsForRequest(request), context.backend);
+    }
+
+    const operandValue = operand.evaluate(context);
+    const exactValue =
+      operandValue.kind === "rational" ? exactTrigRational(operation, operandValue, context) : null;
     if (exactValue !== null) {
       return rationalToBall(exactValue, precisionBitsForRequest(request), context.backend);
     }
@@ -1321,8 +1350,14 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
 
       const childRequest = Object.freeze({ significantDigits: operandDigits });
       const precisionBits = precisionBitsForRequest(childRequest);
-      const operandBall = await operand.refine(this.recordChildRequest(0, childRequest), context);
-      const operandInterval = rationalIntervalFromBall(operandBall, precisionBits, context.backend);
+      const operandInterval =
+        operandValue.kind === "rational"
+          ? createRationalInterval(operandValue, operandValue)
+          : rationalIntervalFromBall(
+              await operand.refine(this.recordChildRequest(0, childRequest), context),
+              precisionBits,
+              context.backend
+            );
       const decimalDigits = operandDigits + DEFAULT_GUARD_DIGITS + 8;
       const resultInterval = evaluateTrigInterval(
         operation,
@@ -1431,6 +1466,11 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     operand: EvaluationNode,
     context: EvaluationGraphContext
   ): Rational | null {
+    const piMultiple =
+      context.settings.angleMode === "radians" ? exactRationalMultipleOfPi(operand, context) : null;
+    if (piMultiple !== null) {
+      return exactTrigRationalPiMultiple(this.functionName as TrigFunctionName, piMultiple);
+    }
     const value = operand.evaluate(context);
 
     if (value.kind !== "rational") {
@@ -1613,11 +1653,12 @@ function exactTrigRational(
 }
 
 function exactDegreeTrigRational(operation: TrigFunctionName, degrees: Rational): Rational | null {
+  const reduced = reduceRationalModuloInteger(degrees, operation === "tan" ? 180n : 360n);
   if (operation === "tan") {
-    return exactDegreeTanRational(degrees);
+    return exactDegreeTanRational(reduced);
   }
 
-  const twelfth = exactIntegerMultiple(degrees, 30n);
+  const twelfth = exactIntegerMultiple(reduced, 30n);
 
   switch (operation) {
     case "sin":
@@ -1692,6 +1733,89 @@ function exactIntegerMultiple(value: Rational, unit: bigint): bigint | null {
   const quotient = divideRational(value, integerRational(unit));
 
   return isIntegerRational(quotient) ? quotient.numerator : null;
+}
+
+function exactRationalMultipleOfPi(
+  node: EvaluationNode,
+  context: EvaluationGraphContext
+): Rational | null {
+  // Deliberately local structural recognition: only Rational scaling/division
+  // around the built-in π node, not general symbolic simplification.
+  if (node instanceof ConstantEvaluationNode && node.isNamed("π")) {
+    return RATIONAL_ONE;
+  }
+
+  const onlyChild = node.children[0];
+  if (node instanceof UnaryEvaluationNode && onlyChild !== undefined) {
+    const coefficient = exactRationalMultipleOfPi(onlyChild, context);
+    if (coefficient === null) return null;
+    return node.operator === "-" ? negateRational(coefficient) : coefficient;
+  }
+
+  if (!(node instanceof BinaryEvaluationNode)) {
+    return null;
+  }
+  if (node.nodeType !== "mul" && node.nodeType !== "div") {
+    return null;
+  }
+  const left = node.children[0];
+  const right = node.children[1];
+  if (left === undefined || right === undefined) {
+    return null;
+  }
+
+  const leftCoefficient = exactRationalMultipleOfPi(left, context);
+  const rightCoefficient = exactRationalMultipleOfPi(right, context);
+  const leftValue = left.evaluate(context);
+  const rightValue = right.evaluate(context);
+
+  if (node.nodeType === "mul") {
+    if (leftCoefficient !== null && rightValue.kind === "rational") {
+      return multiplyRational(leftCoefficient, rightValue);
+    }
+    if (rightCoefficient !== null && leftValue.kind === "rational") {
+      return multiplyRational(leftValue, rightCoefficient);
+    }
+  }
+  if (node.nodeType === "div" && leftCoefficient !== null && rightValue.kind === "rational") {
+    return divideRational(leftCoefficient, rightValue);
+  }
+
+  return null;
+}
+
+function exactTrigRationalPiMultiple(
+  operation: TrigFunctionName,
+  coefficient: Rational
+): Rational | null {
+  const doubled = multiplyRational(coefficient, integerRational(2n));
+  if (!isIntegerRational(doubled)) {
+    return null;
+  }
+
+  const residue = moduloBigInt(doubled.numerator, 4n);
+  switch (operation) {
+    case "sin":
+      if (residue === 0n || residue === 2n) return RATIONAL_ZERO;
+      return residue === 1n ? RATIONAL_ONE : integerRational(-1n);
+    case "cos":
+      if (residue === 1n || residue === 3n) return RATIONAL_ZERO;
+      return residue === 0n ? RATIONAL_ONE : integerRational(-1n);
+    case "tan":
+      if (residue === 1n || residue === 3n) {
+        throw new DomainException("tan", "tan is undefined at odd half-integer multiples of π");
+      }
+      return RATIONAL_ZERO;
+  }
+}
+
+function reduceRationalModuloInteger(value: Rational, period: bigint): Rational {
+  const scaledDenominator = value.denominator * period;
+  let quotient = value.numerator / scaledDenominator;
+  if (value.numerator < 0n && value.numerator % scaledDenominator !== 0n) {
+    quotient -= 1n;
+  }
+  return subtractRational(value, integerRational(quotient * period));
 }
 
 function moduloBigInt(value: bigint, modulus: bigint): bigint {
