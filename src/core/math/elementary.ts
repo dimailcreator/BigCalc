@@ -675,7 +675,7 @@ export function sinAngleInterval(
   angleMode: "radians" | "degrees",
   context: MathComputationContext
 ): RationalInterval | null {
-  const radians = toRadianInterval(argument, decimalDigits, angleMode, context);
+  const radians = toRadianInterval(argument, decimalDigits, angleMode, context, 360n);
   return sinRadianInterval(radians.interval, decimalDigits, context, radians.pi);
 }
 
@@ -685,7 +685,7 @@ export function cosAngleInterval(
   angleMode: "radians" | "degrees",
   context: MathComputationContext
 ): RationalInterval | null {
-  const radians = toRadianInterval(argument, decimalDigits, angleMode, context);
+  const radians = toRadianInterval(argument, decimalDigits, angleMode, context, 360n);
   return cosRadianInterval(radians.interval, decimalDigits, context, radians.pi);
 }
 
@@ -695,8 +695,26 @@ export function tanAngleInterval(
   angleMode: "radians" | "degrees",
   context: MathComputationContext
 ): RationalInterval | null {
-  const radians = toRadianInterval(argument, decimalDigits, angleMode, context);
+  const radians = toRadianInterval(argument, decimalDigits, angleMode, context, 180n);
   return tanRadianInterval(radians.interval, decimalDigits, context, radians.pi);
+}
+
+export function sinAngleIntervalWithProfile(
+  argument: RationalInterval,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees",
+  context: MathComputationContext
+): { readonly interval: RationalInterval | null; readonly profile: TrigSeriesProfile } {
+  return standaloneTrigAngleIntervalWithProfile("sin", argument, decimalDigits, angleMode, context);
+}
+
+export function cosAngleIntervalWithProfile(
+  argument: RationalInterval,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees",
+  context: MathComputationContext
+): { readonly interval: RationalInterval | null; readonly profile: TrigSeriesProfile } {
+  return standaloneTrigAngleIntervalWithProfile("cos", argument, decimalDigits, angleMode, context);
 }
 
 export function intervalContainsRational(interval: RationalInterval, value: Rational): boolean {
@@ -784,10 +802,20 @@ export interface SinCosIntervals {
 
 export interface TrigSeriesProfile {
   readonly rangeReductionCalls: number;
+  readonly degreeReductionCalls: number;
+  readonly degreeOriginalMagnitudeDigits: number;
+  readonly degreeReducedMagnitudeDigits: number;
+  readonly piRequestedDigits: number;
   readonly sincosIntervalEvaluations: number;
+  readonly selectiveIntervalEvaluations: number;
   readonly pointEvaluations: number;
   readonly sharedSquareEvaluations: number;
+  readonly sinSeriesEvaluations: number;
+  readonly cosSeriesEvaluations: number;
   readonly independentSeriesEvaluations: number;
+  readonly tanEndpointHullEvaluations: number;
+  readonly tanIntervalDivisionEvaluations: number;
+  readonly poleRejections: number;
   readonly scaleDigits: number;
   readonly peakBigIntDecimalDigits: number;
   readonly resultDenominatorDecimalDigits: number;
@@ -795,10 +823,20 @@ export interface TrigSeriesProfile {
 
 interface MutableTrigSeriesProfile {
   rangeReductionCalls: number;
+  degreeReductionCalls: number;
+  degreeOriginalMagnitudeDigits: number;
+  degreeReducedMagnitudeDigits: number;
+  piRequestedDigits: number;
   sincosIntervalEvaluations: number;
+  selectiveIntervalEvaluations: number;
   pointEvaluations: number;
   sharedSquareEvaluations: number;
+  sinSeriesEvaluations: number;
+  cosSeriesEvaluations: number;
   independentSeriesEvaluations: number;
+  tanEndpointHullEvaluations: number;
+  tanIntervalDivisionEvaluations: number;
+  poleRejections: number;
   scaleDigits: number;
   peakBigIntDecimalDigits: number;
 }
@@ -807,6 +845,16 @@ interface ReducedSinCosBranch {
   readonly sin: RationalInterval;
   readonly cos: RationalInterval;
   readonly polePossible: boolean;
+}
+
+interface SelectiveSinCosIntervals {
+  readonly sinInterval: RationalInterval | null;
+  readonly cosInterval: RationalInterval | null;
+}
+
+interface TrigKernelNeeds {
+  readonly needSin: boolean;
+  readonly needCos: boolean;
 }
 
 interface RadianConversion {
@@ -821,8 +869,7 @@ function sinRadianInterval(
   pi?: RationalInterval,
   profile?: MutableTrigSeriesProfile
 ): RationalInterval | null {
-  const branches = evaluateReducedSinCos(argument, decimalDigits, context, pi, profile);
-  return branches === null ? null : hullIntervals(branches.map((branch) => branch.sin));
+  return evaluateReducedStandaloneTrig("sin", argument, decimalDigits, context, pi, profile);
 }
 
 function cosRadianInterval(
@@ -832,8 +879,7 @@ function cosRadianInterval(
   pi?: RationalInterval,
   profile?: MutableTrigSeriesProfile
 ): RationalInterval | null {
-  const branches = evaluateReducedSinCos(argument, decimalDigits, context, pi, profile);
-  return branches === null ? null : hullIntervals(branches.map((branch) => branch.cos));
+  return evaluateReducedStandaloneTrig("cos", argument, decimalDigits, context, pi, profile);
 }
 
 function tanRadianInterval(
@@ -843,31 +889,108 @@ function tanRadianInterval(
   pi?: RationalInterval,
   profile?: MutableTrigSeriesProfile
 ): RationalInterval | null {
-  const branches = evaluateReducedSinCos(argument, decimalDigits, context, pi, profile, true);
-  if (branches === null) {
+  if (profile !== undefined) profile.rangeReductionCalls += 1;
+  const reduction = reduceRadianInterval(argument, decimalDigits, context, pi);
+  if (reduction === null) {
+    return null;
+  }
+  const poleBranches = reduction.branches.filter((branch) => branch.polePossible).length;
+  if (poleBranches > 0) {
+    if (profile !== undefined) profile.poleRejections += poleBranches;
     return null;
   }
 
   const results: RationalInterval[] = [];
-  for (const branch of branches) {
+  for (const branch of reduction.branches) {
     context.checkpoint();
-    if (branch.polePossible || intervalContainsRational(branch.cos, RATIONAL_ZERO)) {
+    if (profile !== undefined) profile.sincosIntervalEvaluations += 1;
+
+    if (equalsRational(branch.reducedInterval.lower, branch.reducedInterval.upper)) {
+      if (profile !== undefined) profile.tanIntervalDivisionEvaluations += 1;
+      const mapped = evaluateMappedSinCosInterval(
+        branch.reducedInterval,
+        branch,
+        decimalDigits,
+        context,
+        profile
+      );
+      if (intervalContainsRational(mapped.cos, RATIONAL_ZERO)) {
+        if (profile !== undefined) profile.poleRejections += 1;
+        return null;
+      }
+      results.push(divideIntervals(mapped.sin, mapped.cos));
+      continue;
+    }
+
+    // tan'(x)=sec^2(x)>0 on this pole-free branch, so endpoint enclosures
+    // avoid the interval-correlation loss of dividing sin([a,b]) by cos([a,b]).
+    if (profile !== undefined) profile.tanEndpointHullEvaluations += 1;
+    const lower = evaluateMappedSinCosPoint(
+      branch.reducedInterval.lower,
+      branch,
+      decimalDigits,
+      context,
+      profile
+    );
+    const upper = equalsRational(branch.reducedInterval.lower, branch.reducedInterval.upper)
+      ? lower
+      : evaluateMappedSinCosPoint(
+          branch.reducedInterval.upper,
+          branch,
+          decimalDigits,
+          context,
+          profile
+        );
+    if (
+      intervalContainsRational(lower.cos, RATIONAL_ZERO) ||
+      intervalContainsRational(upper.cos, RATIONAL_ZERO)
+    ) {
+      if (profile !== undefined) profile.poleRejections += 1;
       return null;
     }
-    results.push(divideIntervals(branch.sin, branch.cos));
+
+    const lowerTangent = divideIntervals(lower.sin, lower.cos);
+    const upperTangent = divideIntervals(upper.sin, upper.cos);
+    results.push(createRationalInterval(lowerTangent.lower, upperTangent.upper));
   }
 
   return hullIntervals(results);
 }
 
-function evaluateReducedSinCos(
+function evaluateMappedSinCosInterval(
+  reduced: RationalInterval,
+  branch: TrigRangeReductionBranch,
+  decimalDigits: number,
+  control: EvaluationCheckpoint,
+  profile?: MutableTrigSeriesProfile
+): ReducedSinCosBranch {
+  const base = selectiveSinCosSmallIntervalInternal(
+    reduced,
+    decimalDigits,
+    control,
+    { needSin: true, needCos: true },
+    profile
+  );
+  if (base.sinInterval === null || base.cosInterval === null) {
+    throw new InternalCalculationException("Joint trigonometric kernel omitted a result");
+  }
+  const sinSource = branch.swapSinCos ? base.cosInterval : base.sinInterval;
+  const cosSource = branch.swapSinCos ? base.sinInterval : base.cosInterval;
+  return Object.freeze({
+    sin: branch.sinSign < 0 ? negateInterval(sinSource) : sinSource,
+    cos: branch.cosSign < 0 ? negateInterval(cosSource) : cosSource,
+    polePossible: branch.polePossible
+  });
+}
+
+function evaluateReducedStandaloneTrig(
+  operation: "sin" | "cos",
   argument: RationalInterval,
   decimalDigits: number,
   context: MathComputationContext,
   pi?: RationalInterval,
-  profile?: MutableTrigSeriesProfile,
-  rejectPoleBranches = false
-): readonly ReducedSinCosBranch[] | null {
+  profile?: MutableTrigSeriesProfile
+): RationalInterval | null {
   if (profile !== undefined) {
     profile.rangeReductionCalls += 1;
   }
@@ -875,26 +998,52 @@ function evaluateReducedSinCos(
   if (reduction === null) {
     return null;
   }
-  if (rejectPoleBranches && reduction.branches.some((branch) => branch.polePossible)) {
-    return null;
-  }
 
-  return reduction.branches.map((branch) => {
+  const results = reduction.branches.map((branch) => {
     context.checkpoint();
-    const base = sincosSmallIntervalInternal(
+    const needSin = branch.swapSinCos ? operation === "cos" : operation === "sin";
+    const base = selectiveSinCosSmallIntervalInternal(
       branch.reducedInterval,
       decimalDigits,
       context,
+      { needSin, needCos: !needSin },
       profile
     );
-    const sinSource = branch.swapSinCos ? base.cosInterval : base.sinInterval;
-    const cosSource = branch.swapSinCos ? base.sinInterval : base.cosInterval;
+    const source = needSin ? base.sinInterval : base.cosInterval;
+    if (source === null) {
+      throw new InternalCalculationException("Selective trigonometric kernel omitted its result");
+    }
+    const sign = operation === "sin" ? branch.sinSign : branch.cosSign;
+    return sign < 0 ? negateInterval(source) : source;
+  });
 
-    return Object.freeze({
-      sin: branch.sinSign < 0 ? negateInterval(sinSource) : sinSource,
-      cos: branch.cosSign < 0 ? negateInterval(cosSource) : cosSource,
-      polePossible: branch.polePossible
-    });
+  return hullIntervals(results);
+}
+
+function evaluateMappedSinCosPoint(
+  point: Rational,
+  branch: TrigRangeReductionBranch,
+  decimalDigits: number,
+  control: EvaluationCheckpoint,
+  profile?: MutableTrigSeriesProfile
+): ReducedSinCosBranch {
+  const base = selectiveSinCosSmallPointInterval(
+    point,
+    decimalDigits,
+    control,
+    { needSin: true, needCos: true },
+    profile
+  );
+  if (base.sinInterval === null || base.cosInterval === null) {
+    throw new InternalCalculationException("Joint trigonometric kernel omitted a result");
+  }
+  const sinSource = branch.swapSinCos ? base.cosInterval : base.sinInterval;
+  const cosSource = branch.swapSinCos ? base.sinInterval : base.cosInterval;
+
+  return Object.freeze({
+    sin: branch.sinSign < 0 ? negateInterval(sinSource) : sinSource,
+    cos: branch.cosSign < 0 ? negateInterval(cosSource) : cosSource,
+    polePossible: branch.polePossible
   });
 }
 
@@ -903,15 +1052,23 @@ export function sincosSmallInterval(
   decimalDigits: number,
   control: EvaluationCheckpoint
 ): SinCosIntervals {
-  return sincosSmallIntervalInternal(reduced, decimalDigits, control);
+  const result = selectiveSinCosSmallIntervalInternal(reduced, decimalDigits, control, {
+    needSin: true,
+    needCos: true
+  });
+  if (result.sinInterval === null || result.cosInterval === null) {
+    throw new InternalCalculationException("Joint trigonometric kernel omitted a result");
+  }
+  return Object.freeze({ sinInterval: result.sinInterval, cosInterval: result.cosInterval });
 }
 
-function sincosSmallIntervalInternal(
+function selectiveSinCosSmallIntervalInternal(
   reduced: RationalInterval,
   decimalDigits: number,
   control: EvaluationCheckpoint,
+  needs: TrigKernelNeeds,
   profile?: MutableTrigSeriesProfile
-): SinCosIntervals {
+): SelectiveSinCosIntervals {
   if (
     compareRational(reduced.lower, integerRational(-1n)) < 0 ||
     compareRational(reduced.upper, RATIONAL_ONE) > 0
@@ -919,26 +1076,47 @@ function sincosSmallIntervalInternal(
     throw new InternalCalculationException("sincosSmallInterval requires x in [-1, 1]");
   }
 
-  if (profile !== undefined) {
-    profile.sincosIntervalEvaluations += 1;
+  if (!needs.needSin && !needs.needCos) {
+    throw new InternalCalculationException("Trigonometric kernel requires at least one series");
   }
-  const lower = sincosSmallPointInterval(reduced.lower, decimalDigits, control, profile);
+  if (profile !== undefined && needs.needSin !== needs.needCos) {
+    profile.selectiveIntervalEvaluations += 1;
+  }
+  const lower = selectiveSinCosSmallPointInterval(
+    reduced.lower,
+    decimalDigits,
+    control,
+    needs,
+    profile
+  );
   const upper = equalsRational(reduced.lower, reduced.upper)
     ? lower
-    : sincosSmallPointInterval(reduced.upper, decimalDigits, control, profile);
-  const cosineEndpoints = [
-    lower.cosInterval.lower,
-    lower.cosInterval.upper,
-    upper.cosInterval.lower,
-    upper.cosInterval.upper
-  ];
+    : selectiveSinCosSmallPointInterval(reduced.upper, decimalDigits, control, needs, profile);
+  const sinInterval =
+    lower.sinInterval === null || upper.sinInterval === null
+      ? null
+      : createRationalInterval(lower.sinInterval.lower, upper.sinInterval.upper);
+  const cosineEndpoints =
+    lower.cosInterval === null || upper.cosInterval === null
+      ? null
+      : [
+          lower.cosInterval.lower,
+          lower.cosInterval.upper,
+          upper.cosInterval.lower,
+          upper.cosInterval.upper
+        ];
 
   return Object.freeze({
-    sinInterval: createRationalInterval(lower.sinInterval.lower, upper.sinInterval.upper),
-    cosInterval: createRationalInterval(
-      minRational(cosineEndpoints),
-      intervalContainsRational(reduced, RATIONAL_ZERO) ? RATIONAL_ONE : maxRational(cosineEndpoints)
-    )
+    sinInterval,
+    cosInterval:
+      cosineEndpoints === null
+        ? null
+        : createRationalInterval(
+            minRational(cosineEndpoints),
+            intervalContainsRational(reduced, RATIONAL_ZERO)
+              ? RATIONAL_ONE
+              : maxRational(cosineEndpoints)
+          )
   });
 }
 
@@ -946,20 +1124,48 @@ function toRadianInterval(
   argument: RationalInterval,
   decimalDigits: number,
   angleMode: "radians" | "degrees",
-  context: MathComputationContext
+  context: MathComputationContext,
+  degreePeriod: 180n | 360n,
+  profile?: MutableTrigSeriesProfile
 ): RadianConversion {
   if (angleMode === "radians") {
     return Object.freeze({ interval: argument });
   }
 
-  const pi = getPiRationalInterval(
-    context,
-    decimalDigits + decimalMagnitudeUpperBound(argument) + 12
-  );
+  const reduced = reduceDegreeInterval(argument, degreePeriod);
+  const piDigits = decimalDigits + decimalMagnitudeUpperBound(reduced) + 12;
+  if (profile !== undefined) {
+    profile.degreeReductionCalls += 1;
+    profile.degreeOriginalMagnitudeDigits = Math.max(
+      profile.degreeOriginalMagnitudeDigits,
+      maxRationalEndpointDecimalDigits(argument)
+    );
+    profile.degreeReducedMagnitudeDigits = Math.max(
+      profile.degreeReducedMagnitudeDigits,
+      maxRationalEndpointDecimalDigits(reduced)
+    );
+    profile.piRequestedDigits = Math.max(profile.piRequestedDigits, piDigits);
+    profile.peakBigIntDecimalDigits = Math.max(
+      profile.peakBigIntDecimalDigits,
+      profile.degreeOriginalMagnitudeDigits
+    );
+  }
+  const pi = getPiRationalInterval(context, piDigits);
   return Object.freeze({
-    interval: divideIntervalByInteger(multiplyIntervals(argument, pi), 180n),
+    interval: divideIntervalByInteger(multiplyIntervals(reduced, pi), 180n),
     pi
   });
+}
+
+export function reduceDegreeInterval(
+  argument: RationalInterval,
+  period: 180n | 360n
+): RationalInterval {
+  // Translate the whole interval by one exact period multiple chosen from its
+  // lower endpoint. This preserves every function value without involving π.
+  const periodRational = integerRational(period);
+  const quotient = floorRational(divideRational(argument.lower, periodRational));
+  return subtractIntervalRational(argument, integerRational(quotient * period));
 }
 
 export function reduceRadianInterval(
@@ -1192,12 +1398,13 @@ function stirlingCorrectionInterval(
   }
 }
 
-function sincosSmallPointInterval(
+function selectiveSinCosSmallPointInterval(
   value: Rational,
   decimalDigits: number,
   control: EvaluationCheckpoint,
+  needs: TrigKernelNeeds,
   profile?: MutableTrigSeriesProfile
-): SinCosIntervals {
+): SelectiveSinCosIntervals {
   const point = scaledIntervalFromRationalBounds(
     createRationalInterval(value, value),
     decimalDigits
@@ -1205,49 +1412,61 @@ function sincosSmallPointInterval(
   const scale = decimalScale(decimalDigits);
   const one = createScaledInterval(scale, scale, decimalDigits);
   const xSquared = squareScaled(point, decimalDigits);
-  let sinTerm = point;
-  let cosTerm = one;
-  let sinSum = point;
-  let cosSum = one;
 
   if (profile !== undefined) {
     profile.pointEvaluations += 1;
     profile.sharedSquareEvaluations += 1;
+    profile.sinSeriesEvaluations += needs.needSin ? 1 : 0;
+    profile.cosSeriesEvaluations += needs.needCos ? 1 : 0;
+    profile.independentSeriesEvaluations += needs.needSin === needs.needCos ? 0 : 1;
     profile.scaleDigits = Math.max(profile.scaleDigits, decimalDigits);
     recordScaledProfilePeak(profile, point, xSquared, one);
   }
 
+  return Object.freeze({
+    sinInterval: needs.needSin
+      ? scaledIntervalToRationalInterval(
+          evaluateSmallTrigSeries(point, xSquared, decimalDigits, "sin", control, profile)
+        )
+      : null,
+    cosInterval: needs.needCos
+      ? scaledIntervalToRationalInterval(
+          evaluateSmallTrigSeries(one, xSquared, decimalDigits, "cos", control, profile)
+        )
+      : null
+  });
+}
+
+function evaluateSmallTrigSeries(
+  initialTerm: ScaledInterval,
+  xSquared: ScaledInterval,
+  decimalDigits: number,
+  operation: "sin" | "cos",
+  control: EvaluationCheckpoint,
+  profile?: MutableTrigSeriesProfile
+): ScaledInterval {
+  let term = initialTerm;
+  let sum = initialTerm;
   let index = 0;
   for (;;) {
     control.checkpoint();
-    const sinFirst = TWO * BigInt(index + 1);
-    const cosFirst = TWO * BigInt(index) + ONE;
-    const nextSinTerm = divideScaledByPositiveInteger(
-      negateScaledInterval(mulScaled(sinTerm, xSquared, decimalDigits)),
-      sinFirst * (sinFirst + ONE)
+    const first = operation === "sin" ? TWO * BigInt(index + 1) : TWO * BigInt(index) + ONE;
+    const nextTerm = divideScaledByPositiveInteger(
+      negateScaledInterval(mulScaled(term, xSquared, decimalDigits)),
+      first * (first + ONE)
     );
-    const nextCosTerm = divideScaledByPositiveInteger(
-      negateScaledInterval(mulScaled(cosTerm, xSquared, decimalDigits)),
-      cosFirst * (cosFirst + ONE)
-    );
-    const sinTailUnits = scaledMagnitudeUpper(nextSinTerm);
-    const cosTailUnits = scaledMagnitudeUpper(nextCosTerm);
+    const tailUnits = scaledMagnitudeUpper(nextTerm);
 
     if (profile !== undefined) {
-      recordScaledProfilePeak(profile, sinTerm, cosTerm, sinSum, cosSum, nextSinTerm, nextCosTerm);
+      recordScaledProfilePeak(profile, term, sum, nextTerm);
     }
 
-    if (sinTailUnits <= TAIL_STOP_UNITS && cosTailUnits <= TAIL_STOP_UNITS) {
-      return Object.freeze({
-        sinInterval: scaledIntervalToRationalInterval(widenScaledInterval(sinSum, sinTailUnits)),
-        cosInterval: scaledIntervalToRationalInterval(widenScaledInterval(cosSum, cosTailUnits))
-      });
+    if (tailUnits <= TAIL_STOP_UNITS) {
+      return widenScaledInterval(sum, tailUnits);
     }
 
-    sinSum = addScaledIntervals(sinSum, nextSinTerm);
-    cosSum = addScaledIntervals(cosSum, nextCosTerm);
-    sinTerm = nextSinTerm;
-    cosTerm = nextCosTerm;
+    sum = addScaledIntervals(sum, nextTerm);
+    term = nextTerm;
     index += 1;
   }
 }
@@ -1258,17 +1477,29 @@ export function tanAngleIntervalWithProfile(
   angleMode: "radians" | "degrees",
   context: MathComputationContext
 ): { readonly interval: RationalInterval | null; readonly profile: TrigSeriesProfile } {
-  const profile: MutableTrigSeriesProfile = {
-    rangeReductionCalls: 0,
-    sincosIntervalEvaluations: 0,
-    pointEvaluations: 0,
-    sharedSquareEvaluations: 0,
-    independentSeriesEvaluations: 0,
-    scaleDigits: 0,
-    peakBigIntDecimalDigits: 0
-  };
-  const radians = toRadianInterval(argument, decimalDigits, angleMode, context);
+  const profile = createMutableTrigSeriesProfile();
+  const radians = toRadianInterval(argument, decimalDigits, angleMode, context, 180n, profile);
   const interval = tanRadianInterval(radians.interval, decimalDigits, context, radians.pi, profile);
+
+  return Object.freeze({
+    interval,
+    profile: freezeTrigSeriesProfile(profile, interval)
+  });
+}
+
+function standaloneTrigAngleIntervalWithProfile(
+  operation: "sin" | "cos",
+  argument: RationalInterval,
+  decimalDigits: number,
+  angleMode: "radians" | "degrees",
+  context: MathComputationContext
+): { readonly interval: RationalInterval | null; readonly profile: TrigSeriesProfile } {
+  const profile = createMutableTrigSeriesProfile();
+  const radians = toRadianInterval(argument, decimalDigits, angleMode, context, 360n, profile);
+  const interval =
+    operation === "sin"
+      ? sinRadianInterval(radians.interval, decimalDigits, context, radians.pi, profile)
+      : cosRadianInterval(radians.interval, decimalDigits, context, radians.pi, profile);
 
   return Object.freeze({
     interval,
@@ -1997,15 +2228,47 @@ function freezeTrigSeriesProfile(
 ): TrigSeriesProfile {
   return Object.freeze({
     rangeReductionCalls: profile.rangeReductionCalls,
+    degreeReductionCalls: profile.degreeReductionCalls,
+    degreeOriginalMagnitudeDigits: profile.degreeOriginalMagnitudeDigits,
+    degreeReducedMagnitudeDigits: profile.degreeReducedMagnitudeDigits,
+    piRequestedDigits: profile.piRequestedDigits,
     sincosIntervalEvaluations: profile.sincosIntervalEvaluations,
+    selectiveIntervalEvaluations: profile.selectiveIntervalEvaluations,
     pointEvaluations: profile.pointEvaluations,
     sharedSquareEvaluations: profile.sharedSquareEvaluations,
+    sinSeriesEvaluations: profile.sinSeriesEvaluations,
+    cosSeriesEvaluations: profile.cosSeriesEvaluations,
     independentSeriesEvaluations: profile.independentSeriesEvaluations,
+    tanEndpointHullEvaluations: profile.tanEndpointHullEvaluations,
+    tanIntervalDivisionEvaluations: profile.tanIntervalDivisionEvaluations,
+    poleRejections: profile.poleRejections,
     scaleDigits: profile.scaleDigits,
     peakBigIntDecimalDigits: profile.peakBigIntDecimalDigits,
     resultDenominatorDecimalDigits:
       result === null ? 0 : maxRationalDenominatorDecimalDigits(result)
   });
+}
+
+function createMutableTrigSeriesProfile(): MutableTrigSeriesProfile {
+  return {
+    rangeReductionCalls: 0,
+    degreeReductionCalls: 0,
+    degreeOriginalMagnitudeDigits: 0,
+    degreeReducedMagnitudeDigits: 0,
+    piRequestedDigits: 0,
+    sincosIntervalEvaluations: 0,
+    selectiveIntervalEvaluations: 0,
+    pointEvaluations: 0,
+    sharedSquareEvaluations: 0,
+    sinSeriesEvaluations: 0,
+    cosSeriesEvaluations: 0,
+    independentSeriesEvaluations: 0,
+    tanEndpointHullEvaluations: 0,
+    tanIntervalDivisionEvaluations: 0,
+    poleRejections: 0,
+    scaleDigits: 0,
+    peakBigIntDecimalDigits: 0
+  };
 }
 
 function maxScaledEndpointDecimalDigits(interval: ScaledInterval): number {
