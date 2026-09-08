@@ -51,7 +51,15 @@ const LN_SCALE_SAFETY_DIGITS = 8;
 const MAX_EXACT_LOG_DENOMINATOR = 16;
 const LOG10_TWO = Math.LOG10E * Math.log(2);
 const MIN_GAMMA_STIRLING_ARGUMENT = 64;
-const BERNOULLI_CACHE: Rational[] = [RATIONAL_ONE];
+const BERNOULLI_CACHE: (Rational | undefined)[] = [
+  RATIONAL_ONE,
+  createRational(-ONE, TWO),
+  createRational(ONE, 6n)
+];
+const TANGENT_NUMBER_CACHE: bigint[] = [ZERO, ONE];
+let pendingTangentNumber: PendingTangentNumber | null = null;
+let bernoulliConvolutionProducts = 0;
+let bernoulliGenerationCheckpoints = 0;
 
 export interface RationalInterval {
   readonly lower: Rational;
@@ -136,6 +144,37 @@ export interface GammaComputationProfile {
   readonly highestBernoulliIndex: number;
   readonly usedHalfIntegerPath: boolean;
   readonly usedReflection: boolean;
+  readonly halfIntegerStrategy: HalfIntegerGammaStrategy;
+  readonly halfIntegerRecurrenceSteps: bigint;
+  readonly recurrenceProductPeakBigIntDigits: number;
+  readonly recurrenceProductPeakRetainedDigits: number;
+}
+
+export type HalfIntegerGammaStrategy = "not-half-integer" | "recurrence" | "general";
+
+export interface HalfIntegerGammaPlan {
+  readonly strategy: HalfIntegerGammaStrategy;
+  readonly recurrenceSteps: bigint;
+  readonly recurrenceBudget: bigint;
+  readonly estimatedRecurrenceCost: bigint;
+  readonly estimatedGeneralCost: bigint;
+}
+
+export interface BernoulliCacheSnapshot {
+  readonly highestEvenIndex: number;
+  readonly tangentNumbers: number;
+  readonly cachedBernoulliNumbers: number;
+  readonly convolutionProducts: number;
+  readonly generationCheckpoints: number;
+  readonly retainedBigIntDigits: number;
+  readonly pendingOrder: number | null;
+}
+
+interface PendingTangentNumber {
+  readonly order: number;
+  index: number;
+  binomial: bigint;
+  sum: bigint;
 }
 
 export interface GammaStirlingPlan {
@@ -654,26 +693,35 @@ export function gammaRealIntervalWithProfile(
   options: GammaComputationOptions = {}
 ): { readonly interval: RationalInterval | null; readonly profile: GammaComputationProfile } {
   const plan = createGammaStirlingPlan(decimalDigits, options);
-  const halfInteger = exactHalfIntegerGammaInterval(argument, decimalDigits, context);
+  const halfIntegerPlan = planHalfIntegerGammaStrategy(argument, decimalDigits);
+  const halfInteger =
+    halfIntegerPlan.strategy === "recurrence"
+      ? exactHalfIntegerGammaInterval(argument, decimalDigits, context)
+      : null;
   if (halfInteger !== null) {
     return Object.freeze({
       interval: halfInteger,
-      profile: createGammaProfile(decimalDigits, 0, 0, 0, 0, true)
+      profile: createGammaProfile(decimalDigits, 0, 0, 0, 0, true, false, halfIntegerPlan)
     });
   }
 
   if (containsGammaPole(argument)) {
     return Object.freeze({
       interval: null,
-      profile: createGammaProfile(decimalDigits, 0, 0, 0, 0, false)
+      profile: createGammaProfile(decimalDigits, 0, 0, 0, 0, false, false, halfIntegerPlan)
     });
   }
 
-  const shift = gammaShiftToPositiveStirlingArgument(argument, plan.shiftTarget);
-  if (shouldUseGammaReflection(argument, shift, plan.shiftTarget, decimalDigits)) {
-    return reflectedGammaInterval(argument, decimalDigits, context, options);
+  const directShift = gammaShiftToPositiveStirlingArgument(argument, plan.shiftTarget);
+  if (shouldUseGammaReflection(argument, directShift, plan.shiftTarget, decimalDigits)) {
+    const reflected = reflectedGammaInterval(argument, decimalDigits, context, options);
+    return withHalfIntegerPlan(reflected, halfIntegerPlan);
   }
+  const shift = safeGammaShiftNumber(directShift);
   const shiftedArgument = addIntervalInteger(argument, BigInt(shift));
+  if (intervalSignLower(argument) > 0) {
+    guardGammaResultSize(argument, context);
+  }
   const stirling = logGammaPositiveStirlingInterval(
     shiftedArgument,
     decimalDigits,
@@ -683,6 +731,8 @@ export function gammaRealIntervalWithProfile(
   let logGamma = stirling.interval;
   let recurrenceSign = 1;
   let recurrenceTreeDepth = 0;
+  let recurrenceProductPeakBigIntDigits = 0;
+  let recurrenceProductPeakRetainedDigits = 0;
 
   if (shift > 0) {
     const recurrenceFactors: RationalInterval[] = [];
@@ -699,7 +749,9 @@ export function gammaRealIntervalWithProfile(
             index,
             0,
             stirling.correctionTerms,
-            false
+            false,
+            false,
+            halfIntegerPlan
           )
         });
       }
@@ -714,6 +766,8 @@ export function gammaRealIntervalWithProfile(
     const recurrence = balancedProductIntervals(recurrenceFactors, context);
     const recurrenceMagnitude = recurrence.interval;
     recurrenceTreeDepth = recurrence.treeDepth;
+    recurrenceProductPeakBigIntDigits = recurrence.peakBigIntDigits;
+    recurrenceProductPeakRetainedDigits = recurrence.peakRetainedDigits;
 
     const recurrenceLog = lnPositiveInterval(
       recurrenceMagnitude,
@@ -734,8 +788,49 @@ export function gammaRealIntervalWithProfile(
       shift,
       recurrenceTreeDepth,
       stirling.correctionTerms,
-      false
+      false,
+      false,
+      halfIntegerPlan,
+      recurrenceProductPeakBigIntDigits,
+      recurrenceProductPeakRetainedDigits
     )
+  });
+}
+
+export function planHalfIntegerGammaStrategy(
+  argument: RationalInterval,
+  decimalDigits: number
+): HalfIntegerGammaPlan {
+  if (!equalsRational(argument.lower, argument.upper)) {
+    return createHalfIntegerGammaPlan("not-half-integer", ZERO, decimalDigits);
+  }
+
+  const doubled = multiplyRational(argument.lower, integerRational(TWO));
+  if (doubled.denominator !== ONE || doubled.numerator % TWO === ZERO) {
+    return createHalfIntegerGammaPlan("not-half-integer", ZERO, decimalDigits);
+  }
+
+  const recurrenceSteps =
+    doubled.numerator >= ONE ? (doubled.numerator - ONE) / TWO : (ONE - doubled.numerator) / TWO;
+  const recurrenceBudget = BigInt(Math.max(32, decimalDigits * 2 + 32));
+  const magnitudeDigits = BigInt(recurrenceSteps.toString().length);
+  const estimatedRecurrenceCost =
+    recurrenceSteps * (BigInt(Math.max(1, decimalDigits)) + magnitudeDigits);
+  const estimatedGeneralCost =
+    BigInt(Math.max(1, decimalDigits)) * BigInt(decimalDigits + 64) + magnitudeDigits * 32n;
+  // This is a route-selection heuristic only. It never changes whether the
+  // half-integer belongs to Gamma's real domain.
+  const strategy =
+    recurrenceSteps <= recurrenceBudget && estimatedRecurrenceCost <= estimatedGeneralCost * FOUR
+      ? "recurrence"
+      : "general";
+
+  return Object.freeze({
+    strategy,
+    recurrenceSteps,
+    recurrenceBudget,
+    estimatedRecurrenceCost,
+    estimatedGeneralCost
   });
 }
 
@@ -820,7 +915,7 @@ function reflectedGammaInterval(
 
 function shouldUseGammaReflection(
   argument: RationalInterval,
-  directShift: number,
+  directShift: bigint,
   shiftTarget: number,
   decimalDigits: number
 ): boolean {
@@ -830,7 +925,7 @@ function shouldUseGammaReflection(
 
   const reflected = subtractIntervals(createRationalInterval(RATIONAL_ONE, RATIONAL_ONE), argument);
   const reflectedShift = gammaShiftToPositiveStirlingArgument(reflected, shiftTarget);
-  const reflectionOverhead = Math.max(16, Math.ceil(decimalDigits / 3));
+  const reflectionOverhead = BigInt(Math.max(16, Math.ceil(decimalDigits / 3)));
   return directShift > reflectedShift + reflectionOverhead;
 }
 
@@ -2000,16 +2095,25 @@ function multiplyIntervals(left: RationalInterval, right: RationalInterval): Rat
 function balancedProductIntervals(
   factors: readonly RationalInterval[],
   control: EvaluationCheckpoint
-): { readonly interval: RationalInterval; readonly treeDepth: number } {
+): {
+  readonly interval: RationalInterval;
+  readonly treeDepth: number;
+  readonly peakBigIntDigits: number;
+  readonly peakRetainedDigits: number;
+} {
   if (factors.length === 0) {
     return Object.freeze({
       interval: createRationalInterval(RATIONAL_ONE, RATIONAL_ONE),
-      treeDepth: 0
+      treeDepth: 0,
+      peakBigIntDigits: 1,
+      peakRetainedDigits: 2
     });
   }
 
   let level = [...factors];
   let treeDepth = 0;
+  let peakBigIntDigits = maxIntervalComponentDigits(level);
+  let peakRetainedDigits = retainedIntervalDigits(level);
   while (level.length > 1) {
     const next: RationalInterval[] = [];
     for (let index = 0; index < level.length; index += 2) {
@@ -2023,13 +2127,41 @@ function balancedProductIntervals(
     }
     level = next;
     treeDepth += 1;
+    peakBigIntDigits = Math.max(peakBigIntDigits, maxIntervalComponentDigits(level));
+    peakRetainedDigits = Math.max(peakRetainedDigits, retainedIntervalDigits(level));
   }
 
   const interval = level[0];
   if (interval === undefined) {
     throw new InternalCalculationException("Balanced product result is missing");
   }
-  return Object.freeze({ interval, treeDepth });
+  return Object.freeze({ interval, treeDepth, peakBigIntDigits, peakRetainedDigits });
+}
+
+function maxIntervalComponentDigits(intervals: readonly RationalInterval[]): number {
+  let maximum = 0;
+  for (const interval of intervals) {
+    maximum = Math.max(
+      maximum,
+      bigintDecimalDigits(interval.lower.numerator),
+      bigintDecimalDigits(interval.lower.denominator),
+      bigintDecimalDigits(interval.upper.numerator),
+      bigintDecimalDigits(interval.upper.denominator)
+    );
+  }
+  return maximum;
+}
+
+function retainedIntervalDigits(intervals: readonly RationalInterval[]): number {
+  let total = 0;
+  for (const interval of intervals) {
+    total +=
+      bigintDecimalDigits(interval.lower.numerator) +
+      bigintDecimalDigits(interval.lower.denominator) +
+      bigintDecimalDigits(interval.upper.numerator) +
+      bigintDecimalDigits(interval.upper.denominator);
+  }
+  return total;
 }
 
 function addIntervals(left: RationalInterval, right: RationalInterval): RationalInterval {
@@ -2138,20 +2270,40 @@ function widenInterval(interval: RationalInterval, radius: Rational): RationalIn
 function gammaShiftToPositiveStirlingArgument(
   argument: RationalInterval,
   shiftTarget: number
-): number {
+): bigint {
   const target = BigInt(shiftTarget);
   const lowerFloor = floorRational(argument.lower);
   const shift = target - lowerFloor;
 
   if (shift <= ZERO) {
-    return 0;
+    return ZERO;
   }
 
+  return shift;
+}
+
+function safeGammaShiftNumber(shift: bigint): number {
   if (shift > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new InternalCalculationException("Gamma argument shift exceeds safe internal bounds");
   }
-
   return Number(shift);
+}
+
+function guardGammaResultSize(
+  positiveArgument: RationalInterval,
+  context: EvaluationCheckpoint
+): void {
+  const upper = ceilRational(positiveArgument.upper);
+  // For x >= 2, Gamma(x) is bounded by ceil(x)^ceil(x). Near zero the
+  // recurrence Gamma(x)=Gamma(x+1)/x makes denominator size relevant too.
+  // This is deliberately conservative: it protects allocation rather than
+  // participating in the mathematical enclosure.
+  const positiveMagnitudeEstimate = upper > TWO ? upper * BigInt(upper.toString().length) : ONE;
+  const reciprocalMagnitudeEstimate = BigInt(
+    positiveArgument.lower.denominator.toString().length + 4
+  );
+  const estimate = positiveMagnitudeEstimate + reciprocalMagnitudeEstimate;
+  context.guardBigIntDigits?.(bigintToGuardDigits(estimate));
 }
 
 function containsGammaPole(interval: RationalInterval): boolean {
@@ -2172,43 +2324,99 @@ function bernoulliNumber(index: number, control?: EvaluationCheckpoint): Rationa
     return cached;
   }
 
-  for (let currentIndex = BERNOULLI_CACHE.length; currentIndex <= index; currentIndex += 1) {
-    control?.checkpoint();
-    if (currentIndex > 1 && currentIndex % 2 === 1) {
-      BERNOULLI_CACHE.push(RATIONAL_ZERO);
-      continue;
-    }
-
-    const order = BigInt(currentIndex + 1);
-    const terms: Rational[] = [RATIONAL_ONE];
-    const first = BERNOULLI_CACHE[1];
-    if (first !== undefined) {
-      terms.push(multiplyRational(integerRational(order), first));
-    }
-
-    let binomial = (order * BigInt(currentIndex)) / TWO;
-    for (let priorIndex = 2; priorIndex < currentIndex; priorIndex += 2) {
-      control?.checkpoint();
-      const prior = BERNOULLI_CACHE[priorIndex];
-      if (prior === undefined) {
-        throw new InternalCalculationException("Bernoulli cache prefix is incomplete");
-      }
-      terms.push(multiplyRational(integerRational(binomial), prior));
-      binomial =
-        (binomial * BigInt(currentIndex + 1 - priorIndex) * BigInt(currentIndex - priorIndex)) /
-        (BigInt(priorIndex + 1) * BigInt(priorIndex + 2));
-    }
-
-    const sum = balancedSumRationals(terms);
-    BERNOULLI_CACHE.push(divideRational(negateRational(sum), integerRational(order)));
+  if (index > 1 && index % 2 === 1) {
+    BERNOULLI_CACHE[index] = RATIONAL_ZERO;
+    return RATIONAL_ZERO;
   }
 
-  const result = BERNOULLI_CACHE[index];
-  if (result === undefined) {
-    throw new InternalCalculationException("Bernoulli cache result is missing");
+  const tangentOrder = index / 2;
+  ensureTangentNumbers(tangentOrder, control);
+  const tangent = TANGENT_NUMBER_CACHE[tangentOrder];
+  if (tangent === undefined) {
+    throw new InternalCalculationException("Tangent-number cache result is missing");
   }
 
+  const order = BigInt(tangentOrder);
+  const powerOfTwo = ONE << BigInt(index);
+  // Exact tangent-number identity:
+  // B_(2n) = (-1)^(n-1) n*T_n / (2^(2n-1) * (2^(2n)-1)).
+  const numerator = order % TWO === ONE ? order * tangent : -(order * tangent);
+  const denominator = (powerOfTwo / TWO) * (powerOfTwo - ONE);
+  const result = createRational(numerator, denominator);
+  BERNOULLI_CACHE[index] = result;
   return result;
+}
+
+function ensureTangentNumbers(order: number, control?: EvaluationCheckpoint): void {
+  while (TANGENT_NUMBER_CACHE.length <= order) {
+    const currentOrder = TANGENT_NUMBER_CACHE.length;
+    pendingTangentNumber ??= {
+      order: currentOrder,
+      index: 1,
+      binomial: BigInt(2 * currentOrder - 2),
+      sum: ZERO
+    };
+
+    const pending = pendingTangentNumber;
+    if (pending.order !== currentOrder) {
+      throw new InternalCalculationException("Tangent-number generation frontier is inconsistent");
+    }
+
+    while (pending.index < currentOrder) {
+      bernoulliGenerationCheckpoints += 1;
+      // The pending convolution fields are updated only after this checkpoint,
+      // so a soft timeout resumes at the same exact integer term.
+      control?.checkpoint();
+      const left = TANGENT_NUMBER_CACHE[pending.index];
+      const right = TANGENT_NUMBER_CACHE[currentOrder - pending.index];
+      if (left === undefined || right === undefined) {
+        throw new InternalCalculationException("Tangent-number cache prefix is incomplete");
+      }
+
+      pending.sum += pending.binomial * left * right;
+      bernoulliConvolutionProducts += 1;
+      const binomialIndex = 2 * pending.index - 1;
+      pending.index += 1;
+      if (pending.index < currentOrder) {
+        const total = 2 * currentOrder - 2;
+        pending.binomial =
+          (pending.binomial * BigInt(total - binomialIndex) * BigInt(total - binomialIndex - 1)) /
+          BigInt((binomialIndex + 1) * (binomialIndex + 2));
+      }
+    }
+
+    TANGENT_NUMBER_CACHE.push(pending.sum);
+    pendingTangentNumber = null;
+  }
+}
+
+export function getBernoulliCacheSnapshot(): BernoulliCacheSnapshot {
+  let retainedBigIntDigits = 0;
+  for (const tangent of TANGENT_NUMBER_CACHE) {
+    retainedBigIntDigits += bigintDecimalDigits(tangent);
+  }
+  let cachedBernoulliNumbers = 0;
+  for (const value of BERNOULLI_CACHE) {
+    if (value === undefined) continue;
+    cachedBernoulliNumbers += 1;
+    retainedBigIntDigits +=
+      bigintDecimalDigits(value.numerator) + bigintDecimalDigits(value.denominator);
+  }
+  if (pendingTangentNumber !== null) {
+    retainedBigIntDigits +=
+      bigintDecimalDigits(pendingTangentNumber.binomial) +
+      bigintDecimalDigits(pendingTangentNumber.sum);
+  }
+
+  return Object.freeze({
+    highestEvenIndex: (TANGENT_NUMBER_CACHE.length - 1) * 2,
+    tangentNumbers: TANGENT_NUMBER_CACHE.length - 1,
+    cachedBernoulliNumbers,
+    convolutionProducts: bernoulliConvolutionProducts,
+    generationCheckpoints: bernoulliGenerationCheckpoints,
+    retainedBigIntDigits,
+    pendingOrder: pendingTangentNumber?.order ?? null
+  });
 }
 
 function rationalToScaledFloor(value: Rational, scale: bigint): bigint {
@@ -2309,32 +2517,6 @@ function maxRational(values: readonly Rational[]): Rational {
     }
   }
 
-  return result;
-}
-
-function balancedSumRationals(values: readonly Rational[]): Rational {
-  if (values.length === 0) {
-    return RATIONAL_ZERO;
-  }
-
-  let level = [...values];
-  while (level.length > 1) {
-    const next: Rational[] = [];
-    for (let index = 0; index < level.length; index += 2) {
-      const left = level[index];
-      const right = level[index + 1];
-      if (left === undefined) {
-        throw new InternalCalculationException("Balanced Rational sum term is missing");
-      }
-      next.push(right === undefined ? left : addRational(left, right));
-    }
-    level = next;
-  }
-
-  const result = level[0];
-  if (result === undefined) {
-    throw new InternalCalculationException("Balanced Rational sum result is missing");
-  }
   return result;
 }
 
@@ -2690,7 +2872,14 @@ function createGammaProfile(
   recurrenceTreeDepth: number,
   correctionTerms: number,
   usedHalfIntegerPath: boolean,
-  usedReflection = false
+  usedReflection = false,
+  halfIntegerPlan: HalfIntegerGammaPlan = createHalfIntegerGammaPlan(
+    "not-half-integer",
+    ZERO,
+    workingDigits
+  ),
+  recurrenceProductPeakBigIntDigits = 0,
+  recurrenceProductPeakRetainedDigits = 0
 ): GammaComputationProfile {
   return Object.freeze({
     workingDigits,
@@ -2700,6 +2889,40 @@ function createGammaProfile(
     correctionTerms,
     highestBernoulliIndex: correctionTerms === 0 ? 0 : 2 * (correctionTerms + 1),
     usedHalfIntegerPath,
-    usedReflection
+    usedReflection,
+    halfIntegerStrategy: halfIntegerPlan.strategy,
+    halfIntegerRecurrenceSteps: halfIntegerPlan.recurrenceSteps,
+    recurrenceProductPeakBigIntDigits,
+    recurrenceProductPeakRetainedDigits
+  });
+}
+
+function createHalfIntegerGammaPlan(
+  strategy: HalfIntegerGammaStrategy,
+  recurrenceSteps: bigint,
+  decimalDigits: number
+): HalfIntegerGammaPlan {
+  const recurrenceBudget = BigInt(Math.max(32, decimalDigits * 2 + 32));
+  return Object.freeze({
+    strategy,
+    recurrenceSteps,
+    recurrenceBudget,
+    estimatedRecurrenceCost: ZERO,
+    estimatedGeneralCost: BigInt(Math.max(1, decimalDigits)) * BigInt(decimalDigits + 64)
+  });
+}
+
+function withHalfIntegerPlan(
+  result: { readonly interval: RationalInterval | null; readonly profile: GammaComputationProfile },
+  plan: HalfIntegerGammaPlan
+): { readonly interval: RationalInterval | null; readonly profile: GammaComputationProfile } {
+  return Object.freeze({
+    interval: result.interval,
+    profile: Object.freeze({
+      ...result.profile,
+      usedHalfIntegerPath: false,
+      halfIntegerStrategy: plan.strategy,
+      halfIntegerRecurrenceSteps: plan.recurrenceSteps
+    })
   });
 }

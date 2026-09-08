@@ -230,6 +230,12 @@ export {
   subtractBall,
   subtractRational
 } from "./values/index.js";
+export {
+  createFactorialState,
+  factorialBigInt,
+  factorialBigIntWithProfile
+} from "./math/factorial.js";
+export type { FactorialProfile, FactorialState } from "./math/factorial.js";
 export type {
   Ball,
   ExactNthRootProfile,
