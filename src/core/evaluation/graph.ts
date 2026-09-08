@@ -12,6 +12,7 @@ import {
 } from "../values/ball.js";
 import {
   divideIntervals,
+  createExactLogRationalState,
   exactLogRational,
   gammaRealInterval,
   cosAngleInterval,
@@ -1533,6 +1534,8 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
 }
 
 class LogEvaluationNode extends BaseEvaluationNode {
+  private readonly exactLogState = createExactLogRationalState();
+
   constructor(
     private readonly base: EvaluationNode,
     private readonly argument: EvaluationNode
@@ -1627,7 +1630,7 @@ class LogEvaluationNode extends BaseEvaluationNode {
 
     assertLogRationalDomain(baseValue, argumentValue);
 
-    return exactLogRational(baseValue, argumentValue);
+    return exactLogRational(baseValue, argumentValue, context, this.exactLogState);
   }
 }
 
