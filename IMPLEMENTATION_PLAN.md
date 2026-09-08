@@ -1,7 +1,7 @@
 # BigCalc Implementation Plan
 
 **Файл:** `IMPLEMENTATION_PLAN.md`  
-**Статус:** Draft 4 — этапы 0–27 завершены; post-stage-27 remediation разделён на этапы 28–32  
+**Статус:** Draft 5 — этапы 0–32 завершены; финальный remediation-аудит добавлен как этапы 33–35, verification/profile/freeze сдвинуты на 36–38  
 **Основание:** `CORE_SPEC.md` Draft 2  
 **Область:** реализация математического ядра BigCalc до начала разработки прикладных калькуляторов и UI.
 
@@ -2123,11 +2123,11 @@ shared ln2 cache
 
 ---
 
-## Общее ограничение этапов 28–32
+## Общее ограничение этапов 28–35
 
-Этапы `28–32` устраняют уже найденные проблемы production-реализации после завершения этапа 27.
+Этапы `28–35` образуют remediation-блок production-реализации после завершения этапа 27. Этапы `28–32` закрывают первоначально найденные проблемы; этапы `33–35` закрывают ошибки и resource gaps, обнаруженные финальным повторным аудитом уже после завершения этапа 32.
 
-В этих этапах **не принимается решение о переходе на другие семейства рядов/аппроксимаций**.
+Во всех этих этапах **не принимается решение о переходе на другие семейства рядов/аппроксимаций**.
 
 В частности, здесь не требуется заменять:
 
@@ -2156,7 +2156,7 @@ Gamma adaptive Stirling
 
 Если локальный или общий profiling показывает необходимость **смены семейства ряда/аппроксимации**, это фиксируется отдельным engineering decision и обсуждается отдельно.
 
-Каждый из этапов `28–32` обязан иметь локальные regression/scaling tests. Они не заменяют общий profiling этапа 34.
+Каждый из этапов `28–35` обязан иметь локальные regression/scaling tests. Они не заменяют общий profiling этапа 37.
 
 ---
 
@@ -2502,7 +2502,7 @@ log_b(x) = ln(x) / ln(b)
 
 сохраняются.
 
-На этапе 28 разрешены только cache/state/cost optimizations и regression tests. Замена ряда обсуждается отдельно.
+На этапе 30 разрешены только cache/state/cost optimizations и regression tests. Замена ряда обсуждается отдельно.
 
 ## Тесты
 
@@ -2723,7 +2723,7 @@ for factor = 2..n:
 
 ### Bernoulli generation: оптимизировать текущий Stirling, не менять семейство аппроксимации
 
-Adaptive Stirling в этапе 28 **сохраняется**.
+Adaptive Stirling в этапе 32 **сохраняется**.
 
 Проверить scaling текущего exact Bernoulli cache, у которого последовательное построение коэффициентов может давать примерно квадратичное количество Rational-работы.
 
@@ -2804,7 +2804,420 @@ reflection/direct strategy
 
 ---
 
-# ЭТАП 33. Сквозное тестирование математического ядра
+# ЭТАП 33. `sin`, `cos`, `tan` — final correctness/dependency remediation
+
+## Цель
+
+Закрыть ошибки, найденные повторным аудитом после завершения этапа 32, прежде чем запускать общую сквозную верификацию.
+
+Этот этап является **блокирующим** для этапа 36.
+
+### 33.1. Удалить degree precision cutoff из trig
+
+Cutoff `3000/3001` относится только к `+` и `-`.
+
+Approximate:
+
+```text
+sin(x°)
+cos(x°)
+tan(x°)
+```
+
+не должны проходить через:
+
+```text
+applyPrecisionCutoff(...)
+```
+
+или эквивалентную логику только потому, что `angleMode = degrees`.
+
+Нужно:
+
+- удалить `applyDegreePrecisionCutoffIfNeeded()` из trig refinement path либо сделать её недостижимой для trig;
+- не вводить другой скрытый ceiling взамен;
+- сохранить exact degree fast paths;
+- сохранить demand-driven refinement до requested `N`.
+
+Критический regression:
+
+```text
+test precisionCutoffDigits = 20
+request sin(1°) at 50 digits
+request cos(1°) at 50 digits
+request tan(1°) at 50 digits
+```
+
+Для всех трёх:
+
+```text
+verifiedDigits >= 50
+```
+
+и вычисление должно завершаться без бесконечного refinement.
+
+Production-parameter test должен отдельно подтверждать, что запрос выше 3000 digits к degree trig не ограничивается самим cutoff, если resource budget это допускает.
+
+### 33.2. Замкнуть локальный `q*π` recognizer относительно `+` и `-`
+
+Существующий structural recognizer рациональных кратных `π` остаётся локальным и не превращается в CAS.
+
+Добавить только доказуемое замыкание:
+
+```text
+a*π + b*π → (a+b)*π
+a*π - b*π → (a-b)*π
+```
+
+где оба коэффициента уже распознаны как `Rational`.
+
+Допускается также нейтральный exact zero.
+
+Не добавлять общую symbolic simplification произвольных выражений.
+
+Цель — чтобы точные poles/zeros не теряли dependency information из-за построения независимых interval.
+
+Обязательные regression cases:
+
+```text
+tan(π + π/2)      → DomainError
+tan(2π - π/2)     → DomainError
+sin(π + π)        → 0
+cos(π - 2π)       → -1
+tan(-π + 3π/2)    → DomainError
+```
+
+Exact pole должен завершаться структурным доказательством, а не refinement до timeout.
+
+## Тесты
+
+- test-only cutoff ниже requested precision для всех трёх degree trig;
+- production cutoff не действует как математический предел trig;
+- structural `q*π` add/sub regression;
+- старые `sin(π)`, `cos(π)`, `tan(π)`, `tan(π/2)` продолжают работать;
+- near-pole inexact cases по-прежнему используют adaptive interval refinement, а не structural false positive.
+
+## Definition of Done
+
+- cutoff `3000/3001` применяется только там, где он определён спецификацией, и не ограничивает degree trig;
+- non-exact degree trig способен доказать `N > precisionCutoffDigits` digits;
+- `q*π` recognizer обрабатывает сложение/вычитание уже распознанных rational multiples;
+- точные tangent poles в этих формах завершаются `DomainError`;
+- recognizer остаётся локальным и не вводит общий CAS;
+- все изменения имеют regression tests.
+
+---
+
+# ЭТАП 34. `exp`, `ln`, `log` — final resource-lifecycle remediation
+
+## Цель
+
+Закрыть оставшийся resource gap exact-log fast path до общей верификации.
+
+Математические схемы `exp`, `ln` и общего `log_b(x)=ln(x)/ln(b)` в этом этапе не меняются.
+
+### 34.1. Exact integer `log` обязан подчиняться EvaluationContext
+
+Проверка exact candidate:
+
+```text
+base^p == argument
+```
+
+не должна вызывать тяжёлый `powRational()` без resource/checkpoint context.
+
+Протянуть `EvaluationCheckpoint` / `EvaluationGraphContext` через:
+
+```text
+exactLogRational
+exactLogRationalWithProfile
+searchExactIntegerLog
+candidate power check
+```
+
+или эквивалентный внутренний API.
+
+Каждый тяжёлый exact power check должен подчиняться:
+
+```text
+checkpoint()
+guardBigIntDigits(...)
+cancel
+soft timeout / pause
+hard resource limit
+```
+
+### 34.2. Не материализовывать заведомо лишнюю candidate power
+
+Предпочтительно использовать специализированное сравнение:
+
+```text
+comparePowerToLimit(base, p, argument)
+```
+
+с exponentiation-by-squaring и early abort, когда уже доказано:
+
+```text
+base^p > argument
+```
+
+Не требуется строить полный exact result для неправильного кандидата только ради сравнения.
+
+Если переиспользуется `powRational`, он обязан получать `control` и проходить тот же preflight/resource lifecycle.
+
+### 34.3. Exact semantics сохраняются
+
+Resource routing не должен превращать exact-log fast path в approximate path.
+
+Если вычисление разрешено policy и кандидат подтверждён:
+
+```text
+log_b(x) = p
+```
+
+или существующий дешёвый rational `p/q` fast path возвращается exact `Rational`.
+
+Фиксированный математический exponent ceiling снова не вводится.
+
+## Тесты
+
+- exact integer log существенно выше бывшего `512` ceiling сохраняется;
+- soft timeout во время тяжёлой candidate проверки → `paused`, затем `continue()` продолжает работу;
+- cancellation останавливает exact candidate power на cooperative checkpoint;
+- искусственно малый `maxEstimatedBigIntDigits` даёт typed `ResourceLimitError` до очевидно чрезмерной allocation;
+- неправильный соседний exponent candidate может завершиться early-abort comparison без полного giant result;
+- `log_x(x)=1` после domain proof не регрессирует;
+- near-one base adaptive path не регрессирует.
+
+## Definition of Done
+
+- exact integer-log candidate checks не обходят resource lifecycle;
+- soft timeout/cancel/hard memory guard работают внутри exact-log fast path;
+- неправильный candidate не обязан материализовывать полную giant power;
+- exact result остаётся exact при разрешённом вычислении;
+- нет нового fixed exponent ceiling;
+- есть regression + lifecycle tests.
+
+---
+
+# ЭТАП 35. Powers и Gamma — exponent-aware result/resource remediation
+
+## Цель
+
+Устранить найденный absolute-scale blow-up для огромных **приближённых** результатов powers/Gamma и привести Bernoulli cache к явному resource lifecycle.
+
+Exact integer powers и exact factorial сохраняют полный exact `bigint` result и не переводятся на приближённое exponent-only представление.
+
+### 35.1. Approximate powers: учитывать величину конечного результата
+
+Для:
+
+```text
+x^(p/q)
+```
+
+planner не должен оценивать только стоимость `q`-th root.
+
+Добавить estimate порядка результата, например из:
+
+```text
+M ≈ |(p/q) * log10(|x|)|
+```
+
+либо строгую/консервативную эквивалентную bound.
+
+Если:
+
+```text
+M >> requested N
+```
+
+approximate path не должен материализовывать decimal `ScaledInterval`/`RationalInterval` с `O(M)` integer digits только ради `N` значащих цифр.
+
+Особенно проверить:
+
+```text
+2^(1000000 + 1/2)
+2^(-1000000 - 1/2)
+```
+
+при малом requested `N`.
+
+### 35.2. Direct `nthRoot` не должен скрывать blow-up последующей integer power
+
+Direct root может оставаться выбранным, только если одновременно приемлемы:
+
+```text
+cost(root q)
+cost(integer numerator power p)
+estimated final magnitude
+resource policy
+```
+
+Случай:
+
+```text
+small q
+huge |p|
+```
+
+не должен считаться дешёвым только потому, что сам root дешёв.
+
+Если последующая power materialization становится pathological, route должен перейти к exponent-aware general path.
+
+### 35.3. General approximate power должен использовать exponent-aware `exp`
+
+Для positive base/general real exponent основная форма сохраняется:
+
+```text
+x^y = exp(y * ln(x))
+```
+
+но финальный production path должен использовать тот же exponent-aware backend representation, что и исправленный `exp` этапа 30:
+
+```text
+expIntervalBall(...)
+backend.scaleByPowerOfTwo(...)
+```
+
+или эквивалент.
+
+Не использовать для huge-result production path старый absolute-decimal Rational `expBallInterval`, если он материализует число пропорционально десятичному порядку результата.
+
+Для negative Rational base + odd-denominator Rational exponent:
+
+- вычислять magnitude тем же exponent-aware способом, если exact/direct path не подходит;
+- знак применять отдельно по parity numerator;
+- real-domain semantics не менять.
+
+### 35.4. Gamma: финальное `exp(logGamma)` перевести на exponent-aware Ball
+
+Adaptive Stirling, reflection, correction terms и remainder proof сохраняются.
+
+После строгого interval для:
+
+```text
+logGamma
+```
+
+большая положительная/отрицательная экспонента результата не должна превращаться в giant decimal Rational только ради представления magnitude.
+
+Добавить production path порядка:
+
+```text
+gammaRealBall(...)
+logGamma interval
+    ↓
+expIntervalBall(...)
+    ↓
+compact significand + large backend exponent
+```
+
+или эквивалентную архитектуру.
+
+Для reflection:
+
+```text
+Γ(x) = π / (sin(πx) Γ(1-x))
+```
+
+exponent-aware representation должна сохраняться и при умножении/делении, чтобы reflected huge/tiny Gamma также не материализовывала absolute-scale Rational.
+
+### 35.5. Пересмотреть `guardGammaResultSize`
+
+Hard resource guard не должен отвергать вычисление только потому, что **математический результат** имеет огромный decimal exponent, если backend представляет этот exponent компактно.
+
+После перехода на exponent-aware result guard должен оценивать реальные expensive resources:
+
+```text
+working significand digits
+temporary bigint digits
+Stirling/Bernoulli state
+recurrence state
+backend limits
+```
+
+а не полный число цифр развёрнутого decimal значения.
+
+Exact integer factorial/Gamma exact-result paths могут по-прежнему guard'ить фактический exact bigint output.
+
+### 35.6. Bernoulli/tangent cache: явный lifetime
+
+Текущий high-order coefficient cache не должен бесконтрольно становиться process-wide permanent high-water mark.
+
+Предпочтительная модель:
+
+```text
+worker/context-owned Bernoulli state
+```
+
+либо другой явно ограниченный lifetime.
+
+Если остаётся shared cache, должны существовать:
+
+- bounded retention/eviction policy;
+- документированный scope;
+- отсутствие утечки state между независимыми calculation lifetimes без явной причины.
+
+Pending resumable frontier сохраняется в пределах выбранного owner.
+
+### 35.7. Bernoulli expansion подключить к hard resource accounting
+
+До/во время расширения coefficient frontier оценивать или контролировать:
+
+```text
+retained bigint digits
+pending convolution size
+new tangent/Bernoulli coefficient size
+```
+
+и вызывать `guardBigIntDigits`/эквивалентный resource hook.
+
+Checkpoint resumability сохраняется.
+
+Quadratic/asymptotic оптимизация самого tangent convolution в этот этап не обязательна, если текущая схема проходит resource policy; её дальнейшее ускорение остаётся предметом общего profiling этапа 37.
+
+## Тесты
+
+### Powers
+
+- huge positive approximate power при малом `N` имеет bounded significand/working bigint;
+- huge negative approximate power не строит сначала гигантское positive decimal value;
+- planner учитывает `|p|`/result magnitude, а не только `q`;
+- direct→exponent-aware route сохраняет containment и monotonic verified prefix;
+- negative-base odd-denominator semantics не регрессируют.
+
+### Gamma
+
+- Gamma с огромным decimal exponent результата возвращает компактный backend Ball при малом `N`;
+- result exponent может расти независимо от significand size;
+- reflection path сохраняет exponent-aware representation;
+- `guardGammaResultSize` не отклоняет допустимый compact-exponent result только из-за величины математического exponent;
+- существующие near-pole/half-integer/>256-correction tests проходят.
+
+### Bernoulli cache
+
+- два независимых owner/context не обязаны наследовать неограниченный high-water cache друг друга;
+- cancellation/pause сохраняют resumable frontier в пределах owner;
+- artificially small cache/resource budget даёт typed resource failure;
+- cached state после hard failure остаётся консистентным;
+- повторный разрешённый refinement продолжает корректный frontier.
+
+## Definition of Done
+
+- approximate power не материализует `O(resultExponent)` decimal digits при запросе малого числа значащих цифр;
+- power route учитывает стоимость numerator exponent и конечную magnitude;
+- general approximate powers используют exponent-aware production `exp`;
+- Gamma возвращает huge/tiny approximate values через compact exponent-aware representation;
+- reflection не возвращает архитектуру к giant Rational magnitude;
+- Gamma resource guard оценивает фактические рабочие ресурсы, а не только развёрнутый размер результата;
+- Bernoulli cache имеет явный lifetime и resource accounting;
+- exact integer powers/factorials сохраняют exact semantics;
+- все изменения покрыты containment/regression/resource tests.
+
+---
+
+# ЭТАП 36. Сквозное тестирование математического ядра
 
 ## Цель
 
@@ -2812,11 +3225,11 @@ reflection/direct strategy
 
 ## Test suites
 
-### 33.1. Parser → exact result
+### 36.1. Parser → exact result
 
 Большая таблица выражений и точных rational результатов.
 
-### 33.2. Parser → lazy result → verified digits
+### 36.2. Parser → lazy result → verified digits
 
 Примеры с:
 
@@ -2833,7 +3246,7 @@ powers
 Gamma
 ```
 
-### 33.3. Containment tests
+### 36.3. Containment tests
 
 Для каждой approximate операции:
 
@@ -2841,7 +3254,7 @@ Gamma
 referenceValue ∈ returnedBall
 ```
 
-### 33.4. Monotonic refinement
+### 36.4. Monotonic refinement
 
 Базовая последовательность:
 
@@ -2855,20 +3268,20 @@ referenceValue ∈ returnedBall
 
 Старый verified prefix никогда не меняется.
 
-### 33.5. Differential tests
+### 36.5. Differential tests
 
 Сравнение с независимым high-precision reference backend/implementation.
 
 Reference не должен быть тем же кодом, который тестируется.
 
-### 33.6. Resource lifecycle
+### 36.6. Resource lifecycle
 
 - timeout;
 - continue;
 - cancel;
 - hard limit.
 
-### 33.7. Domain boundaries
+### 36.7. Domain boundaries
 
 Особенно:
 
@@ -2881,7 +3294,7 @@ negative-base powers
 Gamma poles
 ```
 
-### 33.8. Cutoff
+### 36.8. Cutoff
 
 Production cutoff 3000/3001 и уменьшенный test cutoff.
 
@@ -2893,7 +3306,7 @@ Production cutoff 3000/3001 и уменьшенный test cutoff.
 
 если выражение не проходит через cutoff-операцию.
 
-### 33.9. Regression suite найденных проблем
+### 36.9. Regression suite найденных проблем
 
 Обязательные regression groups:
 
@@ -2910,17 +3323,25 @@ ln2 reuse
 log near-one base
 rational fractional powers
 Gamma precision beyond old 256-term ceiling
+degree trig precision above add/sub cutoff
+q*π structural add/sub pole cases
+exact-log cooperative resource lifecycle
+approximate powers with huge result exponent
+Gamma with huge result exponent
+Bernoulli cache lifetime/resource accounting
 ```
 
 ## Definition of Done
 
 Нет известного нарушения фундаментальных инвариантов `CORE_SPEC.md`.
 
-Все проблемы, зафиксированные этапами 23–27, имеют regression tests.
+Все проблемы, зафиксированные этапами 23–35, имеют regression tests.
+
+Этап 36 не является местом для откладывания уже известных исправлений: если до его начала известен correctness/resource bug, он должен быть закрыт отдельным remediation-этапом.
 
 ---
 
-# ЭТАП 34. Performance profiling и безопасные оптимизации
+# ЭТАП 37. Performance profiling и безопасные оптимизации
 
 ## Цель
 
@@ -2936,11 +3357,12 @@ Gamma precision beyond old 256-term ceiling
 - interval ↔ ball conversions;
 - constants;
 - Chudnovsky/binary splitting;
-- trig range reduction и `sincos`;
+- trig range reduction и `sincos`, включая стоимость ненужного `π` для уже малого radian argument;
 - `exp` fixed-point squaring;
 - `ln` reduction;
+- `ln2` repeated resummation при последовательном refinement;
 - `nthRoot`;
-- Gamma;
+- Gamma, включая exact-Rational modulo reduction в `sin(πx)` для reflection;
 - verified decimal extraction;
 - large Rational normalization.
 
@@ -3001,9 +3423,11 @@ peakBigIntDigits(N)
 
 Для основных `LazyReal`-алгоритмов известна наблюдаемая scaling-кривая и нет очевидного искусственного потолка точности раньше resource policy.
 
+Если profiling обнаруживает новый correctness/resource bug, этап 38 блокируется: проблема оформляется отдельным remediation-пунктом/этапом, а не считается обычной performance-оптимизацией.
+
 ---
 
-# ЭТАП 35. Freeze первого публичного Core API
+# ЭТАП 38. Freeze первого публичного Core API
 
 ## Цель
 
@@ -3107,11 +3531,17 @@ peakBigIntDigits(N)
         ↓
 32 Gamma/factorial remediation
         ↓
-33 full verification
+33 trig final correctness remediation
         ↓
-34 scaling/profile optimization
+34 exp/ln/log final lifecycle remediation
         ↓
-35 public API freeze
+35 powers/Gamma exponent-aware + cache remediation
+        ↓
+36 full verification
+        ↓
+37 scaling/profile optimization
+        ↓
+38 public API freeze
 ```
 
 На практике некоторые этапы можно разрабатывать частично параллельно, но нельзя объявлять зависящий этап завершённым до завершения его математических зависимостей.
@@ -3221,7 +3651,7 @@ Gamma mode
 Включает:
 
 ```text
-23–32
+23–35
 ```
 
 Требуется:
@@ -3229,7 +3659,8 @@ Gamma mode
 - устранить найденные correctness issues;
 - заменить искусственно ограниченные/плохо масштабируемые алгоритмы;
 - унифицировать фундаментальные high-precision primitives и caches;
-- подтвердить отсутствие глобального precision ceiling, не предусмотренного `CORE_SPEC.md`.
+- подтвердить отсутствие глобального precision ceiling, не предусмотренного `CORE_SPEC.md`;
+- закрыть финальные cutoff/dependency/resource/result-representation gaps, найденные повторным аудитом после этапа 32.
 
 ---
 
@@ -3238,15 +3669,16 @@ Gamma mode
 Включает:
 
 ```text
-33–35
+36–38
 ```
 
 Требуется:
 
-- полный набор обязательных тестов;
-- scaling-oriented profiling;
-- исправление оставшихся correctness/performance issues;
+- полный набор обязательных тестов без известных correctness/resource bugs на входе;
+- scaling-oriented profiling и только доказуемые performance-оптимизации;
 - public API audit/freeze.
+
+Milestone F не используется как catch-all для уже известных ошибок. Если на этапах 36–37 обнаруживается новый correctness/resource bug, этап 38 блокируется до отдельного remediation.
 
 Только после **Milestone F** начинается разработка прикладных калькуляторов/плагинов.
 
@@ -3295,8 +3727,14 @@ Gamma mode
 37. huge exact powers/factorials подчиняются cooperative resource lifecycle;
 38. huge half-integer Gamma не использует линейную recurrence только из-за fast-path classification;
 39. regression suite реально выполняет Gamma с более чем 256 Stirling corrections;
-40. нет известных нарушений фундаментальных инвариантов;
-41. public API прошёл финальный аудит.
+40. degree `sin/cos/tan` не наследуют cutoff `3000/3001` операций `+/-`;
+41. structural rational multiples of `π` сохраняют exact pole/zero semantics через локальные `+/-` комбинации;
+42. exact integer-log candidate checks подчиняются cooperative timeout/cancel/hard resource policy;
+43. huge approximate powers используют exponent-aware result representation и не материализуют absolute decimal magnitude без необходимости;
+44. huge/tiny Gamma использует exponent-aware result representation, включая reflection path;
+45. Bernoulli/tangent coefficient cache имеет явный lifetime и hard resource accounting;
+46. нет известных нарушений фундаментальных инвариантов;
+47. public API прошёл финальный аудит.
 
 ---
 
@@ -3348,59 +3786,46 @@ Gamma mode
 
 ---
 
-# 8. Следующие задачи для Codex после завершения этапа 27
+# 8. Следующие задачи для Codex после завершения этапа 32
 
-Этапы `0–27` считаются завершённой базой. Post-stage-27 remediation теперь разбит на пять самостоятельных этапов.
+Этапы `0–32` считаются завершённой базой.
 
-### Этап 28 — `π/e`
+Повторный аудит production-функций после этапа 32 выявил несколько correctness/resource/result-representation gaps. Они должны быть закрыты **до** общей верификации, profiling и API freeze.
 
-1. убрать последовательный giant tail-factor accumulator Chudnovsky;
-2. сделать resumable/cache path для `sqrt(10005)`;
-3. убрать ненужное дублирование Chudnovsky block state;
-4. отделить user precision от provider working precision в diagnostics;
-5. проверить scaling `e` continuation без смены factorial series.
+### Этап 33 — trig final correctness/dependency remediation
 
-### Этап 29 — trig
+1. удалить degree precision cutoff из `sin/cos/tan`;
+2. добавить regression, где requested precision выше test cutoff;
+3. замкнуть локальный `q*π` recognizer относительно `+/-` уже доказанных rational multiples;
+4. exact tangent poles в таких формах должны завершаться `DomainError`, а не refinement до timeout.
 
-1. exact degree modulo `360/180` до `π`;
-2. selective `needSin/needCos` kernel;
-3. endpoint monotonic path для `tan`, если он сужает interval после pole proof;
-4. regression `sin(π)`, `cos(π)`, `tan(π)`, `tan(π/2)`;
-5. локальный `q*π` fast path только если dependency problem подтверждается.
+### Этап 34 — `exp/ln/log` final lifecycle remediation
 
-### Этап 30 — `exp/ln/log`
+1. протянуть `EvaluationContext`/checkpoint control в exact integer-log candidate checks;
+2. подключить exact-log power comparison к soft timeout/cancel/hard memory guard;
+3. по возможности использовать early-abort power-to-limit comparison вместо materialization неправильного giant candidate;
+4. exact semantics и отсутствие fixed exponent ceiling сохранить.
 
-1. large-argument `exp`: `x = k ln2 + r`, `2^k * exp(r)` с backend exponent scaling;
-2. уменьшить memory growth `ln2` cache без смены ряда;
-3. убрать fixed `512` limit exact integer log;
-4. `log_x(x)=1` после domain proof;
-5. сохранить текущие series families.
+### Этап 35 — powers/Gamma exponent-aware + cache remediation
 
-### Этап 31 — powers / `nthRoot`
+1. power planner должен учитывать не только `q`, но и `|p|`/estimated final magnitude;
+2. huge approximate powers перевести на exponent-aware `expIntervalBall`/backend exponent representation;
+3. финальное `exp(logGamma)` и reflection Gamma перевести на exponent-aware Ball path;
+4. `guardGammaResultSize` должен учитывать реальные рабочие ресурсы, а не развёрнутый decimal exponent результата;
+5. Bernoulli/tangent cache должен получить явный context/worker lifetime либо bounded shared policy;
+6. расширение Bernoulli cache подключить к hard resource accounting.
 
-1. заменить `exactNthRootBigInt`;
-2. исправить direct `nthRoot` cost model;
-3. не материализовать pathological `10^(N*q)`;
-4. сделать strategy selection/refinement безопасным;
-5. подключить huge exact powers к cooperative resource lifecycle.
-
-### Этап 32 — Gamma / factorial
-
-1. cost-gate half-integer fast path;
-2. large exact factorial → balanced/checkpointed range product;
-3. benchmark/оптимизировать Bernoulli generation, сохраняя adaptive Stirling;
-4. измерить giant recurrence product;
-5. добавить реальный computation regression с `>256` Stirling corrections.
-
-После этапа 32 перейти к:
+После завершения этапа 35 перейти к:
 
 ```text
-33 full verification
-34 global scaling/profile optimization
-35 public API freeze
+36 full verification
+37 global scaling/profile optimization
+38 public API freeze
 ```
 
-**Отдельно:** переход функций на другие виды рядов/аппроксимаций не входит в этапы `28–32` и обсуждается отдельным решением.
+Этапы `36–38` не являются местом для откладывания уже известных correctness/resource fixes.
+
+**Отдельно:** переход функций на другие виды рядов/аппроксимаций не входит в этапы `28–35` и обсуждается отдельным engineering decision.
 
 ---
 
