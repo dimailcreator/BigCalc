@@ -32,6 +32,8 @@ import {
   sinAngleInterval,
   tanAngleInterval
 } from "../math/elementary.js";
+import { createFactorialState, factorialBigInt } from "../math/factorial.js";
+import type { FactorialState } from "../math/factorial.js";
 import {
   RATIONAL_ONE,
   RATIONAL_ZERO,
@@ -987,6 +989,8 @@ class PowEvaluationNode extends BaseEvaluationNode {
 }
 
 class FactorialEvaluationNode extends BaseEvaluationNode {
+  private readonly exactFactorialState: FactorialState = createFactorialState();
+
   constructor(operand: EvaluationNode) {
     super("factorial", [operand]);
   }
@@ -1073,7 +1077,7 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
       throw new DomainException("!", "Factorial is not defined for negative integers");
     }
 
-    return integerRational(factorialBigInt(value.numerator));
+    return integerRational(factorialBigInt(value.numerator, context, this.exactFactorialState));
   }
 
   private refineGammaInterval(
@@ -1140,7 +1144,7 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
       throw new DomainException("!", "Factorial is not defined for negative integers");
     }
 
-    return integerRational(factorialBigInt(value.numerator));
+    return integerRational(factorialBigInt(value.numerator, context, this.exactFactorialState));
   }
 }
 
@@ -2112,14 +2116,4 @@ function evaluateZeroBasePower(exponent: Rational): Rational {
 function throwDivisionByZeroViaRationalPower(): never {
   powRational(RATIONAL_ZERO, -1n);
   throw new InternalCalculationException("Unreachable zero power division branch");
-}
-
-function factorialBigInt(value: bigint): bigint {
-  let result = 1n;
-
-  for (let factor = 2n; factor <= value; factor += 1n) {
-    result *= factor;
-  }
-
-  return result;
 }

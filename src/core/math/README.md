@@ -33,3 +33,12 @@ exponentiation-by-squaring checks. The direct decimal `nthRoot` planner accounts
 large degrees therefore fall back before a pathological scaled integer is allocated.
 Exact integer powers use resumable exponentiation by squaring with checkpoint and preflight
 size guards supplied by the calculation lifecycle.
+
+Exact factorials use a resumable balanced range-product tree. Their result-size preflight
+and per-leaf/per-product checkpoints share the same lifecycle resource policy.
+
+Half-integer Gamma recurrence is cost-gated before iteration; huge distances use the
+general Stirling/reflection route. Bernoulli coefficients are derived from a resumable
+integer tangent-number cache, avoiding repeated Rational normalization while preserving
+the adaptive Stirling expansion. Balanced Gamma recurrence products report peak component
+and retained bigint sizes for resource profiling.
