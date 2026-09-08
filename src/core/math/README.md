@@ -20,7 +20,10 @@ Trigonometric evaluation uses one canonical reduction to `[-π/4, π/4]` and a j
 fixed-point `sincos` kernel with outward rounding. Standalone `sin`/`cos` select only the
 base series required after quadrant mapping, while `tan` forms a monotone endpoint hull on
 each proven pole-free branch. Degree inputs are reduced exactly modulo their period before
-requesting the shared `π`; cheap rational multiples of `π` have local structural fast paths.
+requesting the shared `π`; their approximate refinement is not limited by the add/sub
+precision cutoff. Cheap rational multiples of `π` have local structural fast paths closed
+under addition and subtraction of already-recognized coefficients, without general symbolic
+simplification.
 
 Rational fractional powers use a rigorous, resumable fixed-point `nthRoot` primitive when
 the precision-dependent cost model selects it; general real powers retain the `ln`/`exp`
