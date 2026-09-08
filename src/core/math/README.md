@@ -13,8 +13,9 @@ The production `exp` path reduces `x = k*ln(2) + r`, evaluates the existing smal
 `r`, and applies `2^k` through the backend binary exponent without growing the mantissa.
 `ln` selects its binary scale directly and reuses the context-scoped `ln(2)` cache. Exact
 integer logarithms derive a small candidate set from bigint magnitude and verify candidates
-with exact rational powers, without a fixed exponent ceiling. Small rational logarithms keep
-their bounded exact fractional-exponent path.
+with resumable, resource-guarded bounded power comparisons, without a fixed exponent ceiling.
+Wrong candidates abort once their power is proven above the argument instead of materializing
+the full result. Small rational logarithms keep their bounded exact fractional-exponent path.
 
 Trigonometric evaluation uses one canonical reduction to `[-π/4, π/4]` and a joint
 fixed-point `sincos` kernel with outward rounding. Standalone `sin`/`cos` select only the

@@ -34,7 +34,6 @@ import {
   isZeroRational,
   multiplyRational,
   negateRational,
-  powRational,
   signOfRational,
   subtractRational
 } from "../values/rational.js";
@@ -88,7 +87,30 @@ export interface ExactLogProfile {
   readonly estimatedExponent: bigint | null;
   readonly candidateCount: number;
   readonly exactPowerChecks: number;
+  readonly earlyAbortedPowerChecks: number;
+  readonly powerMultiplications: number;
+  readonly peakPowerComponentDigits: number;
   readonly matchedExponent: bigint | null;
+}
+
+export interface ExactLogRationalState {
+  baseNumerator: bigint | null;
+  baseDenominator: bigint | null;
+  argumentNumerator: bigint | null;
+  argumentDenominator: bigint | null;
+  phase: "integer" | "fractional" | "complete";
+  integerSearch: ExactIntegerLogSearchState;
+  fractionalSearch: ExactIntegerLogSearchState;
+  fractionalDenominator: number;
+  fractionalPowerDenominator: number;
+  fractionalArgumentPower: Rational | null;
+  candidateCount: number;
+  exactPowerChecks: number;
+  earlyAbortedPowerChecks: number;
+  powerMultiplications: number;
+  peakPowerComponentDigits: number;
+  value: Rational | null;
+  estimatedExponent: bigint | null;
 }
 
 export interface LnIntervalProfile {
@@ -989,13 +1011,42 @@ export function intervalSignLower(interval: RationalInterval): Sign {
   return signOfRational(interval.lower);
 }
 
-export function exactLogRational(base: Rational, argument: Rational): Rational | null {
-  return exactLogRationalWithProfile(base, argument).value;
+export function createExactLogRationalState(): ExactLogRationalState {
+  return {
+    baseNumerator: null,
+    baseDenominator: null,
+    argumentNumerator: null,
+    argumentDenominator: null,
+    phase: "integer",
+    integerSearch: createExactIntegerLogSearchState(),
+    fractionalSearch: createExactIntegerLogSearchState(),
+    fractionalDenominator: 2,
+    fractionalPowerDenominator: 1,
+    fractionalArgumentPower: null,
+    candidateCount: 0,
+    exactPowerChecks: 0,
+    earlyAbortedPowerChecks: 0,
+    powerMultiplications: 0,
+    peakPowerComponentDigits: 0,
+    value: null,
+    estimatedExponent: null
+  };
+}
+
+export function exactLogRational(
+  base: Rational,
+  argument: Rational,
+  control?: EvaluationCheckpoint,
+  state: ExactLogRationalState = createExactLogRationalState()
+): Rational | null {
+  return exactLogRationalWithProfile(base, argument, control, state).value;
 }
 
 export function exactLogRationalWithProfile(
   base: Rational,
-  argument: Rational
+  argument: Rational,
+  control?: EvaluationCheckpoint,
+  state: ExactLogRationalState = createExactLogRationalState()
 ): { readonly value: Rational | null; readonly profile: ExactLogProfile } {
   if (signOfRational(argument) <= 0) {
     throw new InternalCalculationException(
@@ -1010,54 +1061,68 @@ export function exactLogRationalWithProfile(
   }
 
   if (equalsRational(argument, RATIONAL_ONE)) {
-    return exactLogProfileResult(RATIONAL_ZERO, null, 0, 0);
+    return exactLogProfileResult(RATIONAL_ZERO, null, 0, 0, 0, 0, 0);
   }
 
-  const integerLog = searchExactIntegerLog(base, argument);
-  if (integerLog.value !== null) {
-    return exactLogProfileResult(
-      integerLog.value,
-      integerLog.estimatedExponent,
-      integerLog.candidateCount,
-      integerLog.exactPowerChecks
-    );
+  initializeExactLogRationalState(state, base, argument);
+  if (state.phase === "complete") {
+    return exactLogResultFromState(state);
   }
 
-  if (!isCheapExactFractionalLogCandidate(base, argument)) {
-    return exactLogProfileResult(
-      null,
-      integerLog.estimatedExponent,
-      integerLog.candidateCount,
-      integerLog.exactPowerChecks
-    );
+  if (state.phase === "integer") {
+    const integerLog = searchExactIntegerLog(base, argument, control, state.integerSearch);
+    addExactIntegerLogMetrics(state, integerLog);
+    state.estimatedExponent = integerLog.estimatedExponent;
+    if (integerLog.value !== null) {
+      state.value = integerLog.value;
+      state.phase = "complete";
+      return exactLogResultFromState(state);
+    }
+
+    if (!isCheapExactFractionalLogCandidate(base, argument)) {
+      state.phase = "complete";
+      return exactLogResultFromState(state);
+    }
+
+    state.phase = "fractional";
+    state.fractionalArgumentPower = argument;
+    state.fractionalPowerDenominator = 1;
   }
 
   // This is intentionally a small, local exact path rather than a symbolic
   // factorisation engine: argument^q = base^p proves log_base(argument) = p/q.
-  let argumentPower = argument;
-  let candidateCount = integerLog.candidateCount;
-  let exactPowerChecks = integerLog.exactPowerChecks;
-  for (let denominator = 2; denominator <= MAX_EXACT_LOG_DENOMINATOR; denominator += 1) {
-    argumentPower = multiplyRational(argumentPower, argument);
-    const numerator = searchExactIntegerLog(base, argumentPower);
-    candidateCount += numerator.candidateCount;
-    exactPowerChecks += numerator.exactPowerChecks;
-    if (numerator.value !== null) {
-      return exactLogProfileResult(
-        createRational(numerator.value.numerator, BigInt(denominator)),
-        numerator.estimatedExponent,
-        candidateCount,
-        exactPowerChecks
-      );
+  while (state.fractionalDenominator <= MAX_EXACT_LOG_DENOMINATOR) {
+    if (state.fractionalPowerDenominator < state.fractionalDenominator) {
+      control?.checkpoint();
+      const previousPower = state.fractionalArgumentPower;
+      if (previousPower === null) {
+        throw new InternalCalculationException("Exact logarithm fractional state is missing");
+      }
+      guardRationalProduct(previousPower, argument, control);
+      state.fractionalArgumentPower = multiplyRational(previousPower, argument);
+      state.fractionalPowerDenominator += 1;
     }
+
+    const argumentPower = state.fractionalArgumentPower;
+    if (argumentPower === null) {
+      throw new InternalCalculationException("Exact logarithm fractional state is missing");
+    }
+
+    const numerator = searchExactIntegerLog(base, argumentPower, control, state.fractionalSearch);
+    addExactIntegerLogMetrics(state, numerator);
+    if (numerator.value !== null) {
+      state.value = createRational(numerator.value.numerator, BigInt(state.fractionalDenominator));
+      state.estimatedExponent = numerator.estimatedExponent;
+      state.phase = "complete";
+      return exactLogResultFromState(state);
+    }
+
+    state.fractionalDenominator += 1;
+    state.fractionalSearch = createExactIntegerLogSearchState();
   }
 
-  return exactLogProfileResult(
-    null,
-    integerLog.estimatedExponent,
-    candidateCount,
-    exactPowerChecks
-  );
+  state.phase = "complete";
+  return exactLogResultFromState(state);
 }
 
 export function createRationalInterval(lower: Rational, upper: Rational): RationalInterval {
@@ -1884,39 +1949,360 @@ interface ExactIntegerLogSearchResult {
   readonly estimatedExponent: bigint;
   readonly candidateCount: number;
   readonly exactPowerChecks: number;
+  readonly earlyAbortedPowerChecks: number;
+  readonly powerMultiplications: number;
+  readonly peakPowerComponentDigits: number;
 }
 
-function searchExactIntegerLog(base: Rational, argument: Rational): ExactIntegerLogSearchResult {
+interface ExactIntegerLogSearchState {
+  baseNumerator: bigint | null;
+  baseDenominator: bigint | null;
+  argumentNumerator: bigint | null;
+  argumentDenominator: bigint | null;
+  exponentSign: bigint;
+  estimatedExponent: bigint;
+  candidates: readonly bigint[];
+  candidateIndex: number;
+  comparison: BoundedRationalPowerComparisonState;
+  exactPowerChecks: number;
+  earlyAbortedPowerChecks: number;
+  powerMultiplications: number;
+  peakPowerComponentDigits: number;
+  completed: boolean;
+  value: Rational | null;
+}
+
+interface BoundedRationalPowerComparisonState {
+  baseNumerator: bigint | null;
+  baseDenominator: bigint | null;
+  exponent: bigint | null;
+  limitNumerator: bigint | null;
+  limitDenominator: bigint | null;
+  result: Rational;
+  factor: Rational | null;
+  remaining: bigint;
+  phase: "multiply-result" | "square-factor";
+  multiplications: number;
+  peakComponentDigits: number;
+  completed: boolean;
+  comparison: -1 | 0 | 1;
+  earlyAborted: boolean;
+}
+
+function createExactIntegerLogSearchState(): ExactIntegerLogSearchState {
+  return {
+    baseNumerator: null,
+    baseDenominator: null,
+    argumentNumerator: null,
+    argumentDenominator: null,
+    exponentSign: ONE,
+    estimatedExponent: ONE,
+    candidates: Object.freeze([]),
+    candidateIndex: 0,
+    comparison: createBoundedRationalPowerComparisonState(),
+    exactPowerChecks: 0,
+    earlyAbortedPowerChecks: 0,
+    powerMultiplications: 0,
+    peakPowerComponentDigits: 0,
+    completed: false,
+    value: null
+  };
+}
+
+function createBoundedRationalPowerComparisonState(): BoundedRationalPowerComparisonState {
+  return {
+    baseNumerator: null,
+    baseDenominator: null,
+    exponent: null,
+    limitNumerator: null,
+    limitDenominator: null,
+    result: RATIONAL_ONE,
+    factor: null,
+    remaining: ZERO,
+    phase: "multiply-result",
+    multiplications: 0,
+    peakComponentDigits: 1,
+    completed: false,
+    comparison: 0,
+    earlyAborted: false
+  };
+}
+
+function searchExactIntegerLog(
+  base: Rational,
+  argument: Rational,
+  control?: EvaluationCheckpoint,
+  state: ExactIntegerLogSearchState = createExactIntegerLogSearchState()
+): ExactIntegerLogSearchResult {
+  initializeExactIntegerLogSearchState(state, base, argument, control);
+
+  while (!state.completed && state.candidateIndex < state.candidates.length) {
+    const magnitude = state.candidates[state.candidateIndex];
+    if (magnitude === undefined) {
+      throw new InternalCalculationException("Exact logarithm candidate is missing");
+    }
+
+    const comparison = compareRationalPowerToLimit(
+      effectiveExactLogBase(base),
+      magnitude,
+      effectiveExactLogArgument(argument),
+      control,
+      state.comparison
+    );
+    state.exactPowerChecks += 1;
+    state.powerMultiplications += state.comparison.multiplications;
+    state.peakPowerComponentDigits = Math.max(
+      state.peakPowerComponentDigits,
+      state.comparison.peakComponentDigits
+    );
+    if (state.comparison.earlyAborted) {
+      state.earlyAbortedPowerChecks += 1;
+    }
+
+    if (comparison === 0) {
+      state.value = integerRational(state.exponentSign * magnitude);
+      state.completed = true;
+      break;
+    }
+
+    state.candidateIndex += 1;
+    state.comparison = createBoundedRationalPowerComparisonState();
+  }
+
+  if (state.candidateIndex >= state.candidates.length) {
+    state.completed = true;
+  }
+
+  return Object.freeze({
+    value: state.value,
+    estimatedExponent: state.estimatedExponent,
+    candidateCount: state.candidates.length,
+    exactPowerChecks: state.exactPowerChecks,
+    earlyAbortedPowerChecks: state.earlyAbortedPowerChecks,
+    powerMultiplications: state.powerMultiplications,
+    peakPowerComponentDigits: state.peakPowerComponentDigits
+  });
+}
+
+function initializeExactIntegerLogSearchState(
+  state: ExactIntegerLogSearchState,
+  base: Rational,
+  argument: Rational,
+  control?: EvaluationCheckpoint
+): void {
+  if (
+    state.baseNumerator === base.numerator &&
+    state.baseDenominator === base.denominator &&
+    state.argumentNumerator === argument.numerator &&
+    state.argumentDenominator === argument.denominator
+  ) {
+    return;
+  }
+
+  control?.checkpoint();
+  guardRationalComparison(base, argument, control);
   const baseAboveOne = compareRational(base, RATIONAL_ONE) > 0;
   const argumentAboveOne = compareRational(argument, RATIONAL_ONE) > 0;
-  const exponentSign = baseAboveOne === argumentAboveOne ? 1n : -1n;
-  const effectiveBase = baseAboveOne ? base : divideRational(RATIONAL_ONE, base);
-  const effectiveArgument = argumentAboveOne ? argument : divideRational(RATIONAL_ONE, argument);
+  const effectiveBase = baseAboveOne ? base : positiveRationalReciprocal(base);
+  const effectiveArgument = argumentAboveOne ? argument : positiveRationalReciprocal(argument);
   const estimatedExponent = estimateIntegerPowerExponent(
     effectiveBase.numerator,
     effectiveArgument.numerator
   );
-  const candidates = nearbyPositiveIntegerCandidates(estimatedExponent);
-  let exactPowerChecks = 0;
 
-  for (const magnitude of candidates) {
-    exactPowerChecks += 1;
-    if (equalsRational(powRational(effectiveBase, magnitude), effectiveArgument)) {
-      return Object.freeze({
-        value: integerRational(exponentSign * magnitude),
-        estimatedExponent,
-        candidateCount: candidates.length,
-        exactPowerChecks
-      });
+  state.baseNumerator = base.numerator;
+  state.baseDenominator = base.denominator;
+  state.argumentNumerator = argument.numerator;
+  state.argumentDenominator = argument.denominator;
+  state.exponentSign = baseAboveOne === argumentAboveOne ? ONE : -ONE;
+  state.estimatedExponent = estimatedExponent;
+  state.candidates = nearbyPositiveIntegerCandidates(estimatedExponent);
+  state.candidateIndex = 0;
+  state.comparison = createBoundedRationalPowerComparisonState();
+  state.exactPowerChecks = 0;
+  state.earlyAbortedPowerChecks = 0;
+  state.powerMultiplications = 0;
+  state.peakPowerComponentDigits = 0;
+  state.completed = false;
+  state.value = null;
+}
+
+function effectiveExactLogBase(base: Rational): Rational {
+  return compareRational(base, RATIONAL_ONE) > 0 ? base : positiveRationalReciprocal(base);
+}
+
+function effectiveExactLogArgument(argument: Rational): Rational {
+  return compareRational(argument, RATIONAL_ONE) > 0
+    ? argument
+    : positiveRationalReciprocal(argument);
+}
+
+function positiveRationalReciprocal(value: Rational): Rational {
+  // The input is already canonical and positive, so swapping its coprime
+  // components preserves Rational invariants without an uncheckpointed gcd.
+  return Object.freeze({
+    kind: "rational",
+    numerator: value.denominator,
+    denominator: value.numerator
+  });
+}
+
+function compareRationalPowerToLimit(
+  base: Rational,
+  exponent: bigint,
+  limit: Rational,
+  control: EvaluationCheckpoint | undefined,
+  state: BoundedRationalPowerComparisonState
+): -1 | 0 | 1 {
+  initializeBoundedRationalPowerComparisonState(state, base, exponent, limit);
+  if (state.completed) return state.comparison;
+
+  while (state.remaining > ZERO) {
+    if (state.phase === "multiply-result") {
+      if (state.remaining % TWO !== ZERO) {
+        control?.checkpoint();
+        const factor = state.factor;
+        if (factor === null) {
+          completeBoundedPowerComparison(state, 1, true);
+          return state.comparison;
+        }
+
+        if (compareRationalProductToLimit(state.result, factor, limit, control) > 0) {
+          completeBoundedPowerComparison(state, 1, true);
+          return state.comparison;
+        }
+
+        guardRationalProduct(state.result, factor, control);
+        state.result = multiplyRational(state.result, factor);
+        state.multiplications += 1;
+        recordBoundedPowerMagnitude(state, state.result);
+      }
+
+      state.remaining /= TWO;
+      state.phase = "square-factor";
     }
+
+    if (state.remaining > ZERO) {
+      control?.checkpoint();
+      const factor = state.factor;
+      if (factor === null || compareRationalProductToLimit(factor, factor, limit, control) > 0) {
+        completeBoundedPowerComparison(state, 1, true);
+        return state.comparison;
+      }
+
+      guardRationalProduct(factor, factor, control);
+      state.factor = multiplyRational(factor, factor);
+      state.multiplications += 1;
+      recordBoundedPowerMagnitude(state, state.factor);
+    }
+    state.phase = "multiply-result";
   }
 
-  return Object.freeze({
-    value: null,
-    estimatedExponent,
-    candidateCount: candidates.length,
-    exactPowerChecks
-  });
+  guardRationalComparison(state.result, limit, control);
+  completeBoundedPowerComparison(state, compareRational(state.result, limit), false);
+  return state.comparison;
+}
+
+function initializeBoundedRationalPowerComparisonState(
+  state: BoundedRationalPowerComparisonState,
+  base: Rational,
+  exponent: bigint,
+  limit: Rational
+): void {
+  if (
+    state.baseNumerator === base.numerator &&
+    state.baseDenominator === base.denominator &&
+    state.exponent === exponent &&
+    state.limitNumerator === limit.numerator &&
+    state.limitDenominator === limit.denominator
+  ) {
+    return;
+  }
+
+  state.baseNumerator = base.numerator;
+  state.baseDenominator = base.denominator;
+  state.exponent = exponent;
+  state.limitNumerator = limit.numerator;
+  state.limitDenominator = limit.denominator;
+  state.result = RATIONAL_ONE;
+  state.factor = base;
+  state.remaining = exponent;
+  state.phase = "multiply-result";
+  state.multiplications = 0;
+  state.peakComponentDigits = maxRationalComponentDigits(base);
+  state.completed = false;
+  state.comparison = 0;
+  state.earlyAborted = false;
+}
+
+function completeBoundedPowerComparison(
+  state: BoundedRationalPowerComparisonState,
+  comparison: -1 | 0 | 1,
+  earlyAborted: boolean
+): void {
+  state.comparison = comparison;
+  state.earlyAborted = earlyAborted;
+  state.completed = true;
+}
+
+function compareRationalProductToLimit(
+  left: Rational,
+  right: Rational,
+  limit: Rational,
+  control?: EvaluationCheckpoint
+): -1 | 0 | 1 {
+  const leftBits =
+    bigintBitLength(left.numerator) +
+    bigintBitLength(right.numerator) +
+    bigintBitLength(limit.denominator);
+  const rightBits =
+    bigintBitLength(limit.numerator) +
+    bigintBitLength(left.denominator) +
+    bigintBitLength(right.denominator);
+  guardBigIntBits(Math.max(leftBits, rightBits), control);
+
+  const leftProduct = left.numerator * right.numerator * limit.denominator;
+  const rightProduct = limit.numerator * left.denominator * right.denominator;
+  return leftProduct < rightProduct ? -1 : leftProduct > rightProduct ? 1 : 0;
+}
+
+function guardRationalProduct(
+  left: Rational,
+  right: Rational,
+  control?: EvaluationCheckpoint
+): void {
+  const numeratorBits = bigintBitLength(left.numerator) + bigintBitLength(right.numerator);
+  const denominatorBits = bigintBitLength(left.denominator) + bigintBitLength(right.denominator);
+  guardBigIntBits(Math.max(numeratorBits, denominatorBits), control);
+}
+
+function guardRationalComparison(
+  left: Rational,
+  right: Rational,
+  control?: EvaluationCheckpoint
+): void {
+  const firstBits = bigintBitLength(left.numerator) + bigintBitLength(right.denominator);
+  const secondBits = bigintBitLength(right.numerator) + bigintBitLength(left.denominator);
+  guardBigIntBits(Math.max(firstBits, secondBits), control);
+}
+
+function guardBigIntBits(bits: number, control?: EvaluationCheckpoint): void {
+  const decimalDigits = Math.ceil(bits * LOG10_TWO) + 1;
+  control?.guardBigIntDigits?.(decimalDigits);
+}
+
+function recordBoundedPowerMagnitude(
+  state: BoundedRationalPowerComparisonState,
+  value: Rational
+): void {
+  state.peakComponentDigits = Math.max(
+    state.peakComponentDigits,
+    maxRationalComponentDigits(value)
+  );
+}
+
+function maxRationalComponentDigits(value: Rational): number {
+  return Math.max(bigintDecimalDigits(value.numerator), bigintDecimalDigits(value.denominator));
 }
 
 function estimateIntegerPowerExponent(base: bigint, argument: bigint): bigint {
@@ -1933,10 +2319,11 @@ function approximateLog2BigInt(value: bigint): number {
 }
 
 function nearbyPositiveIntegerCandidates(estimate: bigint): readonly bigint[] {
-  const candidates: bigint[] = [];
-  for (let offset = -3n; offset <= 3n; offset += ONE) {
-    const candidate = estimate + offset;
-    if (candidate > ZERO) candidates.push(candidate);
+  const candidates: bigint[] = [estimate];
+  for (let distance = ONE; distance <= 3n; distance += ONE) {
+    const lower = estimate - distance;
+    if (lower > ZERO) candidates.push(lower);
+    candidates.push(estimate + distance);
   }
   return Object.freeze(candidates);
 }
@@ -1945,7 +2332,10 @@ function exactLogProfileResult(
   value: Rational | null,
   estimatedExponent: bigint | null,
   candidateCount: number,
-  exactPowerChecks: number
+  exactPowerChecks: number,
+  earlyAbortedPowerChecks: number,
+  powerMultiplications: number,
+  peakPowerComponentDigits: number
 ): { readonly value: Rational | null; readonly profile: ExactLogProfile } {
   return Object.freeze({
     value,
@@ -1953,9 +2343,75 @@ function exactLogProfileResult(
       estimatedExponent,
       candidateCount,
       exactPowerChecks,
+      earlyAbortedPowerChecks,
+      powerMultiplications,
+      peakPowerComponentDigits,
       matchedExponent: value?.denominator === ONE ? value.numerator : null
     })
   });
+}
+
+function initializeExactLogRationalState(
+  state: ExactLogRationalState,
+  base: Rational,
+  argument: Rational
+): void {
+  if (
+    state.baseNumerator === base.numerator &&
+    state.baseDenominator === base.denominator &&
+    state.argumentNumerator === argument.numerator &&
+    state.argumentDenominator === argument.denominator
+  ) {
+    return;
+  }
+
+  const fresh = createExactLogRationalState();
+  state.baseNumerator = base.numerator;
+  state.baseDenominator = base.denominator;
+  state.argumentNumerator = argument.numerator;
+  state.argumentDenominator = argument.denominator;
+  state.phase = fresh.phase;
+  state.integerSearch = fresh.integerSearch;
+  state.fractionalSearch = fresh.fractionalSearch;
+  state.fractionalDenominator = fresh.fractionalDenominator;
+  state.fractionalPowerDenominator = fresh.fractionalPowerDenominator;
+  state.fractionalArgumentPower = fresh.fractionalArgumentPower;
+  state.candidateCount = fresh.candidateCount;
+  state.exactPowerChecks = fresh.exactPowerChecks;
+  state.earlyAbortedPowerChecks = fresh.earlyAbortedPowerChecks;
+  state.powerMultiplications = fresh.powerMultiplications;
+  state.peakPowerComponentDigits = fresh.peakPowerComponentDigits;
+  state.value = fresh.value;
+  state.estimatedExponent = fresh.estimatedExponent;
+}
+
+function addExactIntegerLogMetrics(
+  state: ExactLogRationalState,
+  search: ExactIntegerLogSearchResult
+): void {
+  state.candidateCount += search.candidateCount;
+  state.exactPowerChecks += search.exactPowerChecks;
+  state.earlyAbortedPowerChecks += search.earlyAbortedPowerChecks;
+  state.powerMultiplications += search.powerMultiplications;
+  state.peakPowerComponentDigits = Math.max(
+    state.peakPowerComponentDigits,
+    search.peakPowerComponentDigits
+  );
+}
+
+function exactLogResultFromState(state: ExactLogRationalState): {
+  readonly value: Rational | null;
+  readonly profile: ExactLogProfile;
+} {
+  return exactLogProfileResult(
+    state.value,
+    state.estimatedExponent,
+    state.candidateCount,
+    state.exactPowerChecks,
+    state.earlyAbortedPowerChecks,
+    state.powerMultiplications,
+    state.peakPowerComponentDigits
+  );
 }
 
 function isCheapExactFractionalLogCandidate(base: Rational, argument: Rational): boolean {
