@@ -1,5 +1,6 @@
 import { divisionByZeroError } from "../errors/index.js";
 import type { DivisionByZeroError } from "../errors/index.js";
+import type { EvaluationCheckpoint } from "../evaluation/contracts.js";
 import type { Rational, Sign } from "./contracts.js";
 
 const ZERO = 0n;
@@ -134,44 +135,137 @@ export function divideRational(left: Rational, right: Rational): Rational {
   return createRational(left.numerator * right.denominator, left.denominator * right.numerator);
 }
 
-export function powRational(base: Rational, exponent: bigint): Rational {
+export interface RationalPowerState {
+  baseNumerator: bigint | null;
+  baseDenominator: bigint | null;
+  exponent: bigint | null;
+  numerator: BigIntPowerState | null;
+  denominator: BigIntPowerState | null;
+  totalMultiplications: number;
+  estimatedResultDigits: number;
+}
+
+export interface ExactNthRootProfile {
+  readonly degree: bigint;
+  readonly initialBoundBits: number;
+  readonly newtonIterations: number;
+  readonly powerCheckMultiplications: number;
+  readonly earlyAbortedPowerChecks: number;
+  readonly peakBigIntDecimalDigits: number;
+}
+
+interface BigIntPowerState {
+  readonly base: bigint;
+  readonly exponent: bigint;
+  result: bigint;
+  factor: bigint;
+  remaining: bigint;
+  phase: "multiply-result" | "square-factor";
+  multiplications: number;
+}
+
+export function createRationalPowerState(): RationalPowerState {
+  return {
+    baseNumerator: null,
+    baseDenominator: null,
+    exponent: null,
+    numerator: null,
+    denominator: null,
+    totalMultiplications: 0,
+    estimatedResultDigits: 0
+  };
+}
+
+export function powRational(
+  base: Rational,
+  exponent: bigint,
+  control?: EvaluationCheckpoint
+): Rational {
+  return powRationalWithState(base, exponent, createRationalPowerState(), control);
+}
+
+export function powRationalWithState(
+  base: Rational,
+  exponent: bigint,
+  state: RationalPowerState,
+  control?: EvaluationCheckpoint
+): Rational {
   if (exponent === ZERO) {
     return RATIONAL_ONE;
   }
 
   if (exponent < ZERO) {
-    return powRational(reciprocalRational(base), -exponent);
+    return powRationalWithState(reciprocalRational(base), -exponent, state, control);
   }
 
-  return createRational(base.numerator ** exponent, base.denominator ** exponent);
+  const estimatedDigits = estimatePowerResultDecimalDigits(base, exponent);
+  control?.guardBigIntDigits?.(estimatedDigits);
+  initializeRationalPowerState(state, base, exponent, estimatedDigits);
+  const numeratorState = state.numerator;
+  const denominatorState = state.denominator;
+  if (numeratorState === null || denominatorState === null) {
+    throw new Error("Rational power state was not initialized");
+  }
+
+  let numeratorMagnitude: bigint;
+  let denominator: bigint;
+  try {
+    numeratorMagnitude = continueBigIntPower(numeratorState, control);
+    denominator = continueBigIntPower(denominatorState, control);
+  } finally {
+    state.totalMultiplications = numeratorState.multiplications + denominatorState.multiplications;
+  }
+  const negative = base.numerator < ZERO && exponent % 2n !== ZERO;
+  return createRational(negative ? -numeratorMagnitude : numeratorMagnitude, denominator);
 }
 
-export function exactNthRootRational(value: Rational, degree: bigint): Rational | null {
+export function exactNthRootRational(
+  value: Rational,
+  degree: bigint,
+  control?: EvaluationCheckpoint
+): Rational | null {
+  return exactNthRootRationalWithProfile(value, degree, control).root;
+}
+
+export function exactNthRootRationalWithProfile(
+  value: Rational,
+  degree: bigint,
+  control?: EvaluationCheckpoint
+): { readonly root: Rational | null; readonly profile: ExactNthRootProfile } {
   if (degree <= ZERO) {
-    return null;
+    return exactNthRootResult(null, degree, createRootMetrics());
   }
 
   if (degree === ONE) {
-    return createRational(value.numerator, value.denominator);
+    return exactNthRootResult(
+      createRational(value.numerator, value.denominator),
+      degree,
+      createRootMetrics()
+    );
   }
 
   const numeratorSign = signOfRational(value);
 
   if (numeratorSign < 0 && degree % 2n === 0n) {
-    return null;
+    return exactNthRootResult(null, degree, createRootMetrics());
   }
 
-  const numeratorRoot = exactNthRootBigInt(absBigInt(value.numerator), degree);
+  const metrics = createRootMetrics();
+  const numeratorRoot = exactNthRootBigInt(absBigInt(value.numerator), degree, control, metrics);
   if (numeratorRoot === null) {
-    return null;
+    return exactNthRootResult(null, degree, metrics);
   }
 
-  const denominatorRoot = exactNthRootBigInt(value.denominator, degree);
+  const denominatorRoot = exactNthRootBigInt(value.denominator, degree, control, metrics);
   if (denominatorRoot === null) {
-    return null;
+    return exactNthRootResult(null, degree, metrics);
   }
 
-  return createRational(numeratorSign < 0 ? -numeratorRoot : numeratorRoot, denominatorRoot);
+  return exactNthRootResult(
+    createRational(numeratorSign < 0 ? -numeratorRoot : numeratorRoot, denominatorRoot),
+    degree,
+    metrics
+  );
 }
 
 export function assertCanonicalRational(value: Rational): void {
@@ -227,7 +321,20 @@ function isCanonicalRationalShape(numerator: bigint, denominator: bigint): boole
   );
 }
 
-function exactNthRootBigInt(value: bigint, degree: bigint): bigint | null {
+interface MutableRootMetrics {
+  initialBoundBits: number;
+  newtonIterations: number;
+  powerCheckMultiplications: number;
+  earlyAbortedPowerChecks: number;
+  peakBigIntBits: number;
+}
+
+function exactNthRootBigInt(
+  value: bigint,
+  degree: bigint,
+  control: EvaluationCheckpoint | undefined,
+  metrics: MutableRootMetrics
+): bigint | null {
   if (value < ZERO || degree <= ZERO) {
     return null;
   }
@@ -236,44 +343,200 @@ function exactNthRootBigInt(value: bigint, degree: bigint): bigint | null {
     return value;
   }
 
-  let low = ONE;
-  let high = value;
-
-  while (low <= high) {
-    const mid = (low + high) / 2n;
-    const comparison = comparePowerToLimit(mid, degree, value);
-
-    if (comparison === 0) {
-      return mid;
-    }
-
-    if (comparison < 0) {
-      low = mid + ONE;
-    } else {
-      high = mid - ONE;
-    }
+  const valueBits = bitLengthBigInt(value);
+  metrics.peakBigIntBits = Math.max(metrics.peakBigIntBits, valueBits);
+  if (degree > BigInt(valueBits)) {
+    return null;
   }
 
-  return null;
+  const initialBoundBits = Number((BigInt(valueBits) + degree - ONE) / degree);
+  metrics.initialBoundBits = Math.max(metrics.initialBoundBits, initialBoundBits);
+  let current = ONE << BigInt(initialBoundBits);
+
+  for (;;) {
+    control?.checkpoint();
+    const divisorPower = powerToLimit(current, degree - ONE, value, control, metrics);
+    const quotient = divisorPower === null ? ZERO : value / divisorPower;
+    const next = ((degree - ONE) * current + quotient) / degree;
+    metrics.newtonIterations += 1;
+    metrics.peakBigIntBits = Math.max(
+      metrics.peakBigIntBits,
+      bitLengthBigInt(current),
+      bitLengthBigInt(next)
+    );
+    if (next >= current) {
+      break;
+    }
+    current = next;
+  }
+
+  const comparison = comparePowerToLimit(current, degree, value, control, metrics);
+  return comparison === 0 ? current : null;
 }
 
-function comparePowerToLimit(base: bigint, exponent: bigint, limit: bigint): Sign {
-  let product = ONE;
+function comparePowerToLimit(
+  base: bigint,
+  exponent: bigint,
+  limit: bigint,
+  control: EvaluationCheckpoint | undefined,
+  metrics: MutableRootMetrics
+): Sign {
+  const power = powerToLimit(base, exponent, limit, control, metrics);
+  if (power === null) return 1;
+  return power === limit ? 0 : power < limit ? -1 : 1;
+}
+
+function powerToLimit(
+  base: bigint,
+  exponent: bigint,
+  limit: bigint,
+  control: EvaluationCheckpoint | undefined,
+  metrics: MutableRootMetrics
+): bigint | null {
+  let result = ONE;
+  let factor = base;
   let remaining = exponent;
 
   while (remaining > ZERO) {
-    product *= base;
-
-    if (product > limit) {
-      return 1;
+    control?.checkpoint();
+    if (remaining % 2n !== ZERO) {
+      if (factor !== ZERO && result > limit / factor) {
+        metrics.earlyAbortedPowerChecks += 1;
+        return null;
+      }
+      result *= factor;
+      metrics.powerCheckMultiplications += 1;
+      metrics.peakBigIntBits = Math.max(metrics.peakBigIntBits, bitLengthBigInt(result));
     }
 
-    remaining -= ONE;
+    remaining /= 2n;
+    if (remaining === ZERO) break;
+    control?.checkpoint();
+    if (factor !== ZERO && factor > limit / factor) {
+      factor = limit + ONE;
+    } else {
+      factor *= factor;
+      metrics.powerCheckMultiplications += 1;
+      metrics.peakBigIntBits = Math.max(metrics.peakBigIntBits, bitLengthBigInt(factor));
+    }
   }
 
-  if (product === limit) {
-    return 0;
+  return result;
+}
+
+function initializeRationalPowerState(
+  state: RationalPowerState,
+  base: Rational,
+  exponent: bigint,
+  estimatedDigits: number
+): void {
+  if (
+    state.baseNumerator === base.numerator &&
+    state.baseDenominator === base.denominator &&
+    state.exponent === exponent
+  ) {
+    return;
   }
 
-  return product < limit ? -1 : 1;
+  state.baseNumerator = base.numerator;
+  state.baseDenominator = base.denominator;
+  state.exponent = exponent;
+  state.numerator = createBigIntPowerState(absBigInt(base.numerator), exponent);
+  state.denominator = createBigIntPowerState(base.denominator, exponent);
+  state.totalMultiplications = 0;
+  state.estimatedResultDigits = estimatedDigits;
+}
+
+function createBigIntPowerState(base: bigint, exponent: bigint): BigIntPowerState {
+  if (base === ZERO || base === ONE) {
+    return {
+      base,
+      exponent,
+      result: base === ZERO ? ZERO : ONE,
+      factor: base,
+      remaining: ZERO,
+      phase: "multiply-result",
+      multiplications: 0
+    };
+  }
+  return {
+    base,
+    exponent,
+    result: ONE,
+    factor: base,
+    remaining: exponent,
+    phase: "multiply-result",
+    multiplications: 0
+  };
+}
+
+function continueBigIntPower(state: BigIntPowerState, control?: EvaluationCheckpoint): bigint {
+  while (state.remaining > ZERO) {
+    if (state.phase === "multiply-result") {
+      if (state.remaining % 2n !== ZERO) {
+        control?.checkpoint();
+        state.result *= state.factor;
+        state.multiplications += 1;
+      }
+
+      state.remaining /= 2n;
+      state.phase = "square-factor";
+    }
+
+    if (state.remaining > ZERO) {
+      control?.checkpoint();
+      state.factor *= state.factor;
+      state.multiplications += 1;
+    }
+    state.phase = "multiply-result";
+  }
+  return state.result;
+}
+
+function estimatePowerResultDecimalDigits(base: Rational, exponent: bigint): number {
+  if (base.numerator === ZERO || (absBigInt(base.numerator) === ONE && base.denominator === ONE)) {
+    return 1;
+  }
+
+  const componentBits = Math.max(
+    bitLengthBigInt(absBigInt(base.numerator)),
+    bitLengthBigInt(base.denominator)
+  );
+  const estimatedBits = BigInt(componentBits) * exponent + ONE;
+  const estimatedDigits = (estimatedBits * 30_103n) / 100_000n + ONE;
+  return estimatedDigits > BigInt(Number.MAX_SAFE_INTEGER)
+    ? Number.MAX_SAFE_INTEGER
+    : Number(estimatedDigits);
+}
+
+function createRootMetrics(): MutableRootMetrics {
+  return {
+    initialBoundBits: 0,
+    newtonIterations: 0,
+    powerCheckMultiplications: 0,
+    earlyAbortedPowerChecks: 0,
+    peakBigIntBits: 0
+  };
+}
+
+function exactNthRootResult(
+  root: Rational | null,
+  degree: bigint,
+  metrics: MutableRootMetrics
+): { readonly root: Rational | null; readonly profile: ExactNthRootProfile } {
+  return Object.freeze({
+    root,
+    profile: Object.freeze({
+      degree,
+      initialBoundBits: metrics.initialBoundBits,
+      newtonIterations: metrics.newtonIterations,
+      powerCheckMultiplications: metrics.powerCheckMultiplications,
+      earlyAbortedPowerChecks: metrics.earlyAbortedPowerChecks,
+      peakBigIntDecimalDigits: Math.ceil(metrics.peakBigIntBits * Math.LOG10E * Math.log(2))
+    })
+  });
+}
+
+function bitLengthBigInt(value: bigint): number {
+  return value === ZERO ? 0 : value.toString(2).length;
 }

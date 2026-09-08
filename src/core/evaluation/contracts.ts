@@ -18,6 +18,7 @@ export interface EvaluationContext {
 
 export interface EvaluationCheckpoint {
   checkpoint(): void;
+  guardBigIntDigits?(estimatedDigits: number): void;
 }
 
 export type RefinementResult = CompletedResult | PausedResult | CancelledResult | FailedResult;

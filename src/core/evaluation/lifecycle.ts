@@ -34,6 +34,7 @@ export interface CalculationHandleOptions extends EvaluationContextOptions {
 export interface CalculationResourceLimits {
   readonly maxCheckpointsPerRun?: number;
   readonly maxRequestedDigits?: number;
+  readonly maxEstimatedBigIntDigits?: number;
 }
 
 export type CalculationHandleFromSourceResult =
@@ -228,12 +229,14 @@ class DefaultCalculationHandle implements CalculationHandle {
 class CalculationRuntime {
   private static readonly DEFAULT_MAX_CHECKPOINTS_PER_RUN = 1_000_000;
   private static readonly DEFAULT_MAX_REQUESTED_DIGITS = 100_000;
+  private static readonly DEFAULT_MAX_ESTIMATED_BIGINT_DIGITS = 1_000_000;
 
   private deadlineMs: number | null = null;
   private cancelled = false;
   private checkpointsThisRun = 0;
   private readonly maxCheckpointsPerRun: number;
   private readonly maxRequestedDigits: number;
+  private readonly maxEstimatedBigIntDigits: number;
 
   constructor(
     private readonly now: () => number,
@@ -248,6 +251,11 @@ class CalculationRuntime {
       resourceLimits.maxRequestedDigits,
       CalculationRuntime.DEFAULT_MAX_REQUESTED_DIGITS,
       "maxRequestedDigits"
+    );
+    this.maxEstimatedBigIntDigits = validatePositiveSafeInteger(
+      resourceLimits.maxEstimatedBigIntDigits,
+      CalculationRuntime.DEFAULT_MAX_ESTIMATED_BIGINT_DIGITS,
+      "maxEstimatedBigIntDigits"
     );
   }
 
@@ -269,6 +277,15 @@ class CalculationRuntime {
       throw new ResourceLimitException(
         "memory",
         `Requested digits exceed hard size guard: ${String(significantDigits)} > ${String(this.maxRequestedDigits)}`
+      );
+    }
+  }
+
+  guardBigIntDigits(estimatedDigits: number): void {
+    if (estimatedDigits > this.maxEstimatedBigIntDigits) {
+      throw new ResourceLimitException(
+        "memory",
+        `Estimated bigint size exceeds hard guard: ${String(estimatedDigits)} > ${String(this.maxEstimatedBigIntDigits)}`
       );
     }
   }
@@ -331,6 +348,9 @@ function createLifecycleContext(
     checkpoint(): void {
       userCheckpoint?.();
       runtime.checkpoint();
+    },
+    guardBigIntDigits(estimatedDigits: number): void {
+      runtime.guardBigIntDigits(estimatedDigits);
     }
   });
 }

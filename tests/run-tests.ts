@@ -29,3 +29,4 @@ import "./precision-parametric-powers-gamma.test.js";
 import "./constant-state-scaling.test.js";
 import "./trig-post-stabilization.test.js";
 import "./exp-ln-log-remediation.test.js";
+import "./power-nth-root-remediation.test.js";

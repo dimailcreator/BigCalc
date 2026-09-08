@@ -26,3 +26,10 @@ Rational fractional powers use a rigorous, resumable fixed-point `nthRoot` primi
 the precision-dependent cost model selects it; general real powers retain the `ln`/`exp`
 path. Gamma uses precision-parametric adaptive Stirling corrections, an incremental exact
 Bernoulli cache, reusable fixed-point inverse powers, and balanced recurrence products.
+
+Exact integer roots use a bit-length bound, integer Newton iteration, and bounded
+exponentiation-by-squaring checks. The direct decimal `nthRoot` planner accounts for its
+`N*q` representation, peak bigint size, expected Newton work, and `ln`/`exp` fallback cost;
+large degrees therefore fall back before a pathological scaled integer is allocated.
+Exact integer powers use resumable exponentiation by squaring with checkpoint and preflight
+size guards supplied by the calculation lifecycle.
