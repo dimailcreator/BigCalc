@@ -96,6 +96,8 @@ export interface NthRootRefinementState {
   interval: ScaledInterval | null;
   highestDigits: number;
   totalNewtonIterations: number;
+  strategy: NthRootStrategy | null;
+  strategyChanges: number;
 }
 
 export interface NthRootProfile {
@@ -104,6 +106,20 @@ export interface NthRootProfile {
   readonly newtonIterations: number;
   readonly reusedPreviousInterval: boolean;
   readonly peakBigIntDecimalDigits: number;
+  readonly estimatedNqAllocationDigits: bigint;
+}
+
+export type NthRootStrategy = "direct" | "ln-exp";
+
+export interface NthRootStrategyPlan {
+  readonly strategy: NthRootStrategy;
+  readonly degree: bigint;
+  readonly requestedDigits: number;
+  readonly estimatedNqAllocationDigits: bigint;
+  readonly estimatedPeakBigIntDigits: bigint;
+  readonly expectedNewtonPowerCost: bigint;
+  readonly fallbackLnExpCost: bigint;
+  readonly reason: "direct-cost-bounded" | "fallback-cost" | "nq-allocation" | "unsafe-degree";
 }
 
 export interface GammaComputationOptions {
@@ -419,7 +435,9 @@ export function createNthRootRefinementState(): NthRootRefinementState {
     argumentUpper: null,
     interval: null,
     highestDigits: 0,
-    totalNewtonIterations: 0
+    totalNewtonIterations: 0,
+    strategy: null,
+    strategyChanges: 0
   };
 }
 
@@ -455,13 +473,18 @@ export function nthRootPositiveIntervalWithProfile(
         scaleDigits: decimalDigits,
         newtonIterations: 0,
         reusedPreviousInterval: false,
-        peakBigIntDecimalDigits: maxRationalEndpointDecimalDigits(argument)
+        peakBigIntDecimalDigits: maxRationalEndpointDecimalDigits(argument),
+        estimatedNqAllocationDigits: BigInt(decimalDigits)
       })
     });
   }
   if (degree > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new InternalCalculationException("nthRoot degree exceeds the direct algorithm range");
   }
+
+  const strategyPlan = planNthRootStrategy(degree, decimalDigits, argument);
+  const estimatedPeakDigits = bigintToGuardDigits(strategyPlan.estimatedPeakBigIntDigits);
+  control.guardBigIntDigits?.(estimatedPeakDigits);
 
   const reusableState =
     state?.degree === degree &&
@@ -508,24 +531,63 @@ export function nthRootPositiveIntervalWithProfile(
       scaleDigits: decimalDigits,
       newtonIterations,
       reusedPreviousInterval: sameState,
-      peakBigIntDecimalDigits: maxScaledEndpointDecimalDigits(scaled)
+      peakBigIntDecimalDigits: Math.max(
+        maxScaledEndpointDecimalDigits(scaled),
+        lowerResult.peakBigIntDecimalDigits,
+        upperResult.peakBigIntDecimalDigits
+      ),
+      estimatedNqAllocationDigits: strategyPlan.estimatedNqAllocationDigits
     })
   });
 }
 
-export function shouldUseDirectNthRoot(degree: bigint, decimalDigits: number): boolean {
-  if (degree <= ONE || degree > BigInt(Number.MAX_SAFE_INTEGER)) {
-    return false;
-  }
+export function planNthRootStrategy(
+  degree: bigint,
+  decimalDigits: number,
+  argument?: RationalInterval
+): NthRootStrategyPlan {
+  const requestedDigits = Math.max(1, decimalDigits);
+  const estimatedNqAllocationDigits = degree * BigInt(requestedDigits);
+  const inputDigits =
+    argument === undefined ? 1n : BigInt(maxRationalEndpointDecimalDigits(argument));
+  const estimatedPeakBigIntDigits = estimatedNqAllocationDigits + inputDigits + 8n;
+  const fallbackLnExpCost = BigInt(requestedDigits) * BigInt(requestedDigits + 64);
+  const degreeBits = degree > ZERO ? BigInt(degree.toString(2).length) : ZERO;
+  const expectedNewtonPowerCost =
+    estimatedPeakBigIntDigits * degreeBits * BigInt(Math.max(2, requestedDigits.toString().length));
+  const linearMemoryBudget = BigInt(requestedDigits * 16 + 256);
+  const unsafeDegree = degree <= ONE || degree > BigInt(Number.MAX_SAFE_INTEGER);
+  const strategy =
+    !unsafeDegree &&
+    estimatedPeakBigIntDigits <= linearMemoryBudget &&
+    expectedNewtonPowerCost <= fallbackLnExpCost * 32n
+      ? "direct"
+      : "ln-exp";
 
-  const degreeNumber = Number(degree);
-  const estimatedScaledDigits = degreeNumber * Math.max(1, decimalDigits);
-  const workBudget = decimalDigits * (decimalDigits + 64);
-  return (
-    Number.isSafeInteger(estimatedScaledDigits) &&
-    Number.isSafeInteger(workBudget) &&
-    estimatedScaledDigits <= workBudget
-  );
+  return Object.freeze({
+    strategy,
+    degree,
+    requestedDigits,
+    estimatedNqAllocationDigits,
+    estimatedPeakBigIntDigits,
+    expectedNewtonPowerCost,
+    fallbackLnExpCost,
+    reason: unsafeDegree
+      ? "unsafe-degree"
+      : estimatedPeakBigIntDigits > linearMemoryBudget
+        ? "nq-allocation"
+        : strategy === "ln-exp"
+          ? "fallback-cost"
+          : "direct-cost-bounded"
+  });
+}
+
+export function shouldUseDirectNthRoot(
+  degree: bigint,
+  decimalDigits: number,
+  argument?: RationalInterval
+): boolean {
+  return planNthRootStrategy(degree, decimalDigits, argument).strategy === "direct";
 }
 
 export function powRationalViaNthRootInterval(
@@ -538,7 +600,20 @@ export function powRationalViaNthRootInterval(
   if (signOfRational(base) <= 0 || exponent.denominator === ONE) {
     return null;
   }
-  if (!shouldUseDirectNthRoot(exponent.denominator, decimalDigits)) {
+  const plan = planNthRootStrategy(
+    exponent.denominator,
+    decimalDigits,
+    createRationalInterval(base, base)
+  );
+  if (state !== undefined) {
+    if (state.strategy === null) {
+      state.strategy = plan.strategy;
+    } else if (state.strategy === "direct" && plan.strategy === "ln-exp") {
+      state.strategy = "ln-exp";
+      state.strategyChanges += 1;
+    }
+  }
+  if ((state?.strategy ?? plan.strategy) !== "direct") {
     return null;
   }
 
@@ -2326,7 +2401,12 @@ function scaledNthRootFloor(
   scaleDigits: number,
   initialUpper: bigint | undefined,
   control: EvaluationCheckpoint
-): { readonly floor: bigint; readonly exact: boolean; readonly iterations: number } {
+): {
+  readonly floor: bigint;
+  readonly exact: boolean;
+  readonly iterations: number;
+  readonly peakBigIntDecimalDigits: number;
+} {
   const scaledExponent = scaleDigits * degree;
   if (!Number.isSafeInteger(scaledExponent)) {
     throw new InternalCalculationException("nthRoot scaled exponent exceeds safe internal bounds");
@@ -2334,13 +2414,26 @@ function scaledNthRootFloor(
 
   const scaledNumerator = value.numerator * TEN ** BigInt(scaledExponent);
   const target = scaledNumerator / value.denominator;
+  const peakBigIntDecimalDigits = Math.max(
+    bigintDecimalDigits(scaledNumerator),
+    bigintDecimalDigits(target)
+  );
   if (target === ZERO) {
-    return Object.freeze({ floor: ZERO, exact: scaledNumerator === ZERO, iterations: 0 });
+    return Object.freeze({
+      floor: ZERO,
+      exact: scaledNumerator === ZERO,
+      iterations: 0,
+      peakBigIntDecimalDigits
+    });
   }
 
   const degreeBigInt = BigInt(degree);
   let current: bigint;
-  if (initialUpper !== undefined && initialUpper > ZERO && initialUpper ** degreeBigInt >= target) {
+  if (
+    initialUpper !== undefined &&
+    initialUpper > ZERO &&
+    compareBigIntPowerToLimit(initialUpper, degreeBigInt, target, control) >= 0
+  ) {
     current = initialUpper;
   } else {
     const initialBits = Math.ceil(bigintBitLength(target) / degree);
@@ -2351,28 +2444,66 @@ function scaledNthRootFloor(
   for (;;) {
     control.checkpoint();
     iterations += 1;
-    const divisorPower = current ** BigInt(degree - 1);
-    const next: bigint = ((degreeBigInt - ONE) * current + target / divisorPower) / degreeBigInt;
+    const divisorPower = bigIntPowerToLimit(current, degreeBigInt - ONE, target, control);
+    const quotient = divisorPower === null ? ZERO : target / divisorPower;
+    const next: bigint = ((degreeBigInt - ONE) * current + quotient) / degreeBigInt;
     if (next >= current) {
       break;
     }
     current = next;
   }
 
-  while (current ** degreeBigInt > target) {
+  while (compareBigIntPowerToLimit(current, degreeBigInt, target, control) > 0) {
     control.checkpoint();
     current -= ONE;
   }
-  while ((current + ONE) ** degreeBigInt <= target) {
+  while (compareBigIntPowerToLimit(current + ONE, degreeBigInt, target, control) <= 0) {
     control.checkpoint();
     current += ONE;
   }
 
+  const exactPower = bigIntPowerToLimit(current, degreeBigInt, target, control);
   return Object.freeze({
     floor: current,
-    exact: current ** degreeBigInt * value.denominator === scaledNumerator,
-    iterations
+    exact: exactPower !== null && exactPower * value.denominator === scaledNumerator,
+    iterations,
+    peakBigIntDecimalDigits
   });
+}
+
+function compareBigIntPowerToLimit(
+  base: bigint,
+  exponent: bigint,
+  limit: bigint,
+  control: EvaluationCheckpoint
+): -1 | 0 | 1 {
+  const value = bigIntPowerToLimit(base, exponent, limit, control);
+  return value === null ? 1 : value < limit ? -1 : value > limit ? 1 : 0;
+}
+
+function bigIntPowerToLimit(
+  base: bigint,
+  exponent: bigint,
+  limit: bigint,
+  control: EvaluationCheckpoint
+): bigint | null {
+  let result = ONE;
+  let factor = base;
+  let remaining = exponent;
+
+  while (remaining > ZERO) {
+    control.checkpoint();
+    if (remaining % TWO === ONE) {
+      if (factor !== ZERO && result > limit / factor) return null;
+      result *= factor;
+    }
+    remaining /= TWO;
+    if (remaining > ZERO) {
+      if (factor !== ZERO && factor > limit / factor) factor = limit + ONE;
+      else factor *= factor;
+    }
+  }
+  return result;
 }
 
 function powScaledInterval(
@@ -2522,6 +2653,10 @@ function maxRationalDenominatorDecimalDigits(interval: RationalInterval): number
 function bigintDecimalDigits(value: bigint): number {
   const magnitude = value < ZERO ? -value : value;
   return magnitude.toString().length;
+}
+
+function bigintToGuardDigits(value: bigint): number {
+  return value > BigInt(Number.MAX_SAFE_INTEGER) ? Number.MAX_SAFE_INTEGER : Number(value);
 }
 
 function createExpIntervalProfile(

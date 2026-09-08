@@ -16,6 +16,7 @@ export interface EvaluationContextOptions {
   readonly backend?: BigFloatBackend;
   readonly registry?: CoreRegistry;
   readonly checkpoint?: EvaluationCheckpoint["checkpoint"];
+  readonly guardBigIntDigits?: EvaluationCheckpoint["guardBigIntDigits"];
 }
 
 export interface EvaluationGraphContext extends EvaluationContext, EvaluationCheckpoint {
@@ -47,10 +48,15 @@ export function createEvaluationContext(
     settings: createEvaluationSettings(options.settings),
     backend: options.backend ?? createReferenceBigFloatBackend(),
     registry: options.registry ?? createCoreRegistry(),
-    checkpoint
+    checkpoint,
+    guardBigIntDigits: options.guardBigIntDigits ?? noopBigIntGuard
   });
 }
 
 function noopCheckpoint(): void {
   // Intentionally empty; resource lifecycle supplies a real checkpoint in a later stage.
+}
+
+function noopBigIntGuard(): void {
+  // Direct contexts do not impose a lifecycle resource policy.
 }

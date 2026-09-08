@@ -43,7 +43,8 @@ void describe("stage 27 precision-parametric powers and Gamma", () => {
       true
     );
     assert.equal(result.profile.newtonIterations > 0, true);
-    assert.equal(result.profile.peakBigIntDecimalDigits <= 61, true);
+    assert.equal(result.profile.peakBigIntDecimalDigits >= 120, true);
+    assert.equal(result.profile.peakBigIntDecimalDigits <= 125, true);
   });
 
   void it("continues nth-root refinement from its previous interval", () => {
@@ -71,7 +72,7 @@ void describe("stage 27 precision-parametric powers and Gamma", () => {
     );
     assert.ok(direct !== null);
     assert.equal(shouldUseDirectNthRoot(80n, 10), false);
-    assert.equal(shouldUseDirectNthRoot(80n, 40), true);
+    assert.equal(shouldUseDirectNthRoot(80n, 40), false);
 
     await assertVerified("2^(5/3)", 50, 1);
     await assertVerified("(-2)^(5/3)", 50, -1);

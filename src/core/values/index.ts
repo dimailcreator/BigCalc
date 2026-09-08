@@ -28,10 +28,12 @@ export {
   addRational,
   assertCanonicalRational,
   compareRational,
+  createRationalPowerState,
   createRational,
   divideRational,
   equalsRational,
   exactNthRootRational,
+  exactNthRootRationalWithProfile,
   integerRational,
   isIntegerRational,
   isRational,
@@ -39,10 +41,12 @@ export {
   multiplyRational,
   negateRational,
   powRational,
+  powRationalWithState,
   reciprocalRational,
   signOfRational,
   subtractRational
 } from "./rational.js";
+export type { ExactNthRootProfile, RationalPowerState } from "./rational.js";
 export type {
   Ball,
   LazyReal,

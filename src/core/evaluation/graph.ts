@@ -42,15 +42,18 @@ import {
   divideRational,
   equalsRational,
   exactNthRootRational,
+  createRationalPowerState,
   integerRational,
   isIntegerRational,
   isZeroRational,
   multiplyRational,
   negateRational,
   powRational,
+  powRationalWithState,
   signOfRational,
   subtractRational
 } from "../values/rational.js";
+import type { RationalPowerState } from "../values/rational.js";
 import { DomainException, InternalCalculationException } from "../errors/index.js";
 import { verifiedNumberFromBall } from "../formatting/verified-number.js";
 import type { EvaluationGraphContext } from "./context.js";
@@ -702,6 +705,7 @@ class PercentEvaluationNode extends BaseEvaluationNode {
 
 class PowEvaluationNode extends BaseEvaluationNode {
   private readonly nthRootState: NthRootRefinementState = createNthRootRefinementState();
+  private readonly exactPowerState: RationalPowerState = createRationalPowerState();
 
   constructor(base: EvaluationNode, exponent: EvaluationNode) {
     super("pow", [base, exponent]);
@@ -773,7 +777,10 @@ class PowEvaluationNode extends BaseEvaluationNode {
       return nodeToLazyReal(this);
     }
 
-    return evaluateExactRationalPower(baseValue, exponentValue) ?? nodeToLazyReal(this);
+    return (
+      evaluateExactRationalPower(baseValue, exponentValue, context, this.exactPowerState) ??
+      nodeToLazyReal(this)
+    );
   }
 
   private async refinePositiveRealPower(
@@ -901,7 +908,7 @@ class PowEvaluationNode extends BaseEvaluationNode {
                 this.nthRootState
               );
         if (interval === null) {
-          throw new InternalCalculationException("nthRoot cost model regressed during refinement");
+          return this.refineSignedRationalBasePower(request, context, absRational(base), exponent);
         }
 
         const signed = sign < 0 ? negateInterval(interval) : interval;
@@ -975,7 +982,7 @@ class PowEvaluationNode extends BaseEvaluationNode {
       return null;
     }
 
-    return evaluateExactRationalPower(baseValue, exponentValue);
+    return evaluateExactRationalPower(baseValue, exponentValue, context, this.exactPowerState);
   }
 }
 
@@ -2056,9 +2063,16 @@ function assertLogRationalDomain(base: Rational, argument: Rational): void {
   }
 }
 
-function evaluateExactRationalPower(base: Rational, exponent: Rational): Rational | null {
+function evaluateExactRationalPower(
+  base: Rational,
+  exponent: Rational,
+  control?: EvaluationGraphContext,
+  powerState?: RationalPowerState
+): Rational | null {
   if (isIntegerRational(exponent)) {
-    return powRational(base, exponent.numerator);
+    return powerState === undefined
+      ? powRational(base, exponent.numerator, control)
+      : powRationalWithState(base, exponent.numerator, powerState, control);
   }
 
   if (isZeroRational(base)) {
@@ -2069,12 +2083,14 @@ function evaluateExactRationalPower(base: Rational, exponent: Rational): Rationa
     assertNegativeRationalPowerDomain(exponent);
   }
 
-  const root = exactNthRootRational(base, exponent.denominator);
+  const root = exactNthRootRational(base, exponent.denominator, control);
   if (root === null) {
     return null;
   }
 
-  return powRational(root, exponent.numerator);
+  return powerState === undefined
+    ? powRational(root, exponent.numerator, control)
+    : powRationalWithState(root, exponent.numerator, powerState, control);
 }
 
 function assertNegativeRationalPowerDomain(exponent: Rational): void {

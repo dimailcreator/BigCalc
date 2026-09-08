@@ -209,10 +209,12 @@ export {
   addRational,
   assertCanonicalRational,
   compareRational,
+  createRationalPowerState,
   createRational,
   divideRational,
   equalsRational,
   exactNthRootRational,
+  exactNthRootRationalWithProfile,
   integerRational,
   isIntegerRational,
   isRational,
@@ -221,6 +223,7 @@ export {
   multiplyRational,
   negateRational,
   powRational,
+  powRationalWithState,
   rationalToBall,
   reciprocalRational,
   signOfRational,
@@ -229,10 +232,12 @@ export {
 } from "./values/index.js";
 export type {
   Ball,
+  ExactNthRootProfile,
   InternalInterval,
   LazyReal,
   PrecisionCutoffMetadata,
   Rational,
+  RationalPowerState,
   RealValue,
   Sign
 } from "./values/index.js";
