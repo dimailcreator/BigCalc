@@ -1416,12 +1416,7 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         continue;
       }
 
-      const resultBall = this.applyDegreePrecisionCutoffIfNeeded(
-        intervalToRoundedBall(resultInterval, precisionBits, context.backend),
-        request,
-        precisionBits,
-        context
-      );
+      const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
@@ -1533,27 +1528,6 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     return (
       exactTrigRational(this.functionName as TrigFunctionName, value, context) ??
       nodeToLazyReal(this)
-    );
-  }
-
-  private applyDegreePrecisionCutoffIfNeeded(
-    ball: Ball,
-    request: PrecisionRequest,
-    precisionBits: number,
-    context: EvaluationGraphContext
-  ): Ball {
-    if (
-      context.settings.angleMode !== "degrees" ||
-      request.significantDigits <= context.settings.precisionCutoffDigits
-    ) {
-      return ball;
-    }
-
-    return applyPrecisionCutoff(
-      ball,
-      context.settings.precisionCutoffDigits,
-      precisionBits,
-      context.backend
     );
   }
 }
@@ -1799,9 +1773,6 @@ function exactRationalMultipleOfPi(
   if (!(node instanceof BinaryEvaluationNode)) {
     return null;
   }
-  if (node.nodeType !== "mul" && node.nodeType !== "div") {
-    return null;
-  }
   const left = node.children[0];
   const right = node.children[1];
   if (left === undefined || right === undefined) {
@@ -1810,6 +1781,37 @@ function exactRationalMultipleOfPi(
 
   const leftCoefficient = exactRationalMultipleOfPi(left, context);
   const rightCoefficient = exactRationalMultipleOfPi(right, context);
+
+  if (node.nodeType === "add" || node.nodeType === "sub") {
+    if (leftCoefficient !== null && rightCoefficient !== null) {
+      return node.nodeType === "add"
+        ? addRational(leftCoefficient, rightCoefficient)
+        : subtractRational(leftCoefficient, rightCoefficient);
+    }
+
+    // Exact zero may be discarded as a neutral term. No other non-pi
+    // expression is folded, so this remains a local recognizer rather than CAS.
+    if (leftCoefficient !== null) {
+      const rightValue = right.evaluate(context);
+      if (rightValue.kind === "rational" && isZeroRational(rightValue)) {
+        return leftCoefficient;
+      }
+    }
+
+    if (rightCoefficient !== null) {
+      const leftValue = left.evaluate(context);
+      if (leftValue.kind === "rational" && isZeroRational(leftValue)) {
+        return node.nodeType === "add" ? rightCoefficient : negateRational(rightCoefficient);
+      }
+    }
+
+    return null;
+  }
+
+  if (node.nodeType !== "mul" && node.nodeType !== "div") {
+    return null;
+  }
+
   const leftValue = left.evaluate(context);
   const rightValue = right.evaluate(context);
 

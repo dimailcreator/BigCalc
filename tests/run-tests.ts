@@ -31,3 +31,4 @@ import "./trig-post-stabilization.test.js";
 import "./exp-ln-log-remediation.test.js";
 import "./power-nth-root-remediation.test.js";
 import "./gamma-factorial-remediation.test.js";
+import "./trig-final-remediation.test.js";
