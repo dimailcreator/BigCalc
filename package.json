@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "description": "Verified mathematical core for BigCalc.",
-  "main": "./dist/core/index.js",
-  "types": "./dist/core/index.d.ts",
+  "main": "./dist/core/api.js",
+  "types": "./dist/core/api.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/core/index.d.ts",
-      "import": "./dist/core/index.js"
+      "types": "./dist/core/api.d.ts",
+      "import": "./dist/core/api.js"
     }
   },
   "scripts": {
@@ -21,7 +21,8 @@
     "format:check": "prettier . --check",
     "benchmark:scaling": "npm run build && node --expose-gc benchmarks/core-scaling.mjs --full",
     "benchmark:scaling:quick": "npm run build && node --expose-gc benchmarks/core-scaling.mjs",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
+    "audit:public-api": "npm run build && node scripts/audit-public-api.mjs",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && node scripts/audit-public-api.mjs"
   },
   "engines": {
     "node": ">=20"

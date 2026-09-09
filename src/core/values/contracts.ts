@@ -1,7 +1,7 @@
 import type { InternalFloat, NonNegativeInternalFloat } from "../backend/contracts.js";
 import type { EvaluationContext, PrecisionRequest } from "../evaluation/contracts.js";
 
-export type Sign = -1 | 0 | 1;
+export type { Sign } from "../api-contracts.js";
 
 export type RealValue = Rational | LazyReal;
 
