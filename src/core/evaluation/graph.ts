@@ -14,7 +14,7 @@ import {
   divideIntervals,
   createExactLogRationalState,
   exactLogRational,
-  gammaRealInterval,
+  gammaRealBall,
   cosAngleInterval,
   expBallInterval,
   expIntervalBall,
@@ -23,7 +23,7 @@ import {
   intervalSignUpper,
   intervalToRoundedBall,
   lnPositiveInterval,
-  powPositiveInterval,
+  powPositiveBall,
   powRationalViaNthRootInterval,
   createNthRootRefinementState,
   createRationalInterval,
@@ -818,13 +818,18 @@ class PowEvaluationNode extends BaseEvaluationNode {
         continue;
       }
 
-      const resultInterval = powPositiveInterval(
+      const resultBall = powPositiveBall(
         baseInterval,
         exponentInterval,
         operandDigits + DEFAULT_GUARD_DIGITS + 8,
+        precisionBits,
+        context.backend,
         context
       );
-      const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
+      if (resultBall === null) {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
@@ -852,14 +857,22 @@ class PowEvaluationNode extends BaseEvaluationNode {
       context.checkpoint();
 
       const precisionBits = precisionBitsForRequest({ significantDigits: operandDigits });
-      const resultInterval = powPositiveInterval(
+      const magnitude = powPositiveBall(
         createExactInterval(positiveBase),
         createExactInterval(exponent),
         operandDigits + DEFAULT_GUARD_DIGITS + 8,
+        precisionBits,
+        context.backend,
         context
       );
-      const signedInterval = sign < 0 ? negateInterval(resultInterval) : resultInterval;
-      const resultBall = intervalToRoundedBall(signedInterval, precisionBits, context.backend);
+      if (magnitude === null) {
+        operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
+        continue;
+      }
+      const resultBall =
+        sign < 0
+          ? createBall(context.backend.negate(magnitude.center), magnitude.radius)
+          : magnitude;
       const verified = verifiedNumberFromBall(resultBall, request, context.backend);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
@@ -1107,17 +1120,20 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
     context: EvaluationGraphContext,
     decimalDigits: number
   ): Ball | null {
-    const gammaInterval = gammaRealInterval(gammaArgument, decimalDigits, context);
-
-    if (gammaInterval === null) {
-      return null;
-    }
-
     const precisionBits = Math.max(
       precisionBitsForRequest(request),
       precisionBitsForRequest({ significantDigits: decimalDigits })
     );
-    const ball = intervalToRoundedBall(gammaInterval, precisionBits, context.backend);
+    const ball = gammaRealBall(
+      gammaArgument,
+      decimalDigits,
+      precisionBits,
+      context.backend,
+      context
+    );
+    if (ball === null) {
+      return null;
+    }
     const verified = verifiedNumberFromBall(ball, request, context.backend);
 
     if (verified.verifiedDigits < request.significantDigits) {

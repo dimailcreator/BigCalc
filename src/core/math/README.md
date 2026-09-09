@@ -27,9 +27,10 @@ under addition and subtraction of already-recognized coefficients, without gener
 simplification.
 
 Rational fractional powers use a rigorous, resumable fixed-point `nthRoot` primitive when
-the precision-dependent cost model selects it; general real powers retain the `ln`/`exp`
-path. Gamma uses precision-parametric adaptive Stirling corrections, an incremental exact
-Bernoulli cache, reusable fixed-point inverse powers, and balanced recurrence products.
+the precision-dependent cost model selects it. That model includes the numerator power and
+final magnitude, and general powers finish through the exponent-aware `expIntervalBall`
+path. Gamma likewise converts its proven `logGamma` interval directly to a compact Ball;
+reflection preserves the backend exponent during its final arithmetic.
 
 Exact integer roots use a bit-length bound, integer Newton iteration, and bounded
 exponentiation-by-squaring checks. The direct decimal `nthRoot` planner accounts for its
@@ -42,7 +43,8 @@ Exact factorials use a resumable balanced range-product tree. Their result-size 
 and per-leaf/per-product checkpoints share the same lifecycle resource policy.
 
 Half-integer Gamma recurrence is cost-gated before iteration; huge distances use the
-general Stirling/reflection route. Bernoulli coefficients are derived from a resumable
-integer tangent-number cache, avoiding repeated Rational normalization while preserving
-the adaptive Stirling expansion. Balanced Gamma recurrence products report peak component
-and retained bigint sizes for resource profiling.
+general Stirling/reflection route. Bernoulli coefficients are derived from a resumable,
+evaluation-context-owned integer tangent-number cache, avoiding repeated Rational
+normalization and process-wide high-water retention. Expansion participates in bigint
+resource accounting. Balanced Gamma recurrence products report peak component and retained
+bigint sizes for resource profiling.

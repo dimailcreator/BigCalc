@@ -13,6 +13,7 @@ import {
 import {
   createRationalInterval,
   gammaRealIntervalWithProfile,
+  gammaRealBallWithProfile,
   getBernoulliCacheSnapshot,
   planHalfIntegerGammaStrategy
 } from "../src/core/math/elementary.js";
@@ -38,22 +39,26 @@ void describe("stage 32 Gamma and exact-factorial remediation", () => {
     assert.equal(smallPlan.recurrenceSteps, 1n);
   });
 
-  void it("applies the resource guard before materializing huge half-integer Gamma output", () => {
-    const stopped = new Error("guarded huge Gamma");
-    let guardedDigits = 0;
+  void it("keeps a general half-integer Gamma result in compact exponent form", () => {
+    let peakGuardedDigits = 0;
     const context = createEvaluationContext({
       guardBigIntDigits(estimatedDigits): void {
-        guardedDigits = estimatedDigits;
-        throw stopped;
+        peakGuardedDigits = Math.max(peakGuardedDigits, estimatedDigits);
       }
     });
-    const argument = createRational(2_000_000_001n, 2n);
+    const argument = createRational(20_001n, 2n);
 
-    assert.throws(
-      () => gammaRealIntervalWithProfile(createRationalInterval(argument, argument), 20, context),
-      (error: unknown) => error === stopped
+    const result = gammaRealBallWithProfile(
+      createRationalInterval(argument, argument),
+      20,
+      96,
+      context.backend,
+      context
     );
-    assert.equal(guardedDigits >= 10_000_000_000, true);
+    assert.ok(result.ball !== null);
+    assert.equal(result.profile.resultExponentMagnitude > 100_000n, true);
+    assert.equal(result.profile.resultSignificandBits <= 100, true);
+    assert.equal(peakGuardedDigits < 10_000, true);
   });
 
   void it("computes exact factorials through a balanced product tree", () => {
@@ -148,7 +153,9 @@ void describe("stage 32 Gamma and exact-factorial remediation", () => {
   });
 
   void it("continues an interrupted Bernoulli integer-cache frontier", () => {
-    const before = getBernoulliCacheSnapshot();
+    let interrupt = true;
+    let context = createEvaluationContext();
+    const before = getBernoulliCacheSnapshot(context);
     const requestedTerms = Math.floor(before.highestEvenIndex / 2) + 8;
     const interrupted = new Error("Bernoulli generation interrupted");
     const argument = integerRational(1_000n);
@@ -159,28 +166,30 @@ void describe("stage 32 Gamma and exact-factorial remediation", () => {
         gammaRealIntervalWithProfile(
           interval,
           10,
-          createEvaluationContext({
+          (context = createEvaluationContext({
             checkpoint(): void {
-              const snapshot = getBernoulliCacheSnapshot();
+              const snapshot = getBernoulliCacheSnapshot(context);
               if (
+                interrupt &&
                 snapshot.pendingOrder !== null &&
                 snapshot.generationCheckpoints > before.generationCheckpoints
               ) {
                 throw interrupted;
               }
             }
-          }),
+          })),
           { minimumCorrectionTerms: requestedTerms }
         ),
       (error: unknown) => error === interrupted
     );
 
-    const pending = getBernoulliCacheSnapshot();
+    const pending = getBernoulliCacheSnapshot(context);
     assert.notEqual(pending.pendingOrder, null);
-    const resumed = gammaRealIntervalWithProfile(interval, 10, createEvaluationContext(), {
+    interrupt = false;
+    const resumed = gammaRealIntervalWithProfile(interval, 10, context, {
       minimumCorrectionTerms: requestedTerms
     });
-    const completed = getBernoulliCacheSnapshot();
+    const completed = getBernoulliCacheSnapshot(context);
 
     assert.ok(resumed.interval !== null);
     assert.equal(resumed.profile.correctionTerms >= requestedTerms, true);
@@ -189,15 +198,16 @@ void describe("stage 32 Gamma and exact-factorial remediation", () => {
   });
 
   void it("executes 257 Stirling corrections and contains an independent exact reference", () => {
-    const before = getBernoulliCacheSnapshot();
+    const context = createEvaluationContext();
+    const before = getBernoulliCacheSnapshot(context);
     const argument = integerRational(100n);
     const result = gammaRealIntervalWithProfile(
       createRationalInterval(argument, argument),
       10,
-      createEvaluationContext(),
+      context,
       { minimumCorrectionTerms: 257 }
     );
-    const after = getBernoulliCacheSnapshot();
+    const after = getBernoulliCacheSnapshot(context);
     const exact = integerRational(FACTORIAL_99);
 
     assert.ok(result.interval !== null);
@@ -209,13 +219,10 @@ void describe("stage 32 Gamma and exact-factorial remediation", () => {
     assert.equal(after.convolutionProducts >= before.convolutionProducts, true);
     assert.equal(after.pendingOrder, null);
 
-    gammaRealIntervalWithProfile(
-      createRationalInterval(argument, argument),
-      10,
-      createEvaluationContext(),
-      { minimumCorrectionTerms: 257 }
-    );
-    const cached = getBernoulliCacheSnapshot();
+    gammaRealIntervalWithProfile(createRationalInterval(argument, argument), 10, context, {
+      minimumCorrectionTerms: 257
+    });
+    const cached = getBernoulliCacheSnapshot(context);
     assert.equal(cached.convolutionProducts, after.convolutionProducts);
     assert.equal(cached.retainedBigIntDigits, after.retainedBigIntDigits);
   });

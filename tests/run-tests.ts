@@ -33,3 +33,4 @@ import "./power-nth-root-remediation.test.js";
 import "./gamma-factorial-remediation.test.js";
 import "./trig-final-remediation.test.js";
 import "./exact-log-resource-remediation.test.js";
+import "./power-gamma-resource-remediation.test.js";
