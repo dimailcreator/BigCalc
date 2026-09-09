@@ -22,6 +22,23 @@ import {
 } from "../src/core/math/elementary.js";
 
 void describe("stage 29 trigonometry post-stabilization", () => {
+  void it("skips pi construction for a provably small radian interval", () => {
+    const context = createEvaluationContext();
+    const before = getPiProviderStateSnapshot(context);
+    const result = sinAngleIntervalWithProfile(
+      createRationalInterval(createRational(-1n, 10n), createRational(1n, 10n)),
+      300,
+      "radians",
+      context
+    );
+    const after = getPiProviderStateSnapshot(context);
+
+    assert.ok(result.interval !== null);
+    assert.equal(result.profile.smallRadianFastPaths, 1);
+    assert.equal(result.profile.piRequestedDigits, 0);
+    assert.equal(after.intervalRequests, before.intervalRequests);
+  });
+
   void it("reduces huge exact degree arguments before requesting pi", async () => {
     const powerOfTen = 10n ** 100_000n;
     const hugeDegrees = integerRational(360n * powerOfTen + 1n);

@@ -19,6 +19,8 @@
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
+    "benchmark:scaling": "npm run build && node --expose-gc benchmarks/core-scaling.mjs --full",
+    "benchmark:scaling:quick": "npm run build && node --expose-gc benchmarks/core-scaling.mjs",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "engines": {

@@ -1062,8 +1062,15 @@ export function createGammaStirlingPlan(
     throw new InternalCalculationException("Gamma minimum shift target is invalid");
   }
 
+  // Exact Bernoulli generation becomes the dominant cost before the balanced
+  // recurrence product does. A larger z needs fewer rigorously bounded
+  // Stirling corrections; profiling favors 3N/2 at medium precision and 2N
+  // once coefficient convolution is large.
+  const adaptiveShiftTarget =
+    (decimalDigits >= 512 ? 2 * decimalDigits : Math.ceil((3 * decimalDigits) / 2)) + 16;
+
   return Object.freeze({
-    shiftTarget: Math.max(MIN_GAMMA_STIRLING_ARGUMENT, decimalDigits + 16, minimumShiftTarget),
+    shiftTarget: Math.max(MIN_GAMMA_STIRLING_ARGUMENT, adaptiveShiftTarget, minimumShiftTarget),
     minimumCorrectionTerms,
     maximumCorrectionTerms: null
   });
@@ -1521,6 +1528,7 @@ export interface SinCosIntervals {
 
 export interface TrigSeriesProfile {
   readonly rangeReductionCalls: number;
+  readonly smallRadianFastPaths: number;
   readonly degreeReductionCalls: number;
   readonly degreeOriginalMagnitudeDigits: number;
   readonly degreeReducedMagnitudeDigits: number;
@@ -1542,6 +1550,7 @@ export interface TrigSeriesProfile {
 
 interface MutableTrigSeriesProfile {
   rangeReductionCalls: number;
+  smallRadianFastPaths: number;
   degreeReductionCalls: number;
   degreeOriginalMagnitudeDigits: number;
   degreeReducedMagnitudeDigits: number;
@@ -1609,7 +1618,7 @@ function tanRadianInterval(
   profile?: MutableTrigSeriesProfile
 ): RationalInterval | null {
   if (profile !== undefined) profile.rangeReductionCalls += 1;
-  const reduction = reduceRadianInterval(argument, decimalDigits, context, pi);
+  const reduction = reduceRadianInterval(argument, decimalDigits, context, pi, profile);
   if (reduction === null) {
     return null;
   }
@@ -1713,7 +1722,7 @@ function evaluateReducedStandaloneTrig(
   if (profile !== undefined) {
     profile.rangeReductionCalls += 1;
   }
-  const reduction = reduceRadianInterval(argument, decimalDigits, context, pi);
+  const reduction = reduceRadianInterval(argument, decimalDigits, context, pi, profile);
   if (reduction === null) {
     return null;
   }
@@ -1891,11 +1900,24 @@ export function reduceRadianInterval(
   argument: RationalInterval,
   decimalDigits: number,
   context: MathComputationContext,
-  sharedPi?: RationalInterval
+  sharedPi?: RationalInterval,
+  profile?: MutableTrigSeriesProfile
 ): TrigRangeReduction | null {
+  const provenSmallMagnitude = createRational(ONE, TWO);
+  if (
+    compareRational(argument.lower, negateRational(provenSmallMagnitude)) >= 0 &&
+    compareRational(argument.upper, provenSmallMagnitude) <= 0
+  ) {
+    if (profile !== undefined) profile.smallRadianFastPaths += 1;
+    return identityTrigReduction(argument);
+  }
+
+  const piDigits = decimalDigits + decimalMagnitudeUpperBound(argument) + 12;
+  if (profile !== undefined && sharedPi === undefined) {
+    profile.piRequestedDigits = Math.max(profile.piRequestedDigits, piDigits);
+  }
   const pi =
-    sharedPi ??
-    getPiRationalInterval(context, decimalDigits + decimalMagnitudeUpperBound(argument) + 12);
+    sharedPi ?? getPiRationalInterval(context, piDigits);
   const halfPi = divideIntervalByInteger(pi, TWO);
   const safeQuarterPiMagnitude = divideRational(pi.lower, integerRational(FOUR));
   // Keeping an already-small interval unchanged avoids injecting avoidable π uncertainty.
@@ -1904,19 +1926,7 @@ export function reduceRadianInterval(
     compareRational(argument.lower, negateRational(safeQuarterPiMagnitude)) >= 0 &&
     compareRational(argument.upper, safeQuarterPiMagnitude) <= 0
   ) {
-    return Object.freeze({
-      branches: Object.freeze([
-        Object.freeze({
-          reducedInterval: argument,
-          quadrant: 0,
-          sinSign: 1,
-          cosSign: 1,
-          swapSinCos: false,
-          polePossible: false
-        })
-      ]),
-      crossesQuadrantBoundary: false
-    });
+    return identityTrigReduction(argument);
   }
 
   const quotient = divideIntervals(argument, halfPi);
@@ -1964,6 +1974,22 @@ export function reduceRadianInterval(
   return Object.freeze({
     branches: Object.freeze(branches),
     crossesQuadrantBoundary: branches.length > 1
+  });
+}
+
+function identityTrigReduction(argument: RationalInterval): TrigRangeReduction {
+  return Object.freeze({
+    branches: Object.freeze([
+      Object.freeze({
+        reducedInterval: argument,
+        quadrant: 0,
+        sinSign: 1,
+        cosSign: 1,
+        swapSinCos: false,
+        polePossible: false
+      })
+    ]),
+    crossesQuadrantBoundary: false
   });
 }
 
@@ -3616,6 +3642,7 @@ function freezeTrigSeriesProfile(
 ): TrigSeriesProfile {
   return Object.freeze({
     rangeReductionCalls: profile.rangeReductionCalls,
+    smallRadianFastPaths: profile.smallRadianFastPaths,
     degreeReductionCalls: profile.degreeReductionCalls,
     degreeOriginalMagnitudeDigits: profile.degreeOriginalMagnitudeDigits,
     degreeReducedMagnitudeDigits: profile.degreeReducedMagnitudeDigits,
@@ -3640,6 +3667,7 @@ function freezeTrigSeriesProfile(
 function createMutableTrigSeriesProfile(): MutableTrigSeriesProfile {
   return {
     rangeReductionCalls: 0,
+    smallRadianFastPaths: 0,
     degreeReductionCalls: 0,
     degreeOriginalMagnitudeDigits: 0,
     degreeReducedMagnitudeDigits: 0,

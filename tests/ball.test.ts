@@ -56,6 +56,27 @@ void describe("Ball arithmetic", () => {
     assertIntervalContainsRational(outward, upper);
   });
 
+  void it("constructs balls with huge binary exponents without expanding them to Rational", () => {
+    for (const exponent of [1_000_000n, -1_000_000n]) {
+      const lower = backend.scaleByPowerOfTwo(
+        backend.fromRational(createRational(3n, 2n), 64, "towardNegativeInfinity"),
+        exponent
+      );
+      const upper = backend.scaleByPowerOfTwo(
+        backend.fromRational(createRational(7n, 4n), 64, "towardPositiveInfinity"),
+        exponent
+      );
+      const ball = intervalToBall(createInternalInterval(lower, upper, backend), 64, backend);
+      const outward = ballToOutwardInterval(ball, 64, backend);
+
+      assert.equal(backend.compare(outward.lower, lower) <= 0, true);
+      assert.equal(backend.compare(outward.upper, upper) >= 0, true);
+      assert.equal(ball.center.significand.toString(2).length <= 64, true);
+      assert.equal(ball.radius.significand.toString(2).length <= 64, true);
+      assert.equal(absBigInt(ball.center.exponent) > 999_000n, true);
+    }
+  });
+
   void it("computes sign and zero predicates from outward intervals", () => {
     assert.equal(
       definitelyPositiveBall(
@@ -243,4 +264,8 @@ function assertIntervalContainsRational(
 
 function formatRational(value: Rational): string {
   return `${value.numerator.toString()}/${value.denominator.toString()}`;
+}
+
+function absBigInt(value: bigint): bigint {
+  return value < 0n ? -value : value;
 }

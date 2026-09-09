@@ -113,6 +113,9 @@ void describe("stage 27 precision-parametric powers and Gamma", () => {
     assert.equal(beyondLegacyLimit.maximumCorrectionTerms, null);
     assert.equal(beyondLegacyLimit.shiftTarget, 1000);
 
+    const profiledHighPrecisionPlan = createGammaStirlingPlan(1_000);
+    assert.equal(profiledHighPrecisionPlan.shiftTarget, 2_016);
+
     const context = createEvaluationContext();
     const fourThirds = createRational(4n, 3n);
     const result = gammaRealIntervalWithProfile(
