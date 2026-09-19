@@ -7,7 +7,7 @@ import {
 import type { CalcError } from "../errors/index.js";
 import { parseExpression } from "../syntax/parser.js";
 import type { ExpressionNode } from "../syntax/ast.js";
-import { verifiedNumberFromBall } from "../formatting/verified-number.js";
+import { verifiedNumberFromRealValue } from "../formatting/verified-number.js";
 import type { EvaluationContextOptions, EvaluationGraphContext } from "./context.js";
 import { createEvaluationContext } from "./context.js";
 import type {
@@ -152,8 +152,16 @@ class DefaultCalculationHandle implements CalculationHandle {
       this.runtime.guardRequest(request.significantDigits);
       this.runtime.start(this.graph.context.settings.maxCalculationTimeMs);
 
-      const ball = await this.graph.refine(request);
-      const value = verifiedNumberFromBall(ball, request, this.graph.context.backend);
+      const realValue = this.graph.evaluate();
+      const value = await verifiedNumberFromRealValue(realValue, request, this.graph.context);
+      if (
+        !(value.valueExact && value.decimalTerminating) &&
+        value.verifiedDigits < request.significantDigits
+      ) {
+        throw new Error(
+          `Refinement completed without enough verified digits: ${String(value.verifiedDigits)} < ${String(request.significantDigits)}`
+        );
+      }
       const completed: CompletedResult = Object.freeze({
         status: "complete",
         requestedDigits: request.significantDigits,
