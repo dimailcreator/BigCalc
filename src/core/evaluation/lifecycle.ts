@@ -2,6 +2,7 @@ import {
   cancelledError,
   internalCalculationError,
   isCalcError,
+  InternalCalculationException,
   ResourceLimitException
 } from "../errors/index.js";
 import type { CalcError } from "../errors/index.js";
@@ -158,7 +159,7 @@ class DefaultCalculationHandle implements CalculationHandle {
         !(value.valueExact && value.decimalTerminating) &&
         value.verifiedDigits < request.significantDigits
       ) {
-        throw new Error(
+        throw new InternalCalculationException(
           `Refinement completed without enough verified digits: ${String(value.verifiedDigits)} < ${String(request.significantDigits)}`
         );
       }
