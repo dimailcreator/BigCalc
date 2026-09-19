@@ -351,16 +351,13 @@ interface TerminatingDecimalInfo {
 function verifiedFiniteDecimal(
   sign: Sign,
   info: TerminatingDecimalInfo,
-  requestedDigits: number
+  _requestedDigits: number
 ): VerifiedNumber {
-  const digits =
-    info.digits.length > requestedDigits ? info.digits.slice(0, requestedDigits) : info.digits;
-
   return Object.freeze({
     sign,
-    digits,
+    digits: info.digits,
     exponent10: info.exponent10,
-    verifiedDigits: digits.length,
+    verifiedDigits: info.digits.length,
     valueExact: true,
     decimalTerminating: true,
     rounded: false
