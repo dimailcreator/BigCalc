@@ -37,6 +37,20 @@ void describe("stage 38 frozen public API", () => {
     assert.equal(api.formatVerifiedNumber(result.value).text.length > 0, true);
   });
 
+  void it("preserves exact large powers of ten through the public lifecycle", async () => {
+    const created = api.createCalculationHandle("10^1000");
+    if (!created.ok) assert.fail(created.error.message);
+
+    const result = await created.handle.refine({ significantDigits: 2 });
+    if (result.status !== "complete") assert.fail(`Expected complete, got ${result.status}`);
+
+    assert.equal(result.value.valueExact, true);
+    assert.equal(result.value.decimalTerminating, true);
+    assert.equal(result.value.digits, "1");
+    assert.equal(result.value.exponent10, 1000n);
+    assert.equal(api.formatVerifiedNumber(result.value).text, "1E1000");
+  });
+
   void it("returns typed parse and mathematical errors without exposing internals", async () => {
     const syntaxFailure = api.createCalculationHandle("1+");
     if (syntaxFailure.ok) assert.fail("Expected syntax failure");
