@@ -39,6 +39,18 @@ void describe("verified decimal digits", () => {
     });
   });
 
+  void it("keeps the full exact finite decimal even when fewer digits were requested", () => {
+    assert.deepEqual(verifiedNumberFromRational(createRational(1n, 8n), digits(2)), {
+      sign: 1,
+      digits: "125",
+      exponent10: -1n,
+      verifiedDigits: 3,
+      valueExact: true,
+      decimalTerminating: true,
+      rounded: false
+    });
+  });
+
   void it("returns exact periodic rational prefixes for the requested significant digits", () => {
     assert.deepEqual(verifiedNumberFromRational(createRational(1n, 3n), digits(12)), {
       sign: 1,
