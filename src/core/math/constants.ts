@@ -188,7 +188,7 @@ class ELazyReal implements StatefulConstantLazyReal {
 
       const precisionBits = precisionBitsForConstantDigits(request.significantDigits);
       const ball = this.currentBall(precisionBits, graphContext.backend);
-      const verified = verifiedNumberFromBall(ball, request, graphContext.backend);
+      const verified = verifiedNumberFromBall(ball, request, graphContext.backend, graphContext);
       this.lastRefinementAddedTerms = this.completedTermCount - before;
       if (verified.verifiedDigits >= request.significantDigits) return Promise.resolve(ball);
 
@@ -300,7 +300,7 @@ class PiLazyReal implements StatefulConstantLazyReal {
         precisionBits,
         graphContext.backend
       );
-      const verified = verifiedNumberFromBall(ball, request, graphContext.backend);
+      const verified = verifiedNumberFromBall(ball, request, graphContext.backend, graphContext);
       if (verified.verifiedDigits >= request.significantDigits) return Promise.resolve(ball);
       decimalDigits += Math.max(
         CONSTANT_GUARD_DIGITS,

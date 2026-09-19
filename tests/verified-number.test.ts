@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   addRational,
+  createBall,
   createInternalInterval,
   createRational,
   intervalToBall,
@@ -11,6 +12,8 @@ import {
   verifiedNumberFromRational
 } from "../src/core/index.js";
 import { createReferenceBigFloatBackend } from "../src/core/backend/index.js";
+import { internalFloatToRational } from "../src/core/backend/reference-backend.js";
+import type { InternalFloat } from "../src/core/index.js";
 import type { Ball, Rational, VerifiedNumber } from "../src/core/index.js";
 
 const backend = createReferenceBigFloatBackend();
@@ -98,6 +101,52 @@ void describe("verified decimal digits", () => {
         rounded: false
       }
     );
+  });
+
+  void it("extracts huge dyadic exponents through compact cooperative scaling", () => {
+    const binaryExponent = 100_000n;
+    const exactDecimal = (1n << binaryExponent).toString();
+    let checkpoints = 0;
+    const ball = createBall(
+      Object.freeze({
+        kind: "internal-float",
+        sign: 1,
+        significand: 1n,
+        exponent: binaryExponent,
+        precisionBits: 1
+      }),
+      backend.fromRational(createRational(0n), 1, "nearest")
+    );
+
+    const verified = verifiedNumberFromBall(ball, digits(20), backend, {
+      checkpoint(): void {
+        checkpoints += 1;
+      }
+    });
+
+    assert.equal(verified.exponent10, BigInt(exactDecimal.length - 1));
+    assert.equal(verified.digits, exactDecimal.slice(0, 20));
+    assert.equal(verified.verifiedDigits, 20);
+    assert.equal(checkpoints > 0, true);
+  });
+
+  void it("matches exact Rational prefixes across large positive and negative binary scales", () => {
+    const cases: readonly InternalFloat[] = [
+      internalFloat(1, 123456789n, 5_000n),
+      internalFloat(-1, 987654321n, 4_500n),
+      internalFloat(1, 123456789n, -5_000n),
+      internalFloat(-1, 987654321n, -4_500n)
+    ];
+
+    for (const value of cases) {
+      const ball = createBall(value, backend.fromRational(createRational(0n), 1, "nearest"));
+      const actual = verifiedNumberFromBall(ball, digits(25), backend);
+      const exact = verifiedNumberFromRational(internalFloatToRational(value), digits(25));
+
+      assert.equal(actual.sign, exact.sign);
+      assert.equal(actual.exponent10, exact.exponent10);
+      assert.equal(actual.digits, exact.digits.slice(0, 25).padEnd(25, "0"));
+    }
   });
 
   void it("computes only the common decimal prefix for a ball crossing a later digit boundary", () => {
@@ -222,4 +271,14 @@ function pickPublicFields(value: VerifiedNumber) {
     exponent10: value.exponent10,
     verifiedDigits: value.verifiedDigits
   };
+}
+
+function internalFloat(sign: -1 | 1, significand: bigint, exponent: bigint): InternalFloat {
+  return Object.freeze({
+    kind: "internal-float",
+    sign,
+    significand,
+    exponent,
+    precisionBits: significand.toString(2).length
+  });
 }

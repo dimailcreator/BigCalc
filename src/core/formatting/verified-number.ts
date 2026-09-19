@@ -10,7 +10,11 @@ import {
   signOfRational
 } from "../values/rational.js";
 import type { Ball, Rational, RealValue, Sign } from "../values/contracts.js";
-import type { EvaluationGraphContext, PrecisionRequest } from "../evaluation/index.js";
+import type {
+  EvaluationCheckpoint,
+  EvaluationGraphContext,
+  PrecisionRequest
+} from "../evaluation/index.js";
 import type { VerifiedNumber } from "./contracts.js";
 
 const ZERO = 0n;
@@ -44,7 +48,7 @@ export function verifiedNumberFromRational(
   const terminating = terminatingDecimalInfo(magnitude);
 
   if (terminating !== null) {
-    return verifiedFiniteDecimal(sign, terminating, request.significantDigits);
+    return verifiedFiniteDecimal(sign, terminating);
   }
 
   const exponent10 = floorLog10Rational(magnitude);
@@ -64,7 +68,8 @@ export function verifiedNumberFromRational(
 export function verifiedNumberFromBall(
   ball: Ball,
   request: PrecisionRequest,
-  backend: BigFloatBackend
+  backend: BigFloatBackend,
+  control?: EvaluationCheckpoint
 ): VerifiedNumber {
   validatePrecisionRequest(request);
 
@@ -82,7 +87,13 @@ export function verifiedNumberFromBall(
     absoluteBigInt(interval.lower.exponent) > DIRECT_INTERNAL_EXPONENT_THRESHOLD ||
     absoluteBigInt(interval.upper.exponent) > DIRECT_INTERNAL_EXPONENT_THRESHOLD
   ) {
-    return verifiedNumberFromInternalFloatInterval(interval.lower, interval.upper, request);
+    return verifiedNumberFromInternalFloatInterval(
+      interval.lower,
+      interval.upper,
+      request,
+      backend,
+      control
+    );
   }
   const lower = internalFloatToRational(interval.lower);
   const upper = internalFloatToRational(interval.upper);
@@ -122,27 +133,33 @@ export function verifiedNumberFromBall(
 function verifiedNumberFromInternalFloatInterval(
   lower: InternalFloat,
   upper: InternalFloat,
-  request: PrecisionRequest
+  request: PrecisionRequest,
+  backend: BigFloatBackend,
+  control?: EvaluationCheckpoint
 ): VerifiedNumber {
   if (lower.sign <= 0 && upper.sign >= 0) return unverifiedCrossingZero();
 
   const sign: Sign = lower.sign > 0 ? 1 : -1;
   const lowerMagnitude = sign > 0 ? lower : negateInternalFloatForFormatting(upper);
   const upperMagnitude = sign > 0 ? upper : negateInternalFloatForFormatting(lower);
-  const lowerExponent = floorLog10InternalFloat(lowerMagnitude);
-  const upperExponent = floorLog10InternalFloat(upperMagnitude);
+  const lowerExponent = floorLog10InternalFloat(lowerMagnitude, backend, control);
+  const upperExponent = floorLog10InternalFloat(upperMagnitude, backend, control);
   if (lowerExponent !== upperExponent) return unverifiedPrefix(sign, upperExponent);
 
-  const lowerDigits = significantDigitsPrefixInternalFloat(
+  const lowerDigits = significantDigitsBoundsInternalFloat(
     lowerMagnitude,
     lowerExponent,
-    request.significantDigits
-  );
-  const upperDigits = significantDigitsPrefixInternalFloat(
+    request.significantDigits,
+    backend,
+    control
+  ).lower;
+  const upperDigits = significantDigitsBoundsInternalFloat(
     upperMagnitude,
     upperExponent,
-    request.significantDigits
-  );
+    request.significantDigits,
+    backend,
+    control
+  ).upper;
   const digits = commonPrefix(lowerDigits, upperDigits);
   return Object.freeze({
     sign,
@@ -155,7 +172,11 @@ function verifiedNumberFromInternalFloatInterval(
   });
 }
 
-function floorLog10InternalFloat(value: InternalFloat): bigint {
+function floorLog10InternalFloat(
+  value: InternalFloat,
+  backend: BigFloatBackend,
+  control?: EvaluationCheckpoint
+): bigint {
   if (value.sign <= 0) {
     throw new InternalCalculationException("floorLog10InternalFloat requires a positive value");
   }
@@ -173,57 +194,125 @@ function floorLog10InternalFloat(value: InternalFloat): bigint {
   }
 
   let exponent = BigInt(Math.floor(approximate));
-  while (compareInternalFloatMagnitudeToPowerOfTen(value, exponent) < 0) exponent -= ONE;
-  while (compareInternalFloatMagnitudeToPowerOfTen(value, exponent + ONE) >= 0) exponent += ONE;
+  while (compareInternalFloatMagnitudeToPowerOfTen(value, exponent, backend, control) < 0) {
+    exponent -= ONE;
+  }
+  while (compareInternalFloatMagnitudeToPowerOfTen(value, exponent + ONE, backend, control) >= 0) {
+    exponent += ONE;
+  }
   return exponent;
 }
 
 function compareInternalFloatMagnitudeToPowerOfTen(
   value: InternalFloat,
-  decimalExponent: bigint
+  decimalExponent: bigint,
+  backend: BigFloatBackend,
+  control?: EvaluationCheckpoint
 ): Sign {
-  if (decimalExponent >= ZERO) {
-    return compareIntegerTimesPowerOfTwo(
-      value.significand,
-      value.exponent - decimalExponent,
-      FIVE ** decimalExponent
-    );
+  let precisionBits = compactDecimalWorkingPrecision(value, decimalExponent, 1);
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const power = internalPowerOfTenInterval(decimalExponent, precisionBits, backend, control);
+    if (backend.compare(value, power.lower) < 0) return -1;
+    if (backend.compare(value, power.upper) >= 0) return 1;
+    precisionBits *= 2;
   }
 
-  const magnitude = -decimalExponent;
-  return compareIntegerTimesPowerOfTwo(
-    value.significand * FIVE ** magnitude,
-    value.exponent + magnitude,
-    ONE
+  throw new InternalCalculationException(
+    "Could not separate InternalFloat from a decimal power boundary"
   );
 }
 
-function compareIntegerTimesPowerOfTwo(
-  coefficient: bigint,
-  binaryExponent: bigint,
-  other: bigint
-): Sign {
-  const left = binaryExponent >= ZERO ? coefficient << binaryExponent : coefficient;
-  const right = binaryExponent >= ZERO ? other : other << -binaryExponent;
-  return left < right ? -1 : left > right ? 1 : 0;
+interface InternalFloatBounds {
+  readonly lower: InternalFloat;
+  readonly upper: InternalFloat;
 }
 
-function significantDigitsPrefixInternalFloat(
+function significantDigitsBoundsInternalFloat(
   value: InternalFloat,
   exponent10: bigint,
-  significantDigits: number
-): string {
+  significantDigits: number,
+  backend: BigFloatBackend,
+  control?: EvaluationCheckpoint
+): { readonly lower: string; readonly upper: string } {
   const decimalScale = BigInt(significantDigits - 1) - exponent10;
-  let numerator = value.significand;
-  let denominator = ONE;
-  if (decimalScale >= ZERO) numerator *= FIVE ** decimalScale;
-  else denominator *= FIVE ** -decimalScale;
+  let precisionBits = compactDecimalWorkingPrecision(value, decimalScale, significantDigits);
+  let lowerFloor = ZERO;
+  let upperFloor = ZERO;
 
-  const binaryScale = value.exponent + decimalScale;
-  if (binaryScale >= ZERO) numerator <<= binaryScale;
-  else denominator <<= -binaryScale;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const scale = internalPowerOfTenInterval(decimalScale, precisionBits, backend, control);
+    const lower = backend.mul(value, scale.lower, precisionBits, "towardNegativeInfinity");
+    const upper = backend.mul(value, scale.upper, precisionBits, "towardPositiveInfinity");
+    lowerFloor = floorPositiveInternalFloat(lower);
+    upperFloor = floorPositiveInternalFloat(upper);
+    if (lowerFloor === upperFloor) break;
+    precisionBits *= 2;
+  }
 
-  return (numerator / denominator).toString().padStart(significantDigits, "0");
+  return Object.freeze({
+    lower: lowerFloor.toString().padStart(significantDigits, "0"),
+    upper: upperFloor.toString().padStart(significantDigits, "0")
+  });
+}
+
+function internalPowerOfTenInterval(
+  exponent: bigint,
+  precisionBits: number,
+  backend: BigFloatBackend,
+  control?: EvaluationCheckpoint
+): InternalFloatBounds {
+  const one = backend.fromRational(createRational(ONE), precisionBits, "nearest");
+  if (exponent === ZERO) return Object.freeze({ lower: one, upper: one });
+
+  const ten = backend.fromRational(createRational(TEN), precisionBits, "nearest");
+  let lower = one;
+  let upper = one;
+  let factorLower = ten;
+  let factorUpper = ten;
+  let remaining = absoluteBigInt(exponent);
+
+  while (remaining > ZERO) {
+    control?.checkpoint();
+    if (remaining % TWO !== ZERO) {
+      lower = backend.mul(lower, factorLower, precisionBits, "towardNegativeInfinity");
+      upper = backend.mul(upper, factorUpper, precisionBits, "towardPositiveInfinity");
+    }
+
+    remaining /= TWO;
+    if (remaining === ZERO) break;
+    factorLower = backend.mul(factorLower, factorLower, precisionBits, "towardNegativeInfinity");
+    factorUpper = backend.mul(factorUpper, factorUpper, precisionBits, "towardPositiveInfinity");
+  }
+
+  if (exponent > ZERO) return Object.freeze({ lower, upper });
+
+  return Object.freeze({
+    lower: backend.div(one, upper, precisionBits, "towardNegativeInfinity"),
+    upper: backend.div(one, lower, precisionBits, "towardPositiveInfinity")
+  });
+}
+
+function floorPositiveInternalFloat(value: InternalFloat): bigint {
+  if (value.sign <= 0) return ZERO;
+  if (value.exponent >= ZERO) return value.significand << value.exponent;
+
+  const shift = -value.exponent;
+  if (shift >= BigInt(value.significand.toString(2).length)) return ZERO;
+  return value.significand >> shift;
+}
+
+function compactDecimalWorkingPrecision(
+  value: InternalFloat,
+  decimalExponent: bigint,
+  significantDigits: number
+): number {
+  const exponentBits = absoluteBigInt(decimalExponent).toString(2).length;
+
+  return Math.max(
+    value.precisionBits + 32 + exponentBits,
+    precisionBitsForVerifiedDigits(significantDigits) + 32 + exponentBits
+  );
 }
 
 function negateInternalFloatForFormatting(value: InternalFloat): InternalFloat {
@@ -283,7 +372,12 @@ export async function verifiedNumberFromRealValue(
     return verifiedNumberFromRational(value, request);
   }
 
-  return verifiedNumberFromBall(await value.refine(request, context), request, context.backend);
+  return verifiedNumberFromBall(
+    await value.refine(request, context),
+    request,
+    context.backend,
+    context
+  );
 }
 
 export function precisionBitsForVerifiedDigits(significantDigits: number): number {
@@ -348,11 +442,7 @@ interface TerminatingDecimalInfo {
   readonly exponent10: bigint;
 }
 
-function verifiedFiniteDecimal(
-  sign: Sign,
-  info: TerminatingDecimalInfo,
-  _requestedDigits: number
-): VerifiedNumber {
+function verifiedFiniteDecimal(sign: Sign, info: TerminatingDecimalInfo): VerifiedNumber {
   return Object.freeze({
     sign,
     digits: info.digits,

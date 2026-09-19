@@ -53,13 +53,47 @@ void describe("calculation lifecycle and soft timeout", () => {
     ticks = 0;
     const second = await handle.continue();
     assert.equal(second.status, "paused");
-    assert.equal(lazy.progress, 4);
+    // The lazy step can finish inside this run, but the final lifecycle
+    // checkpoint still pauses before publishing a result after the deadline.
+    assert.equal(lazy.progress, 5);
 
     ticks = 0;
     const completed = await handle.continue();
     assert.equal(completed.status, "complete");
     assert.equal(lazy.progress, 5);
     assert.equal(lazy.calls, 3);
+  });
+
+  void it("pauses when the deadline is crossed during the final computation step", async () => {
+    let elapsedMs = 0;
+    const lazy = new DeadlineCrossingLazyReal(() => {
+      elapsedMs = 5;
+    });
+    const handle = createCalculationHandle(createLazyRealNode(lazy), {
+      settings: { maxCalculationTimeMs: 5 },
+      now: () => elapsedMs
+    });
+
+    const result = await handle.refine({ significantDigits: 8 });
+
+    assert.equal(result.status, "paused");
+    assert.equal(result.reason, "time-limit");
+    assert.equal(result.partial, null);
+    assert.equal(lazy.calls, 1);
+  });
+
+  void it("completes the large-exponent power-tower regression within its soft budget", async () => {
+    const created = createCalculationHandleFromSource("e^e^e^(e+0,2)", {
+      settings: { maxCalculationTimeMs: 30_000 }
+    });
+    assert.equal(created.ok, true);
+
+    const result = await created.handle.refine({ significantDigits: 1 });
+
+    assert.equal(result.status, "complete");
+    assert.equal(result.value.digits, "3");
+    assert.equal(result.value.exponent10, 47_461_302n);
+    assert.equal(result.value.verifiedDigits, 1);
   });
 
   void it("cancels a running calculation cooperatively", async () => {
@@ -145,6 +179,28 @@ class AsyncCheckpointLazyReal implements LazyReal {
       integerRational(1n),
       precisionBitsForRequest(request),
       graphContext.backend
+    );
+  }
+}
+
+class DeadlineCrossingLazyReal implements LazyReal {
+  readonly kind = "lazy-real";
+  calls = 0;
+
+  constructor(private readonly crossDeadline: () => void) {}
+
+  refine(request: { readonly significantDigits: number }, context: EvaluationContext) {
+    const graphContext = context as EvaluationGraphContext;
+    this.calls += 1;
+    graphContext.checkpoint();
+    this.crossDeadline();
+
+    return Promise.resolve(
+      rationalToBall(
+        createRational(2718281828459045n, 1000000000000000n),
+        precisionBitsForRequest(request),
+        graphContext.backend
+      )
     );
   }
 }

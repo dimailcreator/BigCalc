@@ -563,7 +563,7 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
         precisionBits,
         context
       );
-      const verified = verifiedNumberFromBall(ball, request, context.backend);
+      const verified = verifiedNumberFromBall(ball, request, context.backend, context);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return ball;
@@ -830,7 +830,7 @@ class PowEvaluationNode extends BaseEvaluationNode {
         operandDigits = nextOperandDigits(operandDigits, request.significantDigits, 0);
         continue;
       }
-      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend, context);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -873,7 +873,7 @@ class PowEvaluationNode extends BaseEvaluationNode {
         sign < 0
           ? createBall(context.backend.negate(magnitude.center), magnitude.radius)
           : magnitude;
-      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend, context);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return Promise.resolve(resultBall);
@@ -930,7 +930,7 @@ class PowEvaluationNode extends BaseEvaluationNode {
         const signed = sign < 0 ? negateInterval(interval) : interval;
         const precisionBits = precisionBitsForRequest({ significantDigits: operandDigits });
         const ball = intervalToRoundedBall(signed, precisionBits, context.backend);
-        const verified = verifiedNumberFromBall(ball, request, context.backend);
+        const verified = verifiedNumberFromBall(ball, request, context.backend, context);
         if (verifiedDigitsSatisfyRequest(verified, request)) {
           return Promise.resolve(ball);
         }
@@ -1134,7 +1134,7 @@ class FactorialEvaluationNode extends BaseEvaluationNode {
     if (ball === null) {
       return null;
     }
-    const verified = verifiedNumberFromBall(ball, request, context.backend);
+    const verified = verifiedNumberFromBall(ball, request, context.backend, context);
 
     if (verified.verifiedDigits < request.significantDigits) {
       return null;
@@ -1290,7 +1290,7 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       const operandInterval = rationalIntervalFromBall(operandBall, precisionBits, context.backend);
       const resultInterval = absInterval(operandInterval);
       const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
-      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend, context);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -1350,7 +1350,7 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         continue;
       }
 
-      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend, context);
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
       }
@@ -1434,7 +1434,7 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       }
 
       const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
-      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend, context);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -1484,7 +1484,7 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
         operandDigits + DEFAULT_GUARD_DIGITS + 8
       );
       const resultBall = intervalToRoundedBall(resultInterval, precisionBits, context.backend);
-      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend, context);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;
@@ -1618,7 +1618,7 @@ class LogEvaluationNode extends BaseEvaluationNode {
         precisionBits,
         context.backend
       );
-      const verified = verifiedNumberFromBall(resultBall, request, context.backend);
+      const verified = verifiedNumberFromBall(resultBall, request, context.backend, context);
 
       if (verifiedDigitsSatisfyRequest(verified, request)) {
         return resultBall;

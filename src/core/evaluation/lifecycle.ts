@@ -163,6 +163,11 @@ class DefaultCalculationHandle implements CalculationHandle {
           `Refinement completed without enough verified digits: ${String(value.verifiedDigits)} < ${String(request.significantDigits)}`
         );
       }
+
+      // The final conversion/verification step can itself be expensive. Re-check
+      // the cooperative lifecycle before publishing a successful result so a
+      // deadline crossed by that last step cannot escape as "complete".
+      this.graph.context.checkpoint();
       const completed: CompletedResult = Object.freeze({
         status: "complete",
         requestedDigits: request.significantDigits,
