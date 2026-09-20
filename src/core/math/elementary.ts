@@ -3,6 +3,7 @@ import type { BigFloatBackend } from "../backend/index.js";
 import { InternalCalculationException } from "../errors/index.js";
 import type { EvaluationCheckpoint, EvaluationContext } from "../evaluation/contracts.js";
 import { getLn2RationalInterval, getPiRationalInterval } from "./constants.js";
+import { routedReducedLog } from "./log-router.js";
 import {
   createScaledInterval,
   decimalScale,
@@ -418,7 +419,12 @@ export function lnPositiveRationalIntervalWithProfile(
   const reduction = reduceLnArgument(value, control);
   const reducedDigits =
     decimalDigits + decimalDigitsForIntegerMagnitude(reduction.power) + LN_SCALE_SAFETY_DIGITS;
-  const reducedLog = lnReducedPositiveRationalInterval(reduction.value, reducedDigits, control);
+  const logControl = control ?? {
+    checkpoint() {
+      // Synchronous internal calls still have a distinct cache owner.
+    }
+  };
+  const reducedLog = routedReducedLog(reduction.value, reducedDigits, logControl);
 
   if (reduction.power === 0) {
     return Object.freeze({
@@ -431,10 +437,7 @@ export function lnPositiveRationalIntervalWithProfile(
     });
   }
 
-  const lnTwo =
-    control === undefined
-      ? lnReducedPositiveRationalInterval(integerRational(TWO), reducedDigits)
-      : getLn2RationalInterval(control, reducedDigits);
+  const lnTwo = getLn2RationalInterval(logControl, reducedDigits);
 
   const interval = addIntervals(reducedLog, scaleIntervalByInteger(lnTwo, BigInt(reduction.power)));
   return Object.freeze({
@@ -2847,7 +2850,7 @@ function expSmallNonNegativeScaledInterval(
   }
 }
 
-function reduceLnArgument(
+export function reduceLnArgument(
   value: Rational,
   control?: EvaluationCheckpoint
 ): {
@@ -2870,7 +2873,7 @@ function reduceLnArgument(
   return Object.freeze({ value: reduced, power, scaleSelectionComparisons });
 }
 
-function lnReducedPositiveRationalInterval(
+export function lnReducedPositiveRationalInterval(
   value: Rational,
   decimalDigits: number,
   control?: EvaluationCheckpoint

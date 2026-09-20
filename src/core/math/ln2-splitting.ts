@@ -8,6 +8,7 @@ import {
   scaledIntervalToRationalBounds
 } from "./scaled-interval.js";
 import type { RationalBounds } from "./scaled-interval.js";
+import { BinaryBlock } from "./binary-block.js";
 
 export type Ln2Layout = "rectangular" | "binary";
 export type Ln2Retention = "persistent" | "rebuild";
@@ -17,13 +18,6 @@ interface Block {
   readonly p: bigint;
   readonly q: bigint;
   readonly t: bigint;
-}
-interface Frame {
-  readonly start: number;
-  readonly end: number;
-  left: Block | null;
-  right: Block | null;
-  phase: "left" | "right" | "combine";
 }
 interface Job {
   readonly digits: number;
@@ -43,7 +37,7 @@ interface Job {
   block: Block | null;
   rectangularIndex: number;
   rectangular: Block;
-  readonly stack: Frame[];
+  tree: BinaryBlock<Block> | null;
 }
 
 /** Same atanh series and geometric remainder, with bounded exact coefficient blocks.
@@ -153,6 +147,7 @@ export class SplittingLn2Provider {
       job.power = nextPower;
       job.index += this.blockSize;
       job.block = null;
+      job.tree = null;
       job.rectangular = { p: 1n, q: 1n, t: 0n };
       job.rectangularIndex = 0;
       this.blockCount += 1;
@@ -216,10 +211,7 @@ export class SplittingLn2Provider {
       blockValues(job.rectangular);
       if (job.tailDenominator !== null) retained.push(job.tailDenominator);
       if (job.block !== null) blockValues(job.block);
-      for (const frame of job.stack) {
-        if (frame.left !== null) blockValues(frame.left);
-        if (frame.right !== null) blockValues(frame.right);
-      }
+      job.tree?.retained().forEach(blockValues);
     }
     const cachedBigIntDigits = retained.reduce((sum, value) => sum + decimalDigits(value), 0);
     return Object.freeze({
@@ -244,13 +236,9 @@ export class SplittingLn2Provider {
       largeDivisions: this.largeDivisions,
       checkpointCount: this.checkpointCount,
       pendingTerms: job?.index ?? 0,
-      pendingStackDepth: job?.stack.length ?? 0,
+      pendingStackDepth: job?.tree?.depth ?? 0,
       pendingPhase:
-        job === null
-          ? "idle"
-          : job.planned < job.terms
-            ? "planning"
-            : (job.stack.at(-1)?.phase ?? "block")
+        job === null ? "idle" : job.planned < job.terms ? "planning" : (job.tree?.phase ?? "block")
     });
   }
 
@@ -288,7 +276,7 @@ export class SplittingLn2Provider {
       block: null,
       rectangularIndex: 0,
       rectangular: { p: 1n, q: 1n, t: 0n },
-      stack: []
+      tree: null
     };
   }
 
@@ -309,41 +297,27 @@ export class SplittingLn2Provider {
   }
 
   private buildBinary(job: Job, control: EvaluationCheckpoint): void {
-    if (job.stack.length === 0) job.stack.push(frame(job.index, job.index + this.blockSize));
-    while (job.stack.length > 0) {
-      const current = job.stack.at(-1);
-      if (current === undefined) throw new InternalCalculationException("Missing ln2 frame");
-      this.checkpoint(control);
-      let result: Block;
-      if (current.end - current.start === 1) {
-        result = { p: 9n, q: 2n * BigInt(current.start) + 1n, t: 1n };
+    job.tree ??= new BinaryBlock(job.index, job.index + this.blockSize);
+    job.block = job.tree.run(
+      {
+        checkpoint: () => {
+          this.checkpoint(control);
+        }
+      },
+      (index) => {
         this.termCount += 1;
-      } else if (current.phase === "left") {
-        current.phase = "right";
-        job.stack.push(frame(current.start, Math.floor((current.start + current.end) / 2)));
-        continue;
-      } else if (current.phase === "right") {
-        current.phase = "combine";
-        job.stack.push(frame(Math.floor((current.start + current.end) / 2), current.end));
-        continue;
-      } else {
-        const { left, right } = current;
-        if (left === null || right === null)
-          throw new InternalCalculationException("Incomplete ln2 split");
+        return { p: 9n, q: 2n * BigInt(index) + 1n, t: 1n };
+      },
+      (left, right) => {
         const p = this.multiply(left.p, right.p, control);
         const q = this.multiply(left.q, right.q, control);
         const t =
           this.multiply(this.multiply(left.t, right.p, control), right.q, control) +
           this.multiply(right.t, left.q, control);
-        result = { p, q, t };
         this.combineCount += 1;
+        return { p, q, t };
       }
-      job.stack.pop();
-      const parent = job.stack.at(-1);
-      if (parent === undefined) job.block = result;
-      else if (parent.phase === "right") parent.left = result;
-      else parent.right = result;
-    }
+    );
   }
 
   private checkpoint(control: EvaluationCheckpoint): void {
@@ -370,9 +344,6 @@ export class SplittingLn2Provider {
   }
 }
 
-function frame(start: number, end: number): Frame {
-  return { start, end, left: null, right: null, phase: "left" };
-}
 function decimalDigits(value: bigint): number {
   return value.toString().length;
 }

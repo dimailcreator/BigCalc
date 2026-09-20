@@ -60,7 +60,7 @@ export const productionCases = [
   ["pi", "π", "chudnovsky-binary-splitting", "pi"],
   ["e", "e", "factorial-recurrence", "e"],
   ["ln2", "ln(2)", "atanh-binary-rebuild", "ln2"],
-  ["ln3", "ln(3)", "binary-reduction-atanh-sequential"],
+  ["ln3", "ln(3)", "binary-reduction-routed-atanh"],
   ["exp", "exp(1)", "reduced-taylor"],
   ["sin", "sin(1/10)", "fixed-point-taylor"],
   ["cos", "cos(1/10)", "fixed-point-taylor"],
