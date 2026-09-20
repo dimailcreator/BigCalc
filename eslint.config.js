@@ -10,6 +10,13 @@ export default tseslint.config(
     ...js.configs.recommended
   },
   {
+    files: ["benchmarks/**/*.mjs"],
+    ...js.configs.recommended,
+    languageOptions: {
+      globals: { process: "readonly", console: "readonly", structuredClone: "readonly" }
+    }
+  },
+  {
     files: ["**/*.ts"],
     extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
     languageOptions: {
