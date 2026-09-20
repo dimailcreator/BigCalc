@@ -5,6 +5,7 @@ import type { EvaluationCheckpoint, EvaluationContext } from "../evaluation/cont
 import { getLn2RationalInterval, getPiRationalInterval } from "./constants.js";
 import { routedReducedLog } from "./log-router.js";
 import { routedSmallExp } from "./exp-router.js";
+import { routedSmallSinCos } from "./sincos-router.js";
 import {
   createScaledInterval,
   decimalScale,
@@ -2148,6 +2149,37 @@ function stirlingCorrectionInterval(
 }
 
 function selectiveSinCosSmallPointInterval(
+  value: Rational,
+  decimalDigits: number,
+  control: EvaluationCheckpoint,
+  needs: TrigKernelNeeds,
+  profile?: MutableTrigSeriesProfile
+): SelectiveSinCosIntervals {
+  if (!needs.needSin && !needs.needCos)
+    throw new InternalCalculationException("Trigonometric kernel requires at least one series");
+  const result = routedSmallSinCos(
+    value,
+    decimalDigits,
+    needs.needSin ? (needs.needCos ? "both" : "sin") : "cos",
+    control
+  );
+  if (profile !== undefined) {
+    profile.pointEvaluations += 1;
+    profile.sharedSquareEvaluations += 1;
+    profile.sinSeriesEvaluations += needs.needSin ? 1 : 0;
+    profile.cosSeriesEvaluations += needs.needCos ? 1 : 0;
+    profile.independentSeriesEvaluations += needs.needSin === needs.needCos ? 0 : 1;
+    profile.scaleDigits = Math.max(profile.scaleDigits, decimalDigits);
+    if (result.sin !== null) recordScaledProfilePeak(profile, result.sin);
+    if (result.cos !== null) recordScaledProfilePeak(profile, result.cos);
+  }
+  return {
+    sinInterval: result.sin === null ? null : scaledIntervalToRationalInterval(result.sin),
+    cosInterval: result.cos === null ? null : scaledIntervalToRationalInterval(result.cos)
+  };
+}
+
+export function legacySinCosSmallPointInterval(
   value: Rational,
   decimalDigits: number,
   control: EvaluationCheckpoint,

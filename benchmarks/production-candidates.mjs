@@ -62,9 +62,9 @@ export const productionCases = [
   ["ln2", "ln(2)", "atanh-binary-rebuild", "ln2"],
   ["ln3", "ln(3)", "binary-reduction-routed-atanh"],
   ["exp", "exp(1)", "dyadic-routed-exp"],
-  ["sin", "sin(1/10)", "fixed-point-taylor"],
-  ["cos", "cos(1/10)", "fixed-point-taylor"],
-  ["tan", "tan(1/10)", "fixed-point-sincos"],
+  ["sin", "sin(1/10)", "selective-block-sincos"],
+  ["cos", "cos(1/10)", "selective-block-sincos"],
+  ["tan", "tan(1/10)", "dyadic-block-sincos"],
   ["sqrt", "2^(1/2)", "fixed-point-newton"],
   ["gamma", "(1/3)!", "adaptive-stirling"],
   ["gamma-reflection", "(-4/3)!", "adaptive-stirling-reflection"]
