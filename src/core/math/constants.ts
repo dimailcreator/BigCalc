@@ -26,6 +26,7 @@ import {
   scaledIntervalToRationalBounds
 } from "./scaled-interval.js";
 import type { ScaledInterval } from "./scaled-interval.js";
+import { SplittingLn2Provider } from "./ln2-splitting.js";
 
 const ZERO = 0n;
 const ONE = 1n;
@@ -141,7 +142,7 @@ interface SqrtStateSnapshot {
 
 const contextConstants = new WeakMap<EvaluationContext, Map<string, StatefulConstantLazyReal>>();
 const contextPiProviders = new WeakMap<EvaluationContext, PiProviderState>();
-const contextLn2Providers = new WeakMap<object, Ln2ProviderState>();
+const contextLn2Providers = new WeakMap<object, SplittingLn2Provider>();
 
 export function createBuiltinConstantValue(name: "π" | "e", context: EvaluationContext): LazyReal {
   let constants = contextConstants.get(context);
@@ -349,7 +350,7 @@ export function getLn2RationalInterval(
 
 export function getLn2ProviderStateSnapshot(
   context: EvaluationCheckpoint
-): Ln2ProviderStateSnapshot {
+): ReturnType<SplittingLn2Provider["getSnapshot"]> {
   return getOrCreateLn2Provider(context).getSnapshot();
 }
 
@@ -561,7 +562,8 @@ class PiProviderState {
   }
 }
 
-class Ln2ProviderState {
+// Kept as an independent summation layout for AR-1 differential benchmarks.
+export class SequentialLn2Provider {
   private intervalRequests = 0;
   private cacheHits = 0;
   private highestRequestedDigits = 0;
@@ -761,11 +763,11 @@ function getOrCreatePiProvider(context: EvaluationContext): PiProviderState {
   return created;
 }
 
-function getOrCreateLn2Provider(context: EvaluationCheckpoint): Ln2ProviderState {
+function getOrCreateLn2Provider(context: EvaluationCheckpoint): SplittingLn2Provider {
   const key = context as object;
   const existing = contextLn2Providers.get(key);
   if (existing !== undefined) return existing;
-  const created = new Ln2ProviderState();
+  const created = new SplittingLn2Provider();
   contextLn2Providers.set(key, created);
   return created;
 }

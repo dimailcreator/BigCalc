@@ -122,7 +122,13 @@ void describe("stage 24 high-precision infrastructure", () => {
 
     const extended = getLn2RationalInterval(context, 40);
     const extendedState = getLn2ProviderStateSnapshot(context);
-    assert.equal(extendedState.completedTerms > firstState.completedTerms, true);
+    // A completed coefficient block can already cover the next request's tail.
+    // Refinement must increase working precision, not necessarily the term frontier.
+    assert.equal(extendedState.completedTerms >= firstState.completedTerms, true);
+    assert.equal(extendedState.workingDigits > firstState.workingDigits, true);
+    assert.equal(extendedState.summationPasses, firstState.summationPasses + 1);
+    assert.ok(compareRational(extended.lower, first.lower) >= 0);
+    assert.ok(compareRational(extended.upper, first.upper) <= 0);
     assertContainsDecimalPrefix(extended, "69314718055994530941723212145817656807550013436025");
   });
 

@@ -40,7 +40,11 @@ export function productionCandidate(family, constant) {
                 ? getLn2ProviderStateSnapshot(created.context)
                 : created.graph.evaluate().getStateSnapshot();
             return {
-              termCount: state.completedTerms,
+              workingDigits: state.workingDigits ?? null,
+              termCount: state.termCount ?? state.completedTerms,
+              blockCount: state.blockCount ?? null,
+              largeMultiplications: state.largeMultiplications ?? null,
+              largeDivisions: state.largeDivisions ?? null,
               peakBigIntDigits: state.peakBigIntDigits,
               retainedBigIntDigits: state.cachedBigIntDigits
             };
@@ -55,7 +59,7 @@ export function productionCandidate(family, constant) {
 export const productionCases = [
   ["pi", "π", "chudnovsky-binary-splitting", "pi"],
   ["e", "e", "factorial-recurrence", "e"],
-  ["ln2", "ln(2)", "atanh-sequential", "ln2"],
+  ["ln2", "ln(2)", "atanh-binary-rebuild", "ln2"],
   ["ln3", "ln(3)", "binary-reduction-atanh-sequential"],
   ["exp", "exp(1)", "reduced-taylor"],
   ["sin", "sin(1/10)", "fixed-point-taylor"],

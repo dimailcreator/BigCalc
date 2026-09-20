@@ -36,3 +36,4 @@ import "./trig-final-remediation.test.js";
 import "./exact-log-resource-remediation.test.js";
 import "./power-gamma-resource-remediation.test.js";
 import "./core-verification.test.js";
+import "./ln2-splitting.test.js";
