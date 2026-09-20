@@ -61,7 +61,7 @@ export const productionCases = [
   ["e", "e", "factorial-recurrence", "e"],
   ["ln2", "ln(2)", "atanh-binary-rebuild", "ln2"],
   ["ln3", "ln(3)", "binary-reduction-routed-atanh"],
-  ["exp", "exp(1)", "reduced-taylor"],
+  ["exp", "exp(1)", "dyadic-routed-exp"],
   ["sin", "sin(1/10)", "fixed-point-taylor"],
   ["cos", "cos(1/10)", "fixed-point-taylor"],
   ["tan", "tan(1/10)", "fixed-point-sincos"],

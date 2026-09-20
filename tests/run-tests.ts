@@ -38,3 +38,4 @@ import "./power-gamma-resource-remediation.test.js";
 import "./core-verification.test.js";
 import "./ln2-splitting.test.js";
 import "./log-router.test.js";
+import "./exp-kernel.test.js";

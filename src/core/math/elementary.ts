@@ -4,6 +4,7 @@ import { InternalCalculationException } from "../errors/index.js";
 import type { EvaluationCheckpoint, EvaluationContext } from "../evaluation/contracts.js";
 import { getLn2RationalInterval, getPiRationalInterval } from "./constants.js";
 import { routedReducedLog } from "./log-router.js";
+import { routedSmallExp } from "./exp-router.js";
 import {
   createScaledInterval,
   decimalScale,
@@ -351,12 +352,12 @@ export function expIntervalBallWithProfile(
   }
 
   const mantissaScaleDigits = decimalDigits + EXP_RECONSTRUCTION_SAFETY_DIGITS;
-  const lower = expSmallNonNegativeScaledInterval(
+  const lower = routedSmallExp(
     reduction.remainder.lower,
     mantissaScaleDigits,
     control
   );
-  const upper = expSmallNonNegativeScaledInterval(
+  const upper = routedSmallExp(
     reduction.remainder.upper,
     mantissaScaleDigits,
     control
@@ -2276,7 +2277,7 @@ function reduceExpArgument(
   return Object.freeze({ value: reduced, power });
 }
 
-function reduceExpIntervalByLn2(
+export function reduceExpIntervalByLn2(
   argument: RationalInterval,
   decimalDigits: number,
   control: MathComputationContext
@@ -2813,7 +2814,7 @@ function isCheapExactFractionalLogCandidate(base: Rational, argument: Rational):
   );
 }
 
-function expSmallNonNegativeScaledInterval(
+export function expSmallNonNegativeScaledInterval(
   value: Rational,
   decimalDigits: number,
   control?: EvaluationCheckpoint
