@@ -114,7 +114,9 @@ void describe("stage 27 precision-parametric powers and Gamma", () => {
     assert.equal(beyondLegacyLimit.shiftTarget, 1000);
 
     const profiledHighPrecisionPlan = createGammaStirlingPlan(1_000);
-    assert.equal(profiledHighPrecisionPlan.shiftTarget, 2_016);
+    assert.ok(profiledHighPrecisionPlan.estimatedCorrectionTerms > 0);
+    assert.ok(Number.isFinite(profiledHighPrecisionPlan.estimatedCost));
+    assert.equal(createGammaStirlingPlan(1_000, { stirlingStrategy: "legacy" }).shiftTarget, 2_016);
 
     const context = createEvaluationContext();
     const fourThirds = createRational(4n, 3n);
@@ -124,7 +126,7 @@ void describe("stage 27 precision-parametric powers and Gamma", () => {
       context
     );
     assert.ok(result.interval !== null);
-    assert.equal(result.profile.shift >= 100, true);
+    assert.equal(result.profile.shift > 0, true);
     assert.equal(result.profile.recurrenceFactors, result.profile.shift);
     assert.equal(result.profile.recurrenceTreeDepth < result.profile.recurrenceFactors, true);
     assert.equal(result.profile.correctionTerms > 0, true);

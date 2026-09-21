@@ -5,6 +5,8 @@ import type { EvaluationCheckpoint, EvaluationContext } from "../evaluation/cont
 import { getLn2RationalInterval, getPiRationalInterval } from "./constants.js";
 import { routedReducedLog } from "./log-router.js";
 import { routedSmallExp } from "./exp-router.js";
+import { planStirlingWork, estimateStirlingWork } from "./stirling-planner.js";
+import { recurrentStirlingCorrection, stirlingRetainedDigits } from "./stirling-correction.js";
 import { routedSmallSinCos } from "./sincos-router.js";
 import {
   createScaledInterval,
@@ -157,6 +159,8 @@ export interface NthRootStrategyPlan {
 }
 
 export interface GammaComputationOptions {
+  readonly stirlingStrategy?: "legacy" | "adaptive" | "fixed";
+  readonly correctionLayout?: "legacy" | "recurrence";
   readonly minimumCorrectionTerms?: number;
   readonly minimumShiftTarget?: number;
 }
@@ -203,9 +207,13 @@ interface PendingTangentNumber {
   index: number;
   binomial: bigint;
   sum: bigint;
+  binomialDigits: number;
+  sumDigits: number;
 }
 
 export interface GammaStirlingPlan {
+  readonly estimatedCorrectionTerms: number;
+  readonly estimatedCost: number;
   readonly shiftTarget: number;
   readonly minimumCorrectionTerms: number;
   readonly maximumCorrectionTerms: null;
@@ -500,6 +508,7 @@ export function powPositiveInterval(
 interface BernoulliCacheState {
   readonly bernoulliCache: (Rational | undefined)[];
   readonly tangentNumberCache: bigint[];
+  readonly tangentNumberDigits: number[];
   pendingTangentNumber: PendingTangentNumber | null;
   convolutionProducts: number;
   generationCheckpoints: number;
@@ -799,7 +808,8 @@ export function gammaRealIntervalWithProfile(
     shiftedArgument,
     decimalDigits,
     context,
-    plan.minimumCorrectionTerms
+    plan.minimumCorrectionTerms,
+    options.correctionLayout ?? (options.stirlingStrategy === "legacy" ? "legacy" : "recurrence")
   );
   let logGamma = stirling.interval;
   let recurrenceSign = 1;
@@ -933,7 +943,8 @@ export function gammaRealBallWithProfile(
     shiftedArgument,
     decimalDigits,
     context,
-    plan.minimumCorrectionTerms
+    plan.minimumCorrectionTerms,
+    options.correctionLayout ?? (options.stirlingStrategy === "legacy" ? "legacy" : "recurrence")
   );
   let logGamma = stirling.interval;
   let recurrenceSign = 1;
@@ -1067,18 +1078,21 @@ export function createGammaStirlingPlan(
     throw new InternalCalculationException("Gamma minimum shift target is invalid");
   }
 
-  // Exact Bernoulli generation becomes the dominant cost before the balanced
-  // recurrence product does. A larger z needs fewer rigorously bounded
-  // Stirling corrections; profiling favors 3N/2 at medium precision and 2N
-  // once coefficient convolution is large.
-  const adaptiveShiftTarget =
+  const legacyShift =
     (decimalDigits >= 512 ? 2 * decimalDigits : Math.ceil((3 * decimalDigits) / 2)) + 16;
-
-  return Object.freeze({
-    shiftTarget: Math.max(MIN_GAMMA_STIRLING_ARGUMENT, adaptiveShiftTarget, minimumShiftTarget),
-    minimumCorrectionTerms,
-    maximumCorrectionTerms: null
-  });
+  const selected =
+    options.stirlingStrategy === "legacy" || options.stirlingStrategy === "fixed"
+      ? estimateStirlingWork(
+          decimalDigits,
+          Math.max(
+            MIN_GAMMA_STIRLING_ARGUMENT,
+            minimumShiftTarget,
+            options.stirlingStrategy === "legacy" ? legacyShift : 0
+          ),
+          minimumCorrectionTerms
+        )
+      : planStirlingWork(decimalDigits, minimumShiftTarget, minimumCorrectionTerms);
+  return Object.freeze({ ...selected, minimumCorrectionTerms, maximumCorrectionTerms: null });
 }
 
 function reflectedGammaInterval(
@@ -2017,7 +2031,8 @@ function logGammaPositiveStirlingInterval(
   argument: RationalInterval,
   decimalDigits: number,
   context: MathComputationContext,
-  minimumCorrectionTerms: number
+  minimumCorrectionTerms: number,
+  layout: "legacy" | "recurrence"
 ): { readonly interval: RationalInterval; readonly correctionTerms: number } {
   if (intervalSignLower(argument) <= 0) {
     throw new InternalCalculationException("logGammaPositiveStirlingInterval requires z > 0");
@@ -2041,12 +2056,33 @@ function logGammaPositiveStirlingInterval(
     ),
     oneHalfLnTwoPi
   );
-  const series = stirlingCorrectionInterval(
-    argument,
-    workingDigits,
-    context,
-    minimumCorrectionTerms
-  );
+  // Exact powers are economical for small rational endpoints. A dense dyadic
+  // endpoint would expand to O(terms * inputDigits), so keep the bounded
+  // fixed-point layout for it (including balls produced by other lazy nodes).
+  const smallEndpoints =
+    Math.max(
+      bigintDecimalDigits(argument.lower.numerator) +
+        bigintDecimalDigits(argument.lower.denominator),
+      bigintDecimalDigits(argument.upper.numerator) +
+        bigintDecimalDigits(argument.upper.denominator)
+    ) <= 40;
+  const series =
+    layout === "legacy" || !smallEndpoints
+      ? stirlingCorrectionInterval(
+          argument,
+          workingDigits,
+          context,
+          minimumCorrectionTerms,
+          layout !== "legacy"
+        )
+      : recurrentStirlingCorrection(
+          argument,
+          workingDigits,
+          minimumCorrectionTerms,
+          context,
+          (index) => bernoulliNumber(index, context),
+          () => retainedBernoulliBigIntDigits(getBernoulliCacheState(context))
+        );
   logGamma = addIntervals(logGamma, series.sum);
   logGamma = widenInterval(logGamma, series.remainder);
 
@@ -2093,15 +2129,24 @@ function exactHalfIntegerGammaInterval(
   return multiplyIntervalByRational(sqrtPi, multiplier);
 }
 
-function stirlingCorrectionInterval(
+/** Internal reference/fallback; initialScaleDigits injects underprecision in regression tests. */
+export function stirlingCorrectionInterval(
   argument: RationalInterval,
   decimalDigits: number,
   control: EvaluationCheckpoint,
-  minimumTerms: number
+  minimumTerms: number,
+  adaptiveScale = false,
+  initialScaleDigits?: number
 ): { readonly sum: RationalInterval; readonly remainder: Rational; readonly terms: number } {
   // Bernoulli coefficients grow rapidly while z^-(2k-1) shrinks. Extra fixed-point
   // guard keeps the latter from rounding to a one-unit interval before multiplication.
-  const scaleDigits = 2 * decimalDigits + 32 + minimumTerms * 4;
+  const scaleDigits = initialScaleDigits ?? 2 * decimalDigits + 32 + minimumTerms * 4;
+  if (adaptiveScale)
+    control.guardBigIntDigits?.(
+      16 * scaleDigits +
+        stirlingRetainedDigits(control) +
+        retainedBernoulliBigIntDigits(getBernoulliCacheState(control))
+    );
   const scale = decimalScale(scaleDigits);
   let sum = createScaledInterval(ZERO, ZERO, scaleDigits);
   const one = createRationalInterval(RATIONAL_ONE, RATIONAL_ONE);
@@ -2141,6 +2186,20 @@ function stirlingCorrectionInterval(
         remainder: createRational(remainderUnits, scale),
         terms: index
       });
+    }
+
+    // A fixed scale can lose the inverse power before the growing coefficient
+    // is applied. More Bernoulli terms cannot repair that rounding floor.
+    // Retry at a finer scale; exact owner-local coefficients remain cached.
+    if (adaptiveScale && nextPower.lower === ZERO && remainderUnits > thresholdUnits) {
+      return stirlingCorrectionInterval(
+        argument,
+        decimalDigits,
+        control,
+        minimumTerms,
+        true,
+        2 * scaleDigits
+      );
     }
 
     inversePower = nextPower;
@@ -3206,10 +3265,10 @@ function bernoulliNumber(index: number, control: EvaluationCheckpoint): Rational
   const order = BigInt(tangentOrder);
   const estimatedCoefficientDigits =
     retainedBernoulliBigIntDigits(state) +
-    bigintDecimalDigits(tangent) +
+    (state.tangentNumberDigits[tangentOrder] ?? bigintDecimalDigits(tangent)) +
     Math.ceil(index * LOG10_TWO) * 2 +
     8;
-  control.guardBigIntDigits?.(estimatedCoefficientDigits);
+  control.guardBigIntDigits?.(estimatedCoefficientDigits + stirlingRetainedDigits(control));
   const powerOfTwo = ONE << BigInt(index);
   // Exact tangent-number identity:
   // B_(2n) = (-1)^(n-1) n*T_n / (2^(2n-1) * (2^(2n)-1)).
@@ -3234,9 +3293,11 @@ function ensureTangentNumbers(
         order: currentOrder,
         index: 1,
         binomial: BigInt(2 * currentOrder - 2),
-        sum: ZERO
+        sum: ZERO,
+        binomialDigits: bigintDecimalDigits(BigInt(2 * currentOrder - 2)),
+        sumDigits: 1
       };
-      state.retainedBigIntDigits += bigintDecimalDigits(state.pendingTangentNumber.binomial) + 1;
+      state.retainedBigIntDigits += state.pendingTangentNumber.binomialDigits + 1;
     }
 
     const pending = state.pendingTangentNumber;
@@ -3244,7 +3305,7 @@ function ensureTangentNumbers(
       throw new InternalCalculationException("Tangent-number generation frontier is inconsistent");
     }
 
-    while (pending.index < currentOrder) {
+    while (pending.index <= Math.floor(currentOrder / 2)) {
       // The pending convolution fields are updated only after this checkpoint,
       // so a soft timeout resumes at the same exact integer term.
       control.checkpoint();
@@ -3256,35 +3317,42 @@ function ensureTangentNumbers(
       }
 
       const pendingProductDigits =
-        bigintDecimalDigits(pending.binomial) +
-        bigintDecimalDigits(left) +
-        bigintDecimalDigits(right) +
+        pending.binomialDigits +
+        (state.tangentNumberDigits[pending.index] ?? bigintDecimalDigits(left)) +
+        (state.tangentNumberDigits[currentOrder - pending.index] ?? bigintDecimalDigits(right)) +
         2;
-      control.guardBigIntDigits?.(retainedBernoulliBigIntDigits(state) + pendingProductDigits);
-      const previousPendingDigits =
-        bigintDecimalDigits(pending.binomial) + bigintDecimalDigits(pending.sum);
-      pending.sum += pending.binomial * left * right;
+      control.guardBigIntDigits?.(
+        retainedBernoulliBigIntDigits(state) +
+          pendingProductDigits +
+          stirlingRetainedDigits(control)
+      );
+      const previousPendingDigits = pending.binomialDigits + pending.sumDigits;
+      // C(2n-2,2i-1) T_i T_(n-i) is symmetric under i -> n-i.
+      // The middle term of an even order occurs only once.
+      pending.sum +=
+        pending.binomial * left * right * (2 * pending.index === currentOrder ? ONE : TWO);
       state.convolutionProducts += 1;
       const binomialIndex = 2 * pending.index - 1;
       pending.index += 1;
-      if (pending.index < currentOrder) {
+      if (pending.index <= Math.floor(currentOrder / 2)) {
         const total = 2 * currentOrder - 2;
         pending.binomial =
           (pending.binomial * BigInt(total - binomialIndex) * BigInt(total - binomialIndex - 1)) /
           BigInt((binomialIndex + 1) * (binomialIndex + 2));
       }
+      pending.binomialDigits = bigintDecimalDigits(pending.binomial);
+      pending.sumDigits = bigintDecimalDigits(pending.sum);
       state.retainedBigIntDigits +=
-        bigintDecimalDigits(pending.binomial) +
-        bigintDecimalDigits(pending.sum) -
-        previousPendingDigits;
+        pending.binomialDigits + pending.sumDigits - previousPendingDigits;
     }
 
     control.checkpoint();
     control.guardBigIntDigits?.(
-      retainedBernoulliBigIntDigits(state) + bigintDecimalDigits(pending.sum)
+      retainedBernoulliBigIntDigits(state) + pending.sumDigits + stirlingRetainedDigits(control)
     );
     state.tangentNumberCache.push(pending.sum);
-    state.retainedBigIntDigits -= bigintDecimalDigits(pending.binomial);
+    state.tangentNumberDigits.push(pending.sumDigits);
+    state.retainedBigIntDigits -= pending.binomialDigits;
     state.pendingTangentNumber = null;
   }
 }
@@ -3319,6 +3387,7 @@ function getBernoulliCacheState(control: EvaluationCheckpoint): BernoulliCacheSt
   const created: BernoulliCacheState = {
     bernoulliCache: [RATIONAL_ONE, createRational(-ONE, TWO), createRational(ONE, 6n)],
     tangentNumberCache: [ZERO, ONE],
+    tangentNumberDigits: [1, 1],
     pendingTangentNumber: null,
     convolutionProducts: 0,
     generationCheckpoints: 0,

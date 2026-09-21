@@ -66,8 +66,8 @@ export const productionCases = [
   ["cos", "cos(1/10)", "selective-block-sincos"],
   ["tan", "tan(1/10)", "dyadic-block-sincos"],
   ["sqrt", "2^(1/2)", "fixed-point-newton"],
-  ["gamma", "(1/3)!", "adaptive-stirling"],
-  ["gamma-reflection", "(-4/3)!", "adaptive-stirling-reflection"]
+  ["gamma", "(1/3)!", "joint-planned-stirling"],
+  ["gamma-reflection", "(-4/3)!", "joint-planned-stirling-reflection"]
 ].map(([name, source, family, constant]) => ({
   name,
   input: { source, ...(name.startsWith("gamma") ? { settings: { factorialMode: "gamma" } } : {}) },

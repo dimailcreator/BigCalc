@@ -40,3 +40,4 @@ import "./ln2-splitting.test.js";
 import "./log-router.test.js";
 import "./exp-kernel.test.js";
 import "./sincos-kernel.test.js";
+import "./stirling-adaptive.test.js";

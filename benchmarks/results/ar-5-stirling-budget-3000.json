@@ -1,0 +1,76 @@
+{
+  "node": "v20.17.0",
+  "platform": "win32",
+  "rows": [
+    {
+      "family": "legacy",
+      "input": "Gamma(4/3)",
+      "requestedDigits": 3000,
+      "budgetMs": 60000,
+      "elapsedMs": 60000.367600000005,
+      "status": "budget-exceeded",
+      "verifiedDigits": null,
+      "checkpoints": 193944,
+      "plan": {
+        "shiftTarget": 6040,
+        "estimatedCorrectionTerms": 847,
+        "estimatedCost": 6988100.565109887,
+        "minimumCorrectionTerms": 0,
+        "maximumCorrectionTerms": null
+      },
+      "bernoulli": {
+        "highestEvenIndex": 1600,
+        "tangentNumbers": 800,
+        "cachedBernoulliNumbers": 802,
+        "convolutionProducts": 160169,
+        "generationCheckpoints": 160169,
+        "retainedBigIntDigits": 2649924,
+        "pendingOrder": 801
+      },
+      "correction": {
+        "entries": 0,
+        "pending": 0,
+        "retainedBigIntDigits": 0,
+        "states": []
+      }
+    },
+    {
+      "family": "adaptive",
+      "input": "Gamma(4/3)",
+      "requestedDigits": 3000,
+      "budgetMs": 60000,
+      "elapsedMs": 70572.739,
+      "status": "budget-exceeded",
+      "verifiedDigits": null,
+      "checkpoints": 178699,
+      "plan": {
+        "shiftTarget": 12064,
+        "estimatedCorrectionTerms": 696,
+        "estimatedCost": 6313102.506520499,
+        "minimumCorrectionTerms": 0,
+        "maximumCorrectionTerms": null
+      },
+      "bernoulli": {
+        "highestEvenIndex": 1392,
+        "tangentNumbers": 696,
+        "cachedBernoulliNumbers": 698,
+        "convolutionProducts": 121104,
+        "generationCheckpoints": 121104,
+        "retainedBigIntDigits": 1945128,
+        "pendingOrder": null
+      },
+      "correction": {
+        "entries": 1,
+        "pending": 0,
+        "retainedBigIntDigits": 20148,
+        "states": [
+          {
+            "terms": 695,
+            "workingDigits": 3044,
+            "done": true
+          }
+        ]
+      }
+    }
+  ]
+}

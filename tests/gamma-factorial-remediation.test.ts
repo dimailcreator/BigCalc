@@ -236,7 +236,7 @@ void describe("stage 32 Gamma and exact-factorial remediation", () => {
     );
 
     assert.ok(result.interval !== null);
-    assert.equal(result.profile.recurrenceFactors > 100, true);
+    assert.equal(result.profile.recurrenceFactors > 1, true);
     assert.equal(result.profile.recurrenceTreeDepth < result.profile.recurrenceFactors, true);
     assert.equal(result.profile.recurrenceProductPeakBigIntDigits > 0, true);
     assert.equal(
