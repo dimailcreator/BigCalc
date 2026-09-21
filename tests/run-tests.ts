@@ -41,3 +41,4 @@ import "./log-router.test.js";
 import "./exp-kernel.test.js";
 import "./sincos-kernel.test.js";
 import "./stirling-adaptive.test.js";
+import "./gamma-alternatives.test.js";

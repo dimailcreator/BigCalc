@@ -5,6 +5,8 @@ import type { EvaluationCheckpoint, EvaluationContext } from "../evaluation/cont
 import { getLn2RationalInterval, getPiRationalInterval } from "./constants.js";
 import { routedReducedLog } from "./log-router.js";
 import { routedSmallExp } from "./exp-router.js";
+import { specialGammaInterval } from "./gamma-special.js";
+import { spougeLogInterval } from "./gamma-spouge.js";
 import { planStirlingWork, estimateStirlingWork } from "./stirling-planner.js";
 import { recurrentStirlingCorrection, stirlingRetainedDigits } from "./stirling-correction.js";
 import { routedSmallSinCos } from "./sincos-router.js";
@@ -159,6 +161,7 @@ export interface NthRootStrategyPlan {
 }
 
 export interface GammaComputationOptions {
+  readonly algorithm?: "stirling" | "spouge" | "special";
   readonly stirlingStrategy?: "legacy" | "adaptive" | "fixed";
   readonly correctionLayout?: "legacy" | "recurrence";
   readonly minimumCorrectionTerms?: number;
@@ -166,6 +169,7 @@ export interface GammaComputationOptions {
 }
 
 export interface GammaComputationProfile {
+  readonly algorithm?: "spouge" | "special";
   readonly workingDigits: number;
   readonly shift: number;
   readonly recurrenceFactors: number;
@@ -763,6 +767,17 @@ export function powRationalViaNthRootInterval(
   return scaledIntervalToRationalInterval(powered);
 }
 
+function useSpecialGamma(options: GammaComputationOptions): boolean {
+  return (
+    options.algorithm === "special" ||
+    (options.algorithm === undefined &&
+      options.stirlingStrategy === undefined &&
+      options.correctionLayout === undefined &&
+      options.minimumCorrectionTerms === undefined &&
+      options.minimumShiftTarget === undefined)
+  );
+}
+
 export function gammaRealInterval(
   argument: RationalInterval,
   decimalDigits: number,
@@ -797,8 +812,33 @@ export function gammaRealIntervalWithProfile(
     });
   }
 
+  if (useSpecialGamma(options)) {
+    const special = specialGammaInterval(argument, decimalDigits, context);
+    if (special !== null)
+      return Object.freeze({
+        interval: special,
+        profile: Object.freeze({
+          ...createGammaProfile(decimalDigits, 0, 0, 0, 0, false, false, halfIntegerPlan),
+          algorithm: "special" as const
+        })
+      });
+  }
+  if (options.algorithm === "spouge" && intervalSignLower(argument) > 0) {
+    const logGamma = spougeLogInterval(argument, decimalDigits, context);
+    return Object.freeze({
+      interval: logGamma === null ? null : expBallInterval(logGamma, decimalDigits, context),
+      profile: Object.freeze({
+        ...createGammaProfile(decimalDigits, 0, 0, 0, 0, false, false, halfIntegerPlan),
+        algorithm: "spouge" as const
+      })
+    });
+  }
+
   const directShift = gammaShiftToPositiveStirlingArgument(argument, plan.shiftTarget);
-  if (shouldUseGammaReflection(argument, directShift, plan.shiftTarget, decimalDigits)) {
+  if (
+    (options.algorithm === "spouge" && intervalSignUpper(argument) < 0) ||
+    shouldUseGammaReflection(argument, directShift, plan.shiftTarget, decimalDigits)
+  ) {
     const reflected = reflectedGammaInterval(argument, decimalDigits, context, options);
     return withHalfIntegerPlan(reflected, halfIntegerPlan);
   }
@@ -924,8 +964,43 @@ export function gammaRealBallWithProfile(
     });
   }
 
+  if (useSpecialGamma(options)) {
+    const special = specialGammaInterval(argument, decimalDigits, context);
+    if (special !== null) {
+      const ball = intervalToRoundedBall(special, precisionBits, backend);
+      return Object.freeze({
+        ball,
+        profile: withGammaBallMagnitude(
+          Object.freeze({
+            ...createGammaProfile(decimalDigits, 0, 0, 0, 0, false, false, halfIntegerPlan),
+            algorithm: "special" as const
+          }),
+          ball
+        )
+      });
+    }
+  }
+  if (options.algorithm === "spouge" && intervalSignLower(argument) > 0) {
+    const logGamma = spougeLogInterval(argument, decimalDigits, context);
+    const ball =
+      logGamma === null
+        ? null
+        : expIntervalBall(logGamma, decimalDigits, precisionBits, backend, context);
+    const profile = Object.freeze({
+      ...createGammaProfile(decimalDigits, 0, 0, 0, 0, false, false, halfIntegerPlan),
+      algorithm: "spouge" as const
+    });
+    return Object.freeze({
+      ball,
+      profile: ball === null ? profile : withGammaBallMagnitude(profile, ball)
+    });
+  }
+
   const directShift = gammaShiftToPositiveStirlingArgument(argument, plan.shiftTarget);
-  if (shouldUseGammaReflection(argument, directShift, plan.shiftTarget, decimalDigits)) {
+  if (
+    (options.algorithm === "spouge" && intervalSignUpper(argument) < 0) ||
+    shouldUseGammaReflection(argument, directShift, plan.shiftTarget, decimalDigits)
+  ) {
     return reflectedGammaBall(
       argument,
       decimalDigits,

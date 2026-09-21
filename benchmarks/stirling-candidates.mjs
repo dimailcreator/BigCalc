@@ -39,7 +39,7 @@ function candidate(family) {
                       stirlingStrategy: "fixed",
                       minimumShiftTarget: Math.ceil(Number(family.slice(6)) * (digits + 12)) + 16
                     }
-                  : {}
+                  : { algorithm: "stirling" }
           );
           profile = result.profile;
           const cached = before.states.some((s) => s.done && s.workingDigits === digits + 44);

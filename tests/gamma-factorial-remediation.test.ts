@@ -232,7 +232,8 @@ void describe("stage 32 Gamma and exact-factorial remediation", () => {
     const result = gammaRealIntervalWithProfile(
       createRationalInterval(argument, argument),
       100,
-      createEvaluationContext()
+      createEvaluationContext(),
+      { algorithm: "stirling" }
     );
 
     assert.ok(result.interval !== null);

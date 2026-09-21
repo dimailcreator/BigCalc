@@ -143,7 +143,9 @@ void describe("AR-5 adaptive Stirling", () => {
     });
     const x = createRational(4n, 3n);
     const run = (owner: EvaluationGraphContext) =>
-      gammaRealBallWithProfile({ lower: x, upper: x }, 70, 400, owner.backend, owner);
+      gammaRealBallWithProfile({ lower: x, upper: x }, 70, 400, owner.backend, owner, {
+        algorithm: "stirling"
+      });
     assert.throws(
       () => run(context),
       (e) => e === paused
@@ -174,7 +176,9 @@ void describe("AR-5 adaptive Stirling", () => {
     });
     const x = createRational(4n, 3n);
     const run = (owner: EvaluationGraphContext) =>
-      gammaRealBallWithProfile({ lower: x, upper: x }, 60, 350, owner.backend, owner);
+      gammaRealBallWithProfile({ lower: x, upper: x }, 60, 350, owner.backend, owner, {
+        algorithm: "stirling"
+      });
     assert.throws(() => run(context), ResourceLimitException);
     assert.equal(getStirlingCorrectionSnapshot(context).states[0]?.terms, 4);
     reject = false;

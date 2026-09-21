@@ -123,7 +123,8 @@ void describe("stage 27 precision-parametric powers and Gamma", () => {
     const result = gammaRealIntervalWithProfile(
       createRationalInterval(fourThirds, fourThirds),
       100,
-      context
+      context,
+      { algorithm: "stirling" }
     );
     assert.ok(result.interval !== null);
     assert.equal(result.profile.shift > 0, true);
