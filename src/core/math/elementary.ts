@@ -365,16 +365,8 @@ export function expIntervalBallWithProfile(
   }
 
   const mantissaScaleDigits = decimalDigits + EXP_RECONSTRUCTION_SAFETY_DIGITS;
-  const lower = routedSmallExp(
-    reduction.remainder.lower,
-    mantissaScaleDigits,
-    control
-  );
-  const upper = routedSmallExp(
-    reduction.remainder.upper,
-    mantissaScaleDigits,
-    control
-  );
+  const lower = routedSmallExp(reduction.remainder.lower, mantissaScaleDigits, control);
+  const upper = routedSmallExp(reduction.remainder.upper, mantissaScaleDigits, control);
   const mantissaInterval = createRationalInterval(
     scaledIntervalToRationalBounds(lower).lower,
     scaledIntervalToRationalBounds(upper).upper
@@ -2010,8 +2002,7 @@ export function reduceRadianInterval(
   if (profile !== undefined && sharedPi === undefined) {
     profile.piRequestedDigits = Math.max(profile.piRequestedDigits, piDigits);
   }
-  const pi =
-    sharedPi ?? getPiRationalInterval(context, piDigits);
+  const pi = sharedPi ?? getPiRationalInterval(context, piDigits);
   const halfPi = divideIntervalByInteger(pi, TWO);
   const safeQuarterPiMagnitude = divideRational(pi.lower, integerRational(FOUR));
   // Keeping an already-small interval unchanged avoids injecting avoidable π uncertainty.

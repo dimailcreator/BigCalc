@@ -38,16 +38,16 @@
 
 Stage 37 показал следующие representative sequential-refinement времена:
 
-| Операция | 100 | 300 | 1000 | 3000 | 10000 |
-|---|---:|---:|---:|---:|---:|
-| `π` | 8 ms | 12 ms | 107 ms | 906 ms | 11195 ms |
-| `e` | 2 ms | 3 ms | 23 ms | 368 ms | — |
-| `sin(1/10)` | 4 ms | 7 ms | 59 ms | 989 ms | 15818 ms |
-| `exp(1)` | 5 ms | 15 ms | 231 ms | 4262 ms | — |
-| `ln(2)` | 4 ms | 9 ms | 164 ms | 3005 ms | 66793 ms |
-| `2^(1/2)` | 3 ms | 4 ms | 21 ms | 154 ms | 1686 ms |
-| `(1/3)!` | 27 ms | 160 ms | 5434 ms | — | — |
-| `(-4/3)!` | 24 ms | 154 ms | 5865 ms | — | — |
+| Операция    |   100 |    300 |    1000 |    3000 |    10000 |
+| ----------- | ----: | -----: | ------: | ------: | -------: |
+| `π`         |  8 ms |  12 ms |  107 ms |  906 ms | 11195 ms |
+| `e`         |  2 ms |   3 ms |   23 ms |  368 ms |        — |
+| `sin(1/10)` |  4 ms |   7 ms |   59 ms |  989 ms | 15818 ms |
+| `exp(1)`    |  5 ms |  15 ms |  231 ms | 4262 ms |        — |
+| `ln(2)`     |  4 ms |   9 ms |  164 ms | 3005 ms | 66793 ms |
+| `2^(1/2)`   |  3 ms |   4 ms |   21 ms |  154 ms |  1686 ms |
+| `(1/3)!`    | 27 ms | 160 ms | 5434 ms |       — |        — |
+| `(-4/3)!`   | 24 ms | 154 ms | 5865 ms |       — |        — |
 
 Главные bottleneck:
 
@@ -749,7 +749,7 @@ bounded by actual need
 - large positive argument;
 - half-integer small/huge;
 - reflection/direct;
-- >256 corrections;
+- > 256 corrections;
 - sequential precision;
 - cache/resource accounting.
 
