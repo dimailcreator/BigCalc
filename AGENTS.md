@@ -4,7 +4,9 @@
 
 Этот файл задаёт правила работы coding-агента с репозиторием BigCalc.
 
-Главная цель текущей разработки — построить корректное, проверяемое и расширяемое математическое ядро BigCalc. Прикладные калькуляторы и UI разрабатываются только после готовности ядра.
+Математическое ядро BigCalc завершило Core-development phase, а его public API 1.0 считается замороженным. Текущая активная фаза — разработка application layer, Web UI, Worker transport, persistence и Android/Capacitor host по `APP_IMPLEMENTATION_PLAN.md`.
+
+Application development разрешён и является следующим активным слоем. Он не отменяет математические гарантии Core и не даёт права менять Core API или внутреннюю семантику ради удобства UI.
 
 Агент не должен воспринимать BigCalc как обычный калькулятор на `number` или как обёртку над одной arbitrary-precision библиотекой. Архитектура ядра основана на:
 
@@ -21,18 +23,24 @@
 
 ## 2. Источники истины
 
-Перед изменением математического ядра обязательно прочитать:
+Перед изменением репозитория определить затрагиваемый слой и прочитать соответствующие документы:
 
-1. `CORE_SPEC.md`
-2. `IMPLEMENTATION_PLAN.md`
-3. этот `AGENTS.md`
+1. `CORE_SPEC.md` — математическая семантика, grammar и public Core boundary;
+2. `UI_SPEC.md` — UI и application interaction semantics;
+3. `DESIGN_SPEC.md` — visual и presentation semantics;
+4. `APP_IMPLEMENTATION_PLAN.md` — этапы, зависимости и Definition of Done приложения;
+5. этот `AGENTS.md` — рабочая дисциплина coding-агента.
 
 Иерархия при конфликте:
 
 ```text
 CORE_SPEC.md
     ↓
-IMPLEMENTATION_PLAN.md
+UI_SPEC.md
+    ↓
+DESIGN_SPEC.md
+    ↓
+APP_IMPLEMENTATION_PLAN.md
     ↓
 AGENTS.md
     ↓
@@ -45,13 +53,19 @@ AGENTS.md
 
 Если код противоречит `CORE_SPEC.md`, нельзя считать существующий код правильным только потому, что он уже написан.
 
-### 2.2. `IMPLEMENTATION_PLAN.md`
+### 2.2. `UI_SPEC.md`
 
-Определяет порядок реализации, зависимости этапов и Definition of Done.
+Определяет поведение UI и application layer вокруг готового Core. Не переопределяет математическую семантику `CORE_SPEC.md`.
 
-Не использовать план для переопределения семантики `CORE_SPEC.md`.
+### 2.3. `DESIGN_SPEC.md`
 
-### 2.3. Этот файл
+Определяет presentation и visual semantics. Не переопределяет interaction semantics `UI_SPEC.md` или математику `CORE_SPEC.md`.
+
+### 2.4. `APP_IMPLEMENTATION_PLAN.md`
+
+Определяет порядок app-этапов, зависимости, проверки и Definition of Done. Не использовать план для переопределения документов более высокого уровня.
+
+### 2.5. Этот файл
 
 Определяет рабочую дисциплину агента: scope, тесты, допустимые изменения, взаимодействие со спецификациями и правила завершения задачи.
 
@@ -61,16 +75,17 @@ AGENTS.md
 
 До изменения кода:
 
-1. определить, к какому этапу `IMPLEMENTATION_PLAN.md` относится задача;
-2. прочитать соответствующие разделы `CORE_SPEC.md`;
+1. определить этап `APP_IMPLEMENTATION_PLAN.md` и затрагиваемый слой;
+2. прочитать соответствующие разделы `CORE_SPEC.md`, `UI_SPEC.md` и `DESIGN_SPEC.md`;
 3. изучить существующую реализацию и тесты затрагиваемых модулей;
-4. проверить зависимости текущего этапа;
+4. проверить blocking dependencies текущего этапа;
 5. не предполагать, что предыдущий этап завершён только по наличию файлов или классов;
-6. проверить его фактические инварианты и тесты, если текущая задача от него зависит.
+6. проверить его фактический Definition of Done, инварианты и тесты, если текущая задача от него зависит;
+7. проверить рабочее дерево и не перезаписывать несвязанные изменения пользователя.
 
 Если пользователь явно задаёт задачу, выполнять её в указанном scope.
 
-Если задача сформулирована как «продолжай реализацию», выбирать первый незавершённый этап/подэтап `IMPLEMENTATION_PLAN.md`, подтверждённый состоянием репозитория.
+Если задача сформулирована как «продолжай реализацию», выбирать первый незавершённый этап/подэтап `APP_IMPLEMENTATION_PLAN.md`, подтверждённый состоянием репозитория.
 
 ---
 
@@ -82,9 +97,60 @@ AGENTS.md
 
 Допускаются только небольшие подготовительные изменения, если они необходимы текущему этапу и не фиксируют преждевременно архитектуру будущего слоя.
 
-### 4.2. Не добавлять функции вне спецификации
+### 4.2. Core changes
 
-Без явного изменения требований не добавлять:
+Core API 1.0 заморожен. Application-задача сама по себе не разрешает менять:
+
+- `src/core/**`;
+- `src/core/api.ts` и его public contracts;
+- grammar и математическую семантику;
+- numeric backend, evaluation graph или resource lifecycle;
+- Core build/test semantics.
+
+Core change допустим только по явной задаче пользователя или после зафиксированного blocking cross-boundary решения. Перед ним обязательно прочитать релевантные разделы `CORE_SPEC.md`, проверить public API audit и выполнить Core regression suite.
+
+Внутри Core по-прежнему запрещены зависимости от:
+
+- DOM;
+- HTML/CSS;
+- UI state и конкретных экранов;
+- Web Worker transport;
+- Capacitor и Android WebView API;
+- application persistence/navigation.
+
+### 4.3. App changes
+
+Изменения в `src/app/**`, app tests, browser tooling, Worker transport, persistence и Android host разрешены в scope текущего этапа.
+
+Application code:
+
+- использует Core только через public entrypoint `src/core/api.ts` или alias, строго указывающий на него;
+- не импортирует `Rational`, `Ball`, evaluation graph, backend, parser internals, resource internals или private implementations;
+- не выполняет тяжёлое mathematical refinement на UI thread;
+- не передаёт Core/internal backend types через UI, Worker protocol или persistence DTO;
+- хранит syntax state, calculation session state и UI state раздельно;
+- реализуется на HTML + CSS + TypeScript без React, пока спецификации не изменены;
+- следует этапу и не реализует последующие слои «заодно».
+
+Грамматика принадлежит Core. Editor может хранить structured/atomic tokens, но не создаёт альтернативный parser и не меняет математический смысл выражения.
+
+### 4.4. Cross-boundary changes
+
+Cross-boundary считается любое изменение, затрагивающее одновременно Core contract и application behavior, включая `Ans`, Worker serialization, precision demand, formatting, errors и lifecycle.
+
+Для таких изменений:
+
+1. сначала проверить возможность решения через замороженный public Core API;
+2. не импортировать Core internals как workaround;
+3. не преобразовывать displayed decimal text в математическое значение;
+4. не добавлять `dispose()` в `CalculationHandle`: application-level `dispose` удаляет worker handle, при необходимости вызывает `cancel()` и освобождает application references;
+5. не маскировать Worker/protocol/display/persistence failure под `CalcError`;
+6. если public API недостаточен, локализовать конфликт и выполнить предусмотренный plan spike/decision, не меняя Core молча;
+7. не строить зависимые этапы поверх временного решения, противоречащего спецификациям.
+
+### 4.5. Не добавлять функции вне спецификации
+
+Без явного изменения требований не добавлять в Core:
 
 - комплексные числа;
 - CAS;
@@ -100,25 +166,49 @@ AGENTS.md
 - сверхбольшие числа;
 - системы счисления;
 - `floatX`;
-- единицы измерения;
-- прикладные калькуляторы;
-- UI-функциональность.
+- единицы измерения.
+
+Без отдельного product decision не добавлять в приложение:
+
+- custom functions/constants;
+- third ultra-long-exponent representation;
+- видимую или интерактивную кнопку `+ Добавить калькулятор`;
+- user-created calculators или plugin marketplace;
+- cloud sync или account system;
+- landscape/full desktop UI;
+- отдельную history для дополнительных calculator modules;
+- module-defined keyboard layouts;
+- темы вне спецификации;
+- изменения Core algorithms ради app convenience.
 
 `%` означает postfix-оператор деления на 100.
 
 Встроенная константа — символ `π`, а не `pi`.
 
-### 4.3. Не реализовывать UI внутри Core
+### 4.6. Package scripts
 
-Математическое ядро не зависит от:
+Существующие Core scripts нельзя ломать или незаметно переопределять. В частности, `npm test` сохраняет текущую Core semantics.
 
-- DOM;
-- HTML;
-- CSS;
-- конкретного экрана;
-- Android WebView API.
+App scripts добавляются отдельно по соответствующему этапу:
 
-Worker transport и formatter являются границами вокруг ядра, а не основанием его математической модели.
+```text
+dev:app
+build:app
+typecheck:app
+test:app
+test:app:e2e
+check:app
+```
+
+Не добавлять заглушки этих scripts раньше появления соответствующего tooling.
+
+### 4.7. Prototype policy
+
+`prototype.html` и prototype icons — reference artifacts дизайна, а не production architecture.
+
+Из prototype можно брать размеры, visual states, animation feel, icons, gesture ideas и test scenarios. Нельзя автоматически переносить inline handlers, global mutable DOM state, prototype-only scroll hacks, hardcoded data, duplicate CSS или DOM-as-model architecture.
+
+При расхождении оценивается соответствие `UI_SPEC.md` и `DESIGN_SPEC.md`, а не буквальное совпадение DOM/CSS prototype.
 
 ---
 
@@ -196,6 +286,22 @@ Worker transport и formatter являются границами вокруг �
 
 Погрешность precision cutoff остаётся частью ball и распространяется через последующие операции.
 
+### 6.11. Stale results do not win
+
+Результат старой calculation session никогда не изменяет UI нового expression или новых mathematical settings.
+
+### 6.12. UI demand is not Core precision
+
+UI определяет число требуемых видимых verified digits. Только Core определяет internal precision, guard bits и стратегию refinement.
+
+### 6.13. Application freeze preserves the session
+
+`pausedByTimeout` и `frozenByUser` не уничтожают resumable Core handle. Смена expression или mathematical settings создаёт новую session и отменяет/утилизирует старую.
+
+### 6.14. Persistence is not runtime state
+
+Не сериализовать evaluation graph, lazy-state, partial sums, backend objects, Worker handles или фиктивную live session. История хранит original expression, displayed data, original settings и stable identifiers для повторного запуска.
+
 ---
 
 ## 7. Числовая дисциплина
@@ -267,7 +373,7 @@ upper → rounding toward +∞
 
 Не ослаблять это требование ради простоты или производительности.
 
-При выборе backend следовать этапу и ADR из `IMPLEMENTATION_PLAN.md`.
+Numeric backend относится к замороженному Core и не выбирается заново в рамках application-задач. Любое явное изменение backend должно соответствовать `CORE_SPEC.md` и отдельному архитектурному решению.
 
 ---
 
@@ -577,6 +683,24 @@ Hard watchdog/resource limit:
 
 Для тестов времени предпочитать fake/test clock вместо реальных ожиданий.
 
+### 17.4. Application lifecycle
+
+Application layer различает минимум:
+
+```text
+idle
+debouncing
+running
+pausedByTimeout
+frozenByUser
+completed
+failed
+```
+
+Первый timeout начального live-result скрыт и сохраняет session. Явный `=` продолжает ту же session. Повторный timeout после явного `=` показывает dialog; `Продолжить` продолжает handle, а `Отменить` переводит application session в `frozenByUser`, не вызывая необратимый Core cancel. Timeout при догрузке дополнительных цифр после появления начального результата продолжается автоматически.
+
+Изменение source, `angleMode`, `factorialMode` или soft timeout создаёт новую mathematical session. Изменение inertia, visual layout или состояния history не создаёт её.
+
 ---
 
 ## 18. History и `Ans`
@@ -598,6 +722,8 @@ Hard watchdog/resource limit:
 `Ans` должен ссылаться на исходное вычисление/history entry.
 
 Не подставлять отображённую десятичную строку как математическое значение `Ans`.
+
+History entry создаётся только после успешного явного `=`. Live calculation и failed result историю не создают. Multi-character identifiers и `Ans` являются atomic tokens: cursor/selection/delete не могут работать внутри них.
 
 ---
 
@@ -621,13 +747,15 @@ Evaluation graph остаётся на стороне вычислительно
 
 Не встраивать `postMessage`, DOM или Worker-specific объекты в `RealValue`, AST или math nodes.
 
+Тяжёлый refinement выполняется в Worker. Worker владеет runtime handles и registry, но не UI state или visual layout. Worker crash и protocol violation остаются transport/application errors.
+
 ---
 
 ## 20. Тестовая дисциплина
 
-### 20.1. Каждый математический баг получает regression test
+### 20.1. Каждый correctness bug получает regression test
 
-Не исправлять correctness bug без теста, который падал до исправления.
+Не исправлять математический, lifecycle, stale-session, persistence или UI-semantics bug без теста, который падал до исправления, если такой тест технически возможен на текущем этапе.
 
 ### 20.2. Обязательные категории
 
@@ -641,6 +769,18 @@ Evaluation graph остаётся на стороне вычислительно
 - parser golden/table tests;
 - boundary/domain tests;
 - resource lifecycle tests.
+
+Для application layer по мере появления соответствующих этапов обязательны также:
+
+- state transition tests;
+- stale-result и race tests;
+- Worker protocol/serialization tests;
+- editor model и atomic-token tests;
+- viewport model tests без giant DOM/scroll space;
+- browser integration tests;
+- persistence migration/restart tests;
+- responsive/accessibility tests;
+- Android/WebView smoke и lifecycle tests.
 
 ### 20.3. Containment
 
@@ -680,6 +820,20 @@ reference/true value ∈ returned ball
 - decimal verified prefix;
 - algebraic invariants, где они применимы.
 
+### 20.8. UI и design verification
+
+Проверять поведение по `UI_SPEC.md`, а presentation — по `DESIGN_SPEC.md`. Основной viewport matrix:
+
+```text
+360 × 640
+360 × 800
+390 × 844
+412 × 915
+portrait tablet / wide viewport
+```
+
+Учитывать portrait-only direction, safe areas, reduced motion, touch targets, focus-visible, small-height usability и отсутствие layout shift. Визуальное сходство с prototype не заменяет semantic tests.
+
 ---
 
 ## 21. Работа со сторонними зависимостями
@@ -693,7 +847,7 @@ reference/true value ∈ returned ball
 5. скрыть её за adapter;
 6. добавить тест, подтверждающий критичное для BigCalc поведение.
 
-Для numeric backend сначала выполнить technical spike и ADR согласно `IMPLEMENTATION_PLAN.md`.
+Математически критичную dependency или замену numeric backend нельзя добавлять в рамках обычного app-этапа. Для такого изменения требуется отдельный technical spike/ADR и проверка требований `CORE_SPEC.md`.
 
 Не выбирать dependency только потому, что у неё удобный API или много decimal digits.
 
@@ -708,11 +862,10 @@ reference/true value ∈ returned ball
 - сохранить поведение;
 - оставить тесты проходящими;
 - не смешивать его с несвязанными улучшениями;
-- не менять public API без необходимости.
+- не менять frozen Core public API;
+- не фиксировать преждевременно API будущих app-этапов.
 
-До Milestone E public API может эволюционировать, но каждое изменение должно быть осознанным.
-
-После API freeze изменения требуют отдельного решения.
+Application API может осознанно эволюционировать до Stage 26. Изменение Core API 1.0 требует отдельного cross-boundary решения и не является обычным рефакторингом.
 
 ---
 
@@ -832,16 +985,18 @@ Registry configuration errors — не пользовательские мате
 
 Перед сообщением о завершении:
 
-1. выполнить formatter/linter, если они настроены;
-2. выполнить typecheck;
-3. выполнить релевантные unit tests;
-4. выполнить полный test suite, если стоимость приемлема;
-5. проверить новые/изменённые математические пути property/containment tests, если применимо;
-6. убедиться, что не появились backend types в public API;
-7. проверить `git diff` или эквивалентный diff;
-8. убедиться, что нет случайных несвязанных изменений;
-9. сверить Definition of Done текущего этапа;
-10. не объявлять этап завершённым, если выполнена только часть его DoD.
+1. выполнить предусмотренный текущим этапом набор проверок;
+2. сохранить проходящим существующий `npm run check` для Core;
+3. выполнить formatter/linter и typecheck затронутых слоёв;
+4. выполнить релевантные unit/integration/e2e tests по мере появления tooling;
+5. выполнить app production build, когда он существует и относится к этапу;
+6. проверить новые/изменённые математические пути property/containment tests, если применимо;
+7. выполнить Core public API audit при любом риске пересечения границы;
+8. убедиться, что application code не импортирует Core internals и backend types не появились в public DTO/API;
+9. проверить `git diff` или эквивалентный diff;
+10. убедиться, что нет случайных несвязанных изменений;
+11. сверить Definition of Done текущего этапа;
+12. не объявлять этап завершённым, если выполнена только часть его DoD.
 
 Если полный набор тестов не запускался, явно указать это в итоговом отчёте.
 
@@ -876,9 +1031,9 @@ specification
 
 Не менять expected result только для получения зелёного CI.
 
-Если тест соответствует `CORE_SPEC.md`, исправлять код.
+Если тест соответствует применимой спецификации, исправлять код.
 
-Если тест противоречит `CORE_SPEC.md`, исправлять тест.
+Если тест противоречит `CORE_SPEC.md`, `UI_SPEC.md` или `DESIGN_SPEC.md`, исправлять тест, не ослабляя спецификацию.
 
 Если спецификация недостаточна для однозначного ответа — зафиксировать вопрос, не угадывать.
 
@@ -900,23 +1055,23 @@ specification
 
 ## 31. Milestones
 
-Ориентироваться на milestones из `IMPLEMENTATION_PLAN.md`:
+Ориентироваться на app milestones из `APP_IMPLEMENTATION_PLAN.md`:
 
 ```text
-A — Exact Core
-B — Verified Arithmetic
-C — Mathematical Built-ins
-D — Runtime Core
-E — Core Ready
+A — App Runtime Proof (Stages 0–5)
+B — Calculator Interaction Core (Stages 6–14)
+C — BigCalc Product UI (Stages 15–19)
+D — Extensible Android App (Stages 20–23)
+E — Release Ready (Stages 24–26)
 ```
 
-Прикладные калькуляторы и другие надстройки начинаются только после Milestone E, если пользователь явно не изменил этот порядок.
+Blocking dependency нельзя обходить или объявлять завершённой по наличию файлов. В частности, массовая UI-реализация начинается только после раннего Android viability proof Stage 5, а history зависит от `Ans` semantic spike Stage 7.
 
 ---
 
-## 32. Критерий готовности Core
+## 32. Критерии готовности
 
-Не считать математическое ядро готовым только потому, что оно выдаёт визуально правильные цифры.
+Core является frozen baseline приложения. Его нельзя считать корректным только потому, что он выдаёт визуально правдоподобные цифры.
 
 Готовность требует одновременно:
 
@@ -938,7 +1093,9 @@ E — Core Ready
 - отсутствия известных нарушений инвариантов;
 - финального аудита public API.
 
-Полный список критериев находится в `CORE_SPEC.md` и `IMPLEMENTATION_PLAN.md`.
+Полный список критериев Core находится в `CORE_SPEC.md`.
+
+Application stage готов только при выполнении его собственного Definition of Done из `APP_IMPLEMENTATION_PLAN.md`, сохранении Core regression suite и отсутствии известных нарушений `CORE_SPEC.md`, `UI_SPEC.md` и `DESIGN_SPEC.md`. Наличие работающего визуального прототипа само по себе не завершает этап.
 
 ---
 
@@ -956,6 +1113,6 @@ E — Core Ready
 медленнее получить цифры, корректность которых ядро может доказать
 ```
 
-для Core BigCalc выбирать второе.
+для BigCalc выбирать второе.
 
-Verified correctness — часть семантики продукта, а не необязательная оптимизация качества.
+Verified correctness — часть семантики продукта, а не необязательная оптимизация качества. Application layer обязан сохранять эти гарантии, а не только отображать правдоподобный результат.
