@@ -13,7 +13,7 @@ import {
 } from "../dist/core/index.js";
 import {
   getLn2ProviderStateSnapshot,
-  getPiProviderStateSnapshot
+  getPiComputationSnapshot
 } from "../dist/core/math/constants.js";
 import { getBernoulliCacheSnapshot } from "../dist/core/math/elementary.js";
 
@@ -120,14 +120,14 @@ async function benchmarkExpression(benchmarkCase, digits, mode) {
 
 function structuralSnapshot(name, created, checkpointDelta, ball) {
   if (name === "pi") {
-    const snapshot = getPiProviderStateSnapshot(created.context);
+    const snapshot = getPiComputationSnapshot(created.context);
     return {
-      termCount: snapshot.completedTerms,
-      termMetric: "series-terms",
+      termCount: snapshot.termCount,
+      termMetric: "pi-series-terms+agm-iterations",
       peakBigIntDigits: snapshot.peakBigIntDigits,
       peakMetric: "working-state",
-      retainedBigIntDigits: snapshot.cachedBigIntDigits,
-      stateReuse: snapshot.sqrtReuseCount
+      retainedBigIntDigits: snapshot.retainedBigIntDigits,
+      stateReuse: snapshot.stateReuse
     };
   }
 

@@ -132,6 +132,9 @@ test("sequential prefix regression is rejected even without independent referenc
 test("metrics distinguish unsupported from zero, retain gauges, and reject invalid counts", () => {
   const counters = createAlgorithmCounters();
   counters.add("largeDivisions", 0);
+  assert.equal(counters.snapshot().sqrtOperations, null);
+  counters.add("sqrtOperations", 2);
+  assert.equal(counters.snapshot().sqrtOperations, 2);
   counters.observe("workingDigits", 100);
   counters.observe("workingDigits", 30);
   counters.observe("retainedBigIntDigits", 50);
@@ -200,6 +203,18 @@ test("production adapters provide real verified refinement and provider counters
   assert.ok(pi.workingDigits >= 10);
   assert.ok(pi.checkpointCount > 0);
   assert.equal(rows.find((row) => row.operation === "exp").termCount, null);
+});
+
+test("production pi counters remain cumulative across the AGM routing boundary", async () => {
+  const cases = productionCases.filter((item) => item.name === "pi");
+  const rows = await runAlgorithmComparison({
+    cases,
+    precisionGrid: [100, 3000],
+    memory: noMemory
+  });
+  assert.equal(rows.length, 3);
+  assert.ok(rows[1].termCount >= rows[0].termCount);
+  assert.equal(rows[1].blockCount, null);
 });
 
 test("CLI emits parseable JSON and rejects invalid selections/options before work", () => {

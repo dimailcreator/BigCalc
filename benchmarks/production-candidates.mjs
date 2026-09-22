@@ -1,7 +1,7 @@
 import { createEvaluationGraphFromSource, verifiedNumberFromBall } from "../dist/core/index.js";
 import {
   getLn2ProviderStateSnapshot,
-  getPiProviderStateSnapshot
+  getPiComputationSnapshot
 } from "../dist/core/math/constants.js";
 
 export function productionCandidate(family, constant) {
@@ -25,13 +25,13 @@ export function productionCandidate(family, constant) {
         },
         snapshot() {
           if (constant === "pi") {
-            const state = getPiProviderStateSnapshot(created.context);
+            const state = getPiComputationSnapshot(created.context);
             return {
-              workingDigits: state.highestProviderWorkingDigits,
-              termCount: state.completedTerms,
-              blockCount: state.completedBlocks,
+              workingDigits: state.workingDigits,
+              termCount: state.termCount,
+              blockCount: state.blockCount,
               peakBigIntDigits: state.peakBigIntDigits,
-              retainedBigIntDigits: state.cachedBigIntDigits
+              retainedBigIntDigits: state.retainedBigIntDigits
             };
           }
           if (constant === "ln2" || constant === "e") {
@@ -57,7 +57,7 @@ export function productionCandidate(family, constant) {
 }
 
 export const productionCases = [
-  ["pi", "π", "chudnovsky-binary-splitting", "pi"],
+  ["pi", "π", "chudnovsky-agm-router", "pi"],
   ["e", "e", "factorial-recurrence", "e"],
   ["ln2", "ln(2)", "atanh-binary-rebuild", "ln2"],
   ["ln3", "ln(3)", "binary-reduction-routed-atanh"],

@@ -7,6 +7,7 @@ const counts = [
   "blockCount",
   "largeMultiplications",
   "largeDivisions",
+  "sqrtOperations",
   "checkpointCount"
 ];
 const gauges = ["workingDigits", "peakBigIntDigits", "retainedBigIntDigits"];
@@ -152,6 +153,7 @@ export async function runAlgorithmComparison({
               blockCount: metrics.blockCount,
               largeMultiplications: metrics.largeMultiplications,
               largeDivisions: metrics.largeDivisions,
+              sqrtOperations: metrics.sqrtOperations,
               checkpointCount: metrics.checkpointCount,
               peakBigIntDigits: metrics.peakBigIntDigits,
               retainedBigIntDigits: metrics.retainedBigIntDigits,
