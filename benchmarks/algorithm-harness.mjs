@@ -80,10 +80,12 @@ function assertSamePrefix(a, b, digits) {
  * refine returns an opaque mathematical result; verify extracts a Core VerifiedNumber outside timing.
  * snapshot returns cumulative counters and gauges, optionally overriding callback instrumentation.
  * reference(digits), when provided, supplies independently obtained verified digits outside timing.
+ * onRow(row) is awaited after validation, outside timing, for incremental result persistence.
  */
 export async function runAlgorithmComparison({
   cases,
   precisionGrid = BASE_PRECISION_GRID,
+  onRow = () => {},
   now = () => performance.now(),
   memory = () => ({
     rssBytes: process.memoryUsage().rss,
@@ -175,6 +177,7 @@ export async function runAlgorithmComparison({
             }
             previousMetrics = metrics;
             rows.push(row);
+            await onRow(row);
           }
         } finally {
           await session.dispose?.();

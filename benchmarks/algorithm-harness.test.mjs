@@ -9,6 +9,67 @@ import {
   serializeAlgorithmResults
 } from "./algorithm-harness.mjs";
 import { productionCases } from "./production-candidates.mjs";
+import { BinaryFactorialE, cases as eCases } from "./e-candidates.mjs";
+
+test("AR-8 candidates agree through sequential and direct refinement", async () => {
+  const persisted = [];
+  const rows = await runAlgorithmComparison({
+    cases: eCases,
+    precisionGrid: [30, 100, 300],
+    onRow(row) {
+      persisted.push(row);
+    }
+  });
+  assert.equal(rows.length, 12);
+  assert.deepEqual(persisted, rows);
+});
+
+test("AR-8 binary factorial encloses an independently accumulated tighter series", () => {
+  // Sum k=0..100 with a common denominator, independently of affine splitting.
+  let denominator = 1n;
+  for (let k = 1n; k <= 100n; k++) denominator *= k;
+  let factorial = 1n;
+  let numerator = denominator;
+  for (let k = 1n; k <= 100n; k++) {
+    factorial *= k;
+    numerator += denominator / factorial;
+  }
+  const candidate = new BinaryFactorialE();
+  const bounds = candidate.getInterval(50, { checkpoint() {} });
+  assert.ok(bounds.lower.numerator * denominator <= numerator * bounds.lower.denominator);
+  assert.ok(
+    bounds.upper.numerator * denominator * 101n >=
+      (numerator * 101n + 2n) * bounds.upper.denominator
+  );
+  const blocks = candidate.blocks;
+  candidate.getInterval(20, { checkpoint() {} });
+  assert.equal(candidate.blocks, blocks);
+});
+
+test("AR-8 binary factorial resumes a suspended split without losing terms", () => {
+  const candidate = new BinaryFactorialE();
+  const paused = new Error("test pause");
+  let remaining;
+  const control = {
+    checkpoint() {
+      if (--remaining === 0) throw paused;
+    }
+  };
+  let result;
+  let pauses = 0;
+  while (result === undefined) {
+    remaining = 7;
+    try {
+      result = candidate.getInterval(100, control);
+    } catch (error) {
+      assert.equal(error, paused);
+      pauses++;
+    }
+    assert.ok(pauses < 1000);
+  }
+  assert.ok(pauses > 0);
+  assert.deepEqual(result, new BinaryFactorialE().getInterval(100, { checkpoint() {} }));
+});
 
 function fixture(events, corrupt = false) {
   return {
