@@ -7,7 +7,7 @@ import { BinaryBlock } from "../dist/core/math/binary-block.js";
 import { intervalToRoundedBall } from "../dist/core/math/elementary.js";
 import { routedSmallExp } from "../dist/core/math/exp-router.js";
 import { scaledIntervalToRationalBounds } from "../dist/core/math/scaled-interval.js";
-import { productionCandidate } from "./production-candidates.mjs";
+import { FactorialRecurrenceE } from "../dist/core/math/constants.js";
 
 // Experimental exact affine recurrence N_k = k N_(k-1) + 1.
 // A block represents N -> q*N+t; composition is associative.
@@ -105,7 +105,33 @@ export const cases = [
     name: "e",
     input: { source: "e" },
     candidates: [
-      productionCandidate("factorial-recurrence", "e"),
+      {
+        family: "factorial-recurrence",
+        create(input, counters) {
+          const context = createEvaluationContext({
+            checkpoint() {
+              counters.add("checkpointCount");
+            }
+          });
+          const provider = new FactorialRecurrenceE();
+          return {
+            refine(significantDigits) {
+              return provider.refine({ significantDigits }, context);
+            },
+            verify(ball, significantDigits) {
+              return verifiedNumberFromBall(ball, { significantDigits }, context.backend);
+            },
+            snapshot() {
+              const state = provider.getStateSnapshot();
+              return {
+                termCount: state.completedTerms,
+                peakBigIntDigits: state.peakBigIntDigits,
+                retainedBigIntDigits: state.cachedBigIntDigits
+              };
+            }
+          };
+        }
+      },
       experimentalECandidate("factorial-binary"),
       experimentalECandidate("exp-one-kernel")
     ]

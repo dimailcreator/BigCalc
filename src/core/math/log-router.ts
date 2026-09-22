@@ -4,27 +4,12 @@ import { createRational, divideRational, equalsRational, addRational } from "../
 import { AtanhLogKernel } from "./atanh-blocks.js";
 import type { AtanhLayout } from "./atanh-blocks.js";
 import type { RationalBounds } from "./scaled-interval.js";
+import { selectLogLayout, recordAlgorithmSelection } from "./algorithm-strategy.js";
+export { selectLogLayout } from "./algorithm-strategy.js";
 
 const owners = new WeakMap<EvaluationCheckpoint, ReducedLogProvider[]>();
 // Completed entries may be evicted; a suspended job must never be evicted.
 const COMPLETED_ENTRY_CACHE_SIZE = 8;
-
-export function selectLogLayout(digits: number, argument?: Rational): AtanhLayout {
-  if (argument !== undefined) {
-    const difference = argument.numerator - argument.denominator;
-    if (difference === 0n) return "sequential";
-    const magnitude = difference < 0n ? -difference : difference;
-    const leadingZeros =
-      (argument.numerator + argument.denominator).toString().length -
-      magnitude.toString().length -
-      1;
-    // A few terms suffice very near one. This only selects cost; the kernel
-    // still proves its tail with integer inequalities on the actual argument.
-    if (leadingZeros > 0 && leadingZeros * 16 >= digits + 16) return "sequential";
-  }
-  // Measurements bracket the high-precision crossover between 3000 and 10000.
-  return digits < 128 ? "sequential" : digits < 4096 ? "rectangular" : "binary";
-}
 
 /** Optional exact factor reduction is a benchmark experiment, not a grammar change. */
 export class ReducedLogProvider {
@@ -48,11 +33,27 @@ export class ReducedLogProvider {
     control: EvaluationCheckpoint,
     layout = selectLogLayout(digits, this.argument)
   ): RationalBounds {
+    const guarded = (active: AtanhLogKernel): EvaluationCheckpoint => ({
+      checkpoint: () => {
+        control.checkpoint();
+      },
+      guardBigIntDigits: (estimate) => {
+        // Other layouts and optional table factors remain alive across switching.
+        const retained = [...this.kernels.values()]
+          .flat()
+          .reduce(
+            (sum, kernel) => sum + (kernel === active ? 0 : kernel.retainedDigitsUpperBound),
+            0
+          );
+        control.guardBigIntDigits?.(estimate + retained);
+      }
+    });
     // Finish a suspended old route before switching families on a later request.
     for (const [family, kernels] of this.kernels) {
       if (family !== layout)
         for (const kernel of kernels) {
-          if (kernel.pendingDigits !== null) kernel.getInterval(kernel.pendingDigits, control);
+          if (kernel.pendingDigits !== null)
+            kernel.getInterval(kernel.pendingDigits, guarded(kernel));
         }
     }
     let kernels = this.kernels.get(layout);
@@ -73,7 +74,7 @@ export class ReducedLogProvider {
     let lower = createRational(0n, 1n),
       upper = lower;
     for (const kernel of kernels) {
-      const result = kernel.getInterval(digits, control);
+      const result = kernel.getInterval(digits, guarded(kernel));
       lower = addRational(lower, result.lower);
       upper = addRational(upper, result.upper);
     }
@@ -118,14 +119,26 @@ export function routedReducedLog(
     (sum, entry) => sum + (entry === provider ? 0 : entry.retainedDigitsUpperBound),
     0
   );
-  const result = provider.getInterval(digits, {
-    checkpoint: () => {
-      control.checkpoint();
+  const layout = selectLogLayout(digits, argument);
+  recordAlgorithmSelection(
+    control,
+    "ln",
+    layout,
+    digits,
+    layout === "sequential" && digits >= 128 ? "near-one" : "reduced"
+  );
+  const result = provider.getInterval(
+    digits,
+    {
+      checkpoint: () => {
+        control.checkpoint();
+      },
+      guardBigIntDigits: (estimate) => {
+        control.guardBigIntDigits?.(estimate + otherRetained);
+      }
     },
-    guardBigIntDigits: (estimate) => {
-      control.guardBigIntDigits?.(estimate + otherRetained);
-    }
-  });
+    layout
+  );
   while (entries.filter((entry) => !entry.pending).length > COMPLETED_ENTRY_CACHE_SIZE) {
     const index = entries.findIndex((entry) => entry !== provider && !entry.pending);
     entries.splice(index, 1);

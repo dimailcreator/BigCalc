@@ -43,3 +43,4 @@ import "./sincos-kernel.test.js";
 import "./stirling-adaptive.test.js";
 import "./gamma-alternatives.test.js";
 import "./pi-agm.test.js";
+import "./algorithm-routing.test.js";

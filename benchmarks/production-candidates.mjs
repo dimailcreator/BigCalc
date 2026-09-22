@@ -58,7 +58,7 @@ export function productionCandidate(family, constant) {
 
 export const productionCases = [
   ["pi", "π", "chudnovsky-agm-router", "pi"],
-  ["e", "e", "factorial-recurrence", "e"],
+  ["e", "e", "factorial-routed", "e"],
   ["ln2", "ln(2)", "atanh-binary-rebuild", "ln2"],
   ["ln3", "ln(3)", "binary-reduction-routed-atanh"],
   ["exp", "exp(1)", "dyadic-routed-exp"],

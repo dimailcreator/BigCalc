@@ -3,6 +3,7 @@ import type { Rational } from "../values/contracts.js";
 import { equalsRational } from "../values/rational.js";
 import { SinCosKernel } from "./sincos-kernel.js";
 import type { SinCosLayout, SinCosMode } from "./sincos-kernel.js";
+import { selectSeriesLayout, recordAlgorithmSelection } from "./algorithm-strategy.js";
 
 interface Entry {
   kernel: SinCosKernel;
@@ -10,7 +11,7 @@ interface Entry {
 }
 const owners = new WeakMap<EvaluationCheckpoint, Entry[]>();
 export function selectSinCosLayout(digits: number): SinCosLayout {
-  return digits < 128 ? "sequential" : digits < 4096 ? "rectangular" : "binary";
+  return selectSeriesLayout(digits);
 }
 /** Endpoint state belongs to the evaluation context; pending work is never evicted. */
 export function routedSmallSinCos(
@@ -41,6 +42,7 @@ export function routedSmallSinCos(
   for (const entry of entries)
     if (entry.kernel.pending) entry.kernel.getInterval(entry.digits, guarded(entry.kernel));
   const layout = selectSinCosLayout(digits);
+  recordAlgorithmSelection(control, "sincos", layout, digits, mode);
   let entry = entries.find(
     (e) =>
       e.kernel.mode === mode &&

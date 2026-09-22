@@ -29,6 +29,9 @@ import type { ScaledInterval } from "./scaled-interval.js";
 import { SplittingLn2Provider } from "./ln2-splitting.js";
 import { piProduct, countPiSqrt } from "./pi-instrumentation.js";
 import { AgmPiProvider } from "./pi-agm.js";
+import { FactorialEProvider } from "./e-factorial.js";
+import { selectPiStrategy, recordAlgorithmSelection } from "./algorithm-strategy.js";
+export { AGM_PI_THRESHOLD } from "./algorithm-strategy.js";
 
 const ZERO = 0n;
 const ONE = 1n;
@@ -62,6 +65,9 @@ interface ConstantLazyRealStateSnapshot {
   readonly lastTargetTermCount?: number;
   readonly peakBigIntDigits?: number;
   readonly cachedBigIntDigits?: number;
+  readonly algorithm?: "factorial-binary" | "factorial-recurrence";
+  readonly blockCount?: number;
+  readonly pending?: boolean;
 }
 
 export interface PiProviderStateSnapshot {
@@ -146,8 +152,6 @@ const contextConstants = new WeakMap<EvaluationContext, Map<string, StatefulCons
 const contextPiProviders = new WeakMap<EvaluationContext, PiProviderState>();
 const contextAgmPiProviders = new WeakMap<EvaluationContext, AgmPiProvider>();
 const piSelection = new WeakMap<EvaluationContext, "chudnovsky" | "agm">();
-// Measured AR-7 crossover; requests below this keep the established baseline.
-export const AGM_PI_THRESHOLD = 3000;
 const contextLn2Providers = new WeakMap<object, SplittingLn2Provider>();
 
 export function createBuiltinConstantValue(name: "π" | "e", context: EvaluationContext): LazyReal {
@@ -166,6 +170,53 @@ export function createBuiltinConstantValue(name: "π" | "e", context: Evaluation
 }
 
 class ELazyReal implements StatefulConstantLazyReal {
+  readonly kind = "lazy-real";
+  private readonly provider = new FactorialEProvider();
+  private refinementCalls = 0;
+  private highestRequestedDigits = 0;
+  private lastRefinementAddedTerms = 0;
+  private lastRefinementReusedTerms = 0;
+
+  refine(request: PrecisionRequest, context: EvaluationContext): Promise<Ball> {
+    const control = requireGraphLikeContext(context);
+    this.refinementCalls++;
+    this.highestRequestedDigits = Math.max(this.highestRequestedDigits, request.significantDigits);
+    const before = this.provider.completedTerms;
+    this.lastRefinementReusedTerms = before;
+    let digits = request.significantDigits + CONSTANT_GUARD_DIGITS;
+    for (;;) {
+      const bounds = this.provider.getInterval(digits, control);
+      const ball = ballFromRationalInterval(
+        bounds.lower,
+        bounds.upper,
+        precisionBitsForConstantDigits(request.significantDigits),
+        control.backend
+      );
+      const verified = verifiedNumberFromBall(ball, request, control.backend, control);
+      this.lastRefinementAddedTerms = this.provider.completedTerms - before;
+      if (verified.verifiedDigits >= request.significantDigits) return Promise.resolve(ball);
+      digits += Math.max(
+        CONSTANT_GUARD_DIGITS,
+        request.significantDigits - verified.verifiedDigits
+      );
+    }
+  }
+
+  getStateSnapshot(): ConstantLazyRealStateSnapshot {
+    return Object.freeze({
+      ...this.provider.getSnapshot(),
+      name: "e",
+      refinementCalls: this.refinementCalls,
+      highestRequestedDigits: this.highestRequestedDigits,
+      lastRefinementAddedTerms: this.lastRefinementAddedTerms,
+      lastRefinementReusedTerms: this.lastRefinementReusedTerms,
+      lastTargetTermCount: this.provider.completedTerms
+    });
+  }
+}
+
+/** Explicit pre-AR-9 baseline for independent comparison; not a production route. */
+export class FactorialRecurrenceE implements StatefulConstantLazyReal {
   readonly kind = "lazy-real";
   private refinementCalls = 0;
   private highestRequestedDigits = 0;
@@ -333,12 +384,14 @@ export function getPiRationalInterval(
   userRequestedDigits: number | null = null
 ): PiRationalInterval {
   let agm = contextAgmPiProviders.get(context);
-  if (decimalDigits >= AGM_PI_THRESHOLD || agm?.canServe(decimalDigits)) {
+  const control = requireGraphLikeContext(context);
+  const strategy = selectPiStrategy(decimalDigits, agm?.canServe(decimalDigits));
+  recordAlgorithmSelection(control, "pi", strategy, decimalDigits, "constant");
+  if (strategy === "agm") {
     if (agm === undefined) {
       agm = new AgmPiProvider();
       contextAgmPiProviders.set(context, agm);
     }
-    const control = requireGraphLikeContext(context);
     // A strategy switch retains the old split tree and pending carry.
     control.guardBigIntDigits?.(
       96 * Math.max(decimalDigits + 32, agm.getSnapshot().workingDigits) +

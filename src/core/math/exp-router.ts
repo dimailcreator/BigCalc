@@ -3,6 +3,7 @@ import type { Rational } from "../values/contracts.js";
 import { equalsRational } from "../values/rational.js";
 import { ExpKernel } from "./exp-kernel.js";
 import type { ExpLayout } from "./exp-kernel.js";
+import { selectSeriesLayout, recordAlgorithmSelection } from "./algorithm-strategy.js";
 
 interface Entry {
   kernel: ExpKernel;
@@ -10,7 +11,7 @@ interface Entry {
 }
 const owners = new WeakMap<EvaluationCheckpoint, Entry[]>();
 export function selectExpLayout(digits: number): ExpLayout {
-  return digits < 128 ? "sequential" : digits < 4096 ? "rectangular" : "binary";
+  return selectSeriesLayout(digits);
 }
 /** A context owns at most eight completed endpoints. Pending work is completed
  * before changing endpoints/families, including when shared ln2 was refined.
@@ -38,6 +39,7 @@ export function routedSmallExp(argument: Rational, digits: number, control: Eval
   for (const entry of entries)
     if (entry.kernel.pending) entry.kernel.getInterval(entry.digits, guarded(entry.kernel));
   const layout = selectExpLayout(digits);
+  recordAlgorithmSelection(control, "exp", layout, digits, "reduced-positive");
   let entry = entries.find(
     (e) => e.kernel.layout === layout && equalsRational(e.kernel.argument, argument)
   );
