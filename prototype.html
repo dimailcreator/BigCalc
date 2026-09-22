@@ -1,0 +1,2329 @@
+<head>
+    <title>Calculator</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: white;
+    }
+    @property --KeyRow_type1_height {
+        syntax: '<percentage>';
+        inherits: true;
+        initial-value: 16.666%;
+    }
+    @property --KeyRow_type2_height {
+        syntax: '<percentage>';
+        inherits: true;
+        initial-value: 0%;
+    }
+    @property --KeyRow_type1_fontsize {
+        syntax: '<length>';
+        inherits: true;
+        initial-value: 46px;
+    }
+    @property --KeyRow_type2_fontsize {
+        syntax: '<length>';
+        inherits: true;
+        initial-value: 0px;
+    }
+    :root {
+        --points_count: 22;
+        --one: #010101; /* Основной фон */
+        --two: #22262e; /* Обычные кнопки клавиатуры */
+        --three: #414558; /* Кнопки + - * / и тд. */ 
+        --four: #ecd8ff; /* = */
+        --five: #171719; /* Верхняя панель, боковая панель, уведомление и тд. */
+        --six: #30457c; /* AC */
+    }
+    html {
+        overflow: hidden;
+    }
+    @keyframes exp1 {
+        0% {
+            --KeyRow_type1_height: 16.666%;
+        }
+        100% {
+            --KeyRow_type1_height: 11.111%;
+        }
+    }
+    @keyframes exp2 {
+        0% {
+            --KeyRow_type2_height: 0%;
+        }
+        100% {
+            --KeyRow_type2_height: 11.111%;
+        }
+    }
+    @keyframes font1 {
+        0% {
+            --KeyRow_type1_fontsize: 46px;
+        }
+        100% {
+            --KeyRow_type1_fontsize: 34px;
+        }
+    }
+    @keyframes font2 {
+        0% {
+            --KeyRow_type2_fontsize: 0px;
+        }
+        100% {
+            --KeyRow_type2_fontsize: 34px;
+        }
+    }
+    body {
+        background-color: var(--one);
+    }
+    .TopBar {
+        width: 100%;
+        height: 175px;
+        background-color: var(--five);
+        color: white;
+        display: flex;
+    }
+    .TopBar_left {
+        height: 100%;
+        width: 50%;
+        display: flex;
+        justify-content: flex-start;
+    }
+    .TopBar_right {
+        height: 100%;
+        width: 50%;
+        display: flex;
+        justify-content: flex-end;
+    }
+    .TopBar_button {
+        height: 100%;
+        aspect-ratio: 1;
+        font-size: 75px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+    .icon {
+        width: 75px;
+        height: 75px;
+    }
+
+    .input_block {
+        height: 250px;
+        width: calc(100% - 10px);
+        display: flex;
+        justify-content: end;
+        align-items: center;
+    }
+    .input {
+        height: 200px;
+        caret-color: lightblue;
+        color: white;
+        outline: none;
+        font-size: 150px;
+        letter-spacing: 3px;
+    }
+
+    .output_block {
+        margin: 0 auto;
+        height: 150px;
+        width: calc(var(--points_count) * 43px);
+        display: flex;
+        justify-content: end;
+        align-items: center;
+    }
+    .output {
+        height: 100px;
+        display: ruby;
+        white-space: nowrap;
+        caret-color: lightblue;
+        color: white;
+        outline: none;
+        font-size: 75px;
+        letter-spacing: 3px;
+    }
+    .output_point {
+        width: 43px;
+        height: 100%;
+        font-size: 75px;
+        text-align: center;
+    }
+
+
+    .Keyboard {
+        height: calc(100% - 575px);
+    }
+    .KeyboardRow {
+        height: var(--KeyRow_type1_height);
+        display: flex
+    }
+    .KeyboardRow_dop {
+        height: var(--KeyRow_type2_height);
+        display: flex
+    }
+    .Key {
+        height: 100%;
+        width: 25%;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+    }
+    .KeyButton {
+        height: calc(100% - 20px);
+        width: calc(100% - 20px);
+        display: flex;
+        border-radius: 100rem;
+        background: var(--two);
+        font-size: var(--KeyRow_type1_fontsize);
+        user-select: none;
+        justify-content: space-around;
+        align-items: center;
+        filter: brightness(1);
+        transition: filter 0.05s;
+    }
+    .KeyButton:active {
+        filter: brightness(1.5);
+        transition: 0.05s;
+    }
+    .KeyButton-t1 {
+        background: var(--one);
+        font-size: 75px;
+    }
+    .KeyButton-t2 {
+        background: var(--six);
+    }
+    .KeyButton-t3 {
+        background: var(--three);
+    }
+    .KeyButton-t4 {
+        background: var(--four);
+        color: #000;
+    }
+    .KeyboardRow_dop .KeyButton {
+        font-size: var(--KeyRow_type2_fontsize);
+    }
+
+    .LeftBoard {
+        position: absolute;
+        width: min(82vw, 360px);
+        height: 100dvh;
+        top: 0;
+        left: 0;
+        z-index: 100;
+        box-sizing: border-box;
+        padding: max(18px, env(safe-area-inset-top, 0px)) 14px max(16px, env(safe-area-inset-bottom, 0px));
+        background: #11151d;
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 18px 0 48px rgba(0, 0, 0, 0.32);
+        transform: translateX(-100%);
+        transition: transform 0.22s ease-out;
+        display: flex;
+        flex-direction: column;
+    }
+    .LeftBoard[on="1"] {
+        transform: translateX(0);
+    }
+    .LeftBoard_header {
+        flex: 0 0 auto;
+        min-height: 64px;
+        padding: 10px 12px 16px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 2px;
+    }
+    .LeftBoard_title {
+        color: #f6f3fb;
+        font-size: 24px;
+        line-height: 1.15;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+    }
+    .LeftBoard_subtitle {
+        color: #8f96a3;
+        font-size: 13px;
+        line-height: 1.2;
+        font-weight: 400;
+    }
+    .LeftBoard_list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 4px 0 10px;
+        scrollbar-width: none;
+    }
+    .LeftBoard_list::-webkit-scrollbar {
+        display: none;
+    }
+    .LeftBoard_item {
+        width: 100%;
+        min-height: 54px;
+        margin: 4px 0;
+        padding: 0 16px;
+        box-sizing: border-box;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        color: #dce0e8;
+        font-size: 18px;
+        line-height: 1;
+        font-weight: 450;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 80ms ease, transform 80ms ease;
+    }
+    .LeftBoard_item:active {
+        background: rgba(255, 255, 255, 0.08);
+        transform: scale(0.985);
+    }
+    .LeftBoard_item--active {
+        background: #202631;
+        color: #f6f3fb;
+        font-weight: 550;
+    }
+    .LeftBoard_add {
+        flex: 0 0 56px;
+        width: 100%;
+        border-radius: 20px;
+        background: #202631;
+        color: #e2e7f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-size: 16px;
+        font-weight: 550;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: filter 80ms ease, transform 80ms ease;
+    }
+    .LeftBoard_add:active {
+        filter: brightness(1.2);
+        transform: scale(0.985);
+    }
+    .LeftBoard_addIcon {
+        font-size: 25px;
+        line-height: 1;
+        font-weight: 300;
+        transform: translateY(-1px);
+    }
+
+    .RightBoard {
+        position: absolute;
+        width: min(72vw, 280px);
+        top: max(64px, calc(env(safe-area-inset-top, 0px) + 58px));
+        right: 12px;
+        z-index: 100;
+        box-sizing: border-box;
+        padding: 8px;
+        border-radius: 24px;
+        background: #171b24;
+        border: 1px solid rgba(255, 255, 255, 0.055);
+        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-8px) scale(0.97);
+        transform-origin: top right;
+        transition: opacity 0.14s ease-out, transform 0.14s ease-out, visibility 0.14s;
+    }
+    .RightBoard[on="1"] {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+    }
+    .RightBoard_item {
+        width: 100%;
+        min-height: 54px;
+        padding: 0 16px;
+        box-sizing: border-box;
+        border-radius: 17px;
+        display: flex;
+        align-items: center;
+        color: #e4e7ee;
+        font-size: 17px;
+        line-height: 1.2;
+        font-weight: 450;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 80ms ease, transform 80ms ease;
+    }
+    .RightBoard_item + .RightBoard_item {
+        margin-top: 2px;
+    }
+    .RightBoard_item:active {
+        background: #252b36;
+        transform: scale(0.985);
+    }
+
+    .exp-open {
+    animation:
+        exp1  0.2s forwards ease-out,
+        exp2  0.2s forwards ease-out,
+        font1 0.2s forwards ease-out,
+        font2 0.2s forwards ease-out;
+    }
+    .exp-close {
+        animation:
+            exp1  0.2s reverse forwards ease-out,
+            exp2  0.2s reverse forwards ease-out,
+            font1  0.2s reverse forwards ease-out,
+            font2 0.2s reverse forwards ease-out;
+    }
+    .back {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        left: -100%;
+        top: -100%;
+        z-index: 99;
+        background: rgba(0, 0, 0, 0);
+        transition: background 0.2s;
+    }
+    .back[on="1"] {
+        left: 0px;
+        top: 0px;
+        background: rgba(0, 0, 0, 0.5);
+        transition: background 0.2s;
+    }
+    .list_block {
+        width: 90%;
+        margin: auto auto;
+        height: 150px;
+        font-size: clamp(36px, 6vw, 48px);
+        border-top: 1px solid rgba(255, 255, 255, 0.5);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+        display: flex;
+        justify-content: start;
+        align-items: center;
+        text-indent: 75px;
+    }
+    .none_block {
+        width: 100%;
+    }
+
+    .window {
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        background: var(--two);
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .window[window_on="1"] {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.2s;
+    }
+
+
+    /* ===== Refined main screen =====
+       Scoped to .MainScreen intentionally: drawers, settings and other
+       prototype screens keep their original visual treatment for now. */
+    .MainScreen {
+        --main-bg: #090b10;
+        --main-surface: #11151d;
+        --key-bg: #1b202a;
+        --key-special: #2a3040;
+        --key-ac: #294a7e;
+        --key-equals: #dfc8ff;
+        --text-main: #f6f3fb;
+        --text-muted: #a8adb8;
+        --key-gap: clamp(4px, 1.2vw, 8px);
+        position: relative;
+        width: 100%;
+        height: 100dvh;
+        min-height: 520px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: var(--main-bg);
+        color: var(--text-main);
+    }
+
+    .MainScreen .TopBar {
+        flex: 0 0 clamp(58px, 8.5dvh, 76px);
+        height: auto;
+        width: auto;
+        margin: 0 clamp(6px, 1.8vw, 14px);
+        padding-top: env(safe-area-inset-top, 0px);
+        box-sizing: content-box;
+        background: transparent;
+        display: flex;
+        align-items: stretch;
+    }
+    .MainScreen .TopBar_left,
+    .MainScreen .TopBar_right {
+        height: 100%;
+        width: 50%;
+        align-items: center;
+    }
+    .MainScreen .TopBar_button {
+        height: clamp(44px, 6.7dvh, 56px);
+        width: clamp(44px, 6.7dvh, 56px);
+        aspect-ratio: 1;
+        margin: auto 1px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 90ms ease, transform 90ms ease;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .MainScreen .TopBar_button:active {
+        background: rgba(255,255,255,.09);
+        transform: scale(.94);
+    }
+    .MainScreen .icon {
+        width: clamp(25px, 6.2vw, 31px);
+        height: clamp(25px, 6.2vw, 31px);
+        opacity: .90;
+    }
+
+    .MainScreen .MainDisplay {
+        flex: 0 1 clamp(180px, 28dvh, 260px);
+        min-height: 160px;
+        padding: clamp(8px, 2dvh, 18px) clamp(20px, 5.5vw, 34px) clamp(12px, 2dvh, 20px);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: clamp(6px, 1.6dvh, 14px);
+        overflow: hidden;
+        transition:
+            flex-basis 260ms cubic-bezier(.22,.7,.2,1),
+            min-height 260ms cubic-bezier(.22,.7,.2,1),
+            padding 260ms cubic-bezier(.22,.7,.2,1),
+            gap 260ms cubic-bezier(.22,.7,.2,1),
+            background-color 220ms ease,
+            border-color 220ms ease;
+    }
+    .MainScreen .input_block,
+    .MainScreen .output_block {
+        width: 100%;
+        height: auto;
+        min-width: 0;
+        margin: 0;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        overflow: hidden;
+    }
+    .MainScreen .input_block {
+        flex: 1 1 auto;
+        min-height: 62px;
+    }
+    .MainScreen .input {
+        height: auto;
+        max-width: 100%;
+        min-width: 0;
+        padding: 4px 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        text-align: right;
+        font-size: clamp(42px, 12.2vw, 68px);
+        line-height: 1.08;
+        letter-spacing: -.025em;
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+        caret-color: #b9d1ff;
+        scrollbar-width: none;
+    }
+    .MainScreen .input::-webkit-scrollbar,
+    .MainScreen .output::-webkit-scrollbar {
+        display: none;
+    }
+    .MainScreen .output_block {
+        flex: 0 0 auto;
+        min-height: 42px;
+    }
+    .MainScreen .output {
+        height: auto;
+        max-width: 100%;
+        overflow: hidden;
+        display: flex;
+        justify-content: flex-end;
+        align-items: baseline;
+        white-space: nowrap;
+        color: var(--text-muted);
+        font-size: clamp(26px, 7.1vw, 38px);
+        line-height: 1.16;
+        letter-spacing: 0;
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+    }
+    .MainScreen .output_point {
+        flex: 0 0 1ch;
+        width: 1ch;
+        height: auto;
+        font-size: inherit;
+        line-height: inherit;
+        text-align: center;
+        color: inherit;
+    }
+
+    /* Number viewport demo. The visible number never scrolls physically.
+       A transparent native scroll track supplies touch/trackpad inertia, while
+       JS maps its scroll position to the discrete digit window. */
+    .MainScreen .NumberViewport {
+        width: 100%;
+        min-width: 0;
+        position: relative;
+        overflow: hidden;
+        cursor: grab;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        outline: none;
+    }
+    .MainScreen .NumberViewport:focus-visible {
+        border-radius: 10px;
+        box-shadow: 0 0 0 2px rgba(185,209,255,.22);
+    }
+    .MainScreen .NumberScrollSurface {
+        position: relative;
+        display: block;
+        width: 100%;
+        height: 1.2em;
+        min-height: 1.2em;
+        overflow: hidden;
+        pointer-events: none;
+    }
+    .MainScreen .NumberSlots {
+        position: absolute;
+        inset: 0;
+        min-width: 0;
+        height: 100%;
+        display: flex;
+        justify-content: flex-end;
+        align-items: baseline;
+        overflow: hidden;
+        pointer-events: none;
+    }
+    .MainScreen .NumberScrollTrack {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        overflow-x: auto;
+        overflow-y: hidden;
+        opacity: 0;
+        cursor: grab;
+        touch-action: pan-x pan-y;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: none;
+    }
+    .MainScreen .NumberScrollTrack::-webkit-scrollbar {
+        display: none;
+    }
+    .MainScreen .NumberScrollTrack:active {
+        cursor: grabbing;
+    }
+    .MainScreen .NumberScrollTrackInner {
+        display: block;
+        position: relative;
+        height: 1px;
+        min-height: 1px;
+        pointer-events: none;
+    }
+    .MainScreen .NumberSlot {
+        flex: 0 0 1ch;
+        width: 1ch;
+        min-width: 1ch;
+        height: auto;
+        font: inherit;
+        line-height: inherit;
+        text-align: center;
+        color: inherit;
+    }
+    .MainScreen .NumberPlaceholder {
+        color: transparent;
+    }
+    .MainScreen .NumberEllipsis {
+        position: relative;
+        letter-spacing: -.12ch;
+        text-indent: -.06ch;
+        overflow: visible;
+    }
+    .MainScreen .NumberExponent {
+        color: inherit;
+    }
+
+    .MainScreen .KeyboardContainer {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    .MainScreen .Keyboard {
+        height: 100%;
+        min-height: 0;
+        padding: 4px clamp(8px, 2.4vw, 16px) max(8px, env(safe-area-inset-bottom, 8px));
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+    }
+    .MainScreen .KeyboardRow,
+    .MainScreen .KeyboardRow_dop {
+        box-sizing: border-box;
+        overflow: hidden;
+        display: flex;
+        flex: 0 0 var(--KeyRow_type1_height);
+        height: auto;
+    }
+    .MainScreen .KeyboardRow_dop {
+        flex-basis: var(--KeyRow_type2_height);
+    }
+    .MainScreen .Key {
+        width: 25%;
+        height: 100%;
+        padding: var(--key-gap);
+        box-sizing: border-box;
+        display: flex;
+        align-items: stretch;
+        justify-content: stretch;
+    }
+    .MainScreen .KeyButton {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        border-radius: clamp(17px, 5.8vw, 30px);
+        background: var(--key-bg);
+        color: var(--text-main);
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: min(var(--KeyRow_type1_fontsize), 7.6vw);
+        line-height: 1;
+        font-weight: 450;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.025);
+        filter: none;
+        transition: transform 70ms ease, filter 70ms ease, background-color 70ms ease;
+    }
+    .MainScreen .KeyButton:active {
+        transform: scale(.95);
+        filter: brightness(1.28);
+    }
+    .MainScreen .KeyButton-t1 {
+        background: transparent;
+        box-shadow: none;
+        border-radius: 999px;
+        color: #c8ccd5;
+        font-size: clamp(16px, 4.8vw, 22px);
+        font-weight: 500;
+    }
+    .MainScreen .KeyButton-t2 {
+        background: var(--key-ac);
+        color: #e4eeff;
+    }
+    .MainScreen .KeyButton-t3 {
+        background: var(--key-special);
+        color: #e6e8ef;
+    }
+    .MainScreen .KeyButton-t4 {
+        background: var(--key-equals);
+        color: #251833;
+        font-weight: 600;
+    }
+    .MainScreen .KeyboardRow_dop .KeyButton {
+        font-size: min(var(--KeyRow_type2_fontsize), 6.5vw);
+        background: #202631;
+        font-weight: 450;
+    }
+
+    /* ===== Settings screen ===== */
+    #Settings {
+        z-index: 120;
+        background: #090b10;
+        color: #f6f3fb;
+        overflow: hidden;
+        transform: translateX(18px);
+        transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+    }
+    #Settings[window_on="1"] {
+        transform: translateX(0);
+    }
+    .SettingsTopBar {
+        height: calc(64px + env(safe-area-inset-top, 0px));
+        padding: env(safe-area-inset-top, 0px) 10px 0;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: #090b10;
+    }
+    .SettingsBack {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 80ms ease, transform 80ms ease;
+    }
+    .SettingsBack:active {
+        background: rgba(255,255,255,.08);
+        transform: scale(.94);
+    }
+    .SettingsBack img {
+        width: 25px;
+        height: 25px;
+        opacity: .92;
+    }
+    .SettingsTitle {
+        padding-left: 6px;
+        font-size: 22px;
+        line-height: 1;
+        font-weight: 600;
+        letter-spacing: -.02em;
+    }
+    .SettingsContent {
+        height: calc(100dvh - 64px - env(safe-area-inset-top, 0px));
+        box-sizing: border-box;
+        overflow-y: auto;
+        padding: 18px 14px max(28px, env(safe-area-inset-bottom, 0px));
+        scrollbar-width: none;
+    }
+    .SettingsContent::-webkit-scrollbar {
+        display: none;
+    }
+    .SettingsSection {
+        max-width: 620px;
+        margin: 0 auto 24px;
+    }
+    .SettingsSectionTitle {
+        margin: 0 12px 9px;
+        color: #8f96a3;
+        font-size: 13px;
+        line-height: 1.2;
+        font-weight: 500;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+    .SettingsCard {
+        overflow: hidden;
+        border-radius: 24px;
+        background: #151a22;
+        border: 1px solid rgba(255,255,255,.045);
+    }
+    .SettingsRow {
+        min-height: 82px;
+        padding: 13px 14px 13px 18px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .SettingsRow + .SettingsRow {
+        border-top: 1px solid rgba(255,255,255,.055);
+    }
+    .SettingsText {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .SettingsLabel {
+        color: #f3f1f7;
+        font-size: 17px;
+        line-height: 1.25;
+        font-weight: 500;
+    }
+    .SettingsDescription {
+        margin-top: 4px;
+        max-width: 360px;
+        color: #8f96a3;
+        font-size: 12.5px;
+        line-height: 1.35;
+        font-weight: 400;
+    }
+    .SettingsSegmented {
+        flex: 0 0 auto;
+        padding: 3px;
+        border-radius: 15px;
+        display: flex;
+        gap: 2px;
+        background: #202630;
+        user-select: none;
+    }
+    .SettingsSegment {
+        min-width: 54px;
+        height: 38px;
+        padding: 0 12px;
+        box-sizing: border-box;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #aeb4bf;
+        font-size: 14px;
+        line-height: 1;
+        font-weight: 550;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 90ms ease, color 90ms ease, transform 70ms ease;
+    }
+    .SettingsSegment:active {
+        transform: scale(.96);
+    }
+    .SettingsSegment[active="1"] {
+        background: #374258;
+        color: #f5f2fa;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
+    }
+    .SettingsNumberControl {
+        flex: 0 0 auto;
+        height: 42px;
+        padding: 0 11px 0 12px;
+        border-radius: 14px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: #202630;
+        border: 1px solid rgba(255,255,255,.04);
+    }
+    .SettingsNumberInput {
+        width: 48px;
+        padding: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: #f5f2fa;
+        font: inherit;
+        font-size: 16px;
+        line-height: 1;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        -moz-appearance: textfield;
+    }
+    .SettingsNumberInput::-webkit-outer-spin-button,
+    .SettingsNumberInput::-webkit-inner-spin-button {
+        margin: 0;
+        -webkit-appearance: none;
+    }
+    .SettingsUnit {
+        color: #9ba2ae;
+        font-size: 14px;
+        line-height: 1;
+    }
+    .SettingsFootnote {
+        max-width: 620px;
+        margin: -8px auto 0;
+        padding: 0 12px;
+        box-sizing: border-box;
+        color: #747b88;
+        font-size: 12.5px;
+        line-height: 1.4;
+    }
+
+
+    /* ===== About screen ===== */
+    #About {
+        z-index: 120;
+        background: #090b10;
+        color: #f6f3fb;
+        overflow: hidden;
+        transform: translateX(18px);
+        transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+    }
+    #About[window_on="1"] {
+        transform: translateX(0);
+    }
+    .AboutContent {
+        height: calc(100dvh - 64px - env(safe-area-inset-top, 0px));
+        box-sizing: border-box;
+        overflow-y: auto;
+        padding: 24px 14px max(28px, env(safe-area-inset-bottom, 0px));
+        scrollbar-width: none;
+    }
+    .AboutContent::-webkit-scrollbar {
+        display: none;
+    }
+    .AboutWrap {
+        max-width: 620px;
+        margin: 0 auto;
+    }
+    .AboutHero {
+        padding: 20px 18px 22px;
+        border-radius: 26px;
+        background: #151a22;
+        border: 1px solid rgba(255,255,255,.045);
+    }
+    .AboutEyebrow {
+        color: #89919e;
+        font-size: 12px;
+        line-height: 1.2;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+    .AboutName {
+        margin-top: 8px;
+        color: #f6f3fb;
+        font-size: clamp(34px, 9vw, 48px);
+        line-height: 1;
+        font-weight: 650;
+        letter-spacing: -.04em;
+    }
+    .AboutVersion {
+        margin-top: 12px;
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #202630;
+        color: #b7bdc8;
+        font-size: 13px;
+        line-height: 1;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+    }
+    .AboutSection {
+        margin-top: 18px;
+    }
+    .AboutSectionTitle {
+        margin: 0 12px 9px;
+        color: #8f96a3;
+        font-size: 13px;
+        line-height: 1.2;
+        font-weight: 500;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+    .AboutCard {
+        padding: 18px;
+        border-radius: 24px;
+        background: #151a22;
+        border: 1px solid rgba(255,255,255,.045);
+    }
+    .AboutPlaceholder {
+        color: #9ba2ae;
+        font-size: 15px;
+        line-height: 1.5;
+        font-weight: 400;
+    }
+    .AboutPlaceholder::before {
+        content: "";
+        display: block;
+        width: 34px;
+        height: 4px;
+        margin-bottom: 14px;
+        border-radius: 999px;
+        background: #374258;
+    }
+    .AboutGitHub {
+        width: 100%;
+        min-height: 58px;
+        margin-top: 18px;
+        padding: 0 18px;
+        box-sizing: border-box;
+        border-radius: 19px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        background: #dfc8ff;
+        color: #251833;
+        text-decoration: none;
+        font-size: 16px;
+        line-height: 1.2;
+        font-weight: 650;
+        -webkit-tap-highlight-color: transparent;
+        transition: filter 80ms ease, transform 80ms ease;
+    }
+    .AboutGitHub:active {
+        filter: brightness(.92);
+        transform: scale(.985);
+    }
+    .AboutGitHubText {
+        color: inherit;
+    }
+    .AboutGitHubArrow {
+        color: inherit;
+        font-size: 22px;
+        line-height: 1;
+        transform: translateY(-1px);
+    }
+    .AboutRepo {
+        margin-top: 9px;
+        padding: 0 4px;
+        color: #747b88;
+        font-size: 12.5px;
+        line-height: 1.35;
+        text-align: center;
+    }
+
+
+    /* ===== History ===== */
+    .MainScreen .HistoryPanel {
+        display: flex;
+        flex-direction: column;
+        flex: 0 1 0;
+        max-height: 0;
+        min-height: 0;
+        padding: 0 14px;
+        box-sizing: border-box;
+        overflow: hidden;
+        background: var(--main-bg);
+        opacity: 0;
+        transform: translateY(-24px);
+        visibility: hidden;
+        pointer-events: none;
+        transition:
+            flex-grow 260ms cubic-bezier(.22,.7,.2,1),
+            max-height 260ms cubic-bezier(.22,.7,.2,1),
+            padding 260ms cubic-bezier(.22,.7,.2,1),
+            opacity 150ms ease,
+            transform 260ms cubic-bezier(.22,.7,.2,1),
+            visibility 0s linear 260ms;
+        will-change: max-height, transform, opacity;
+    }
+    .MainScreen[history_on="1"] .HistoryPanel {
+        flex-grow: 1;
+        max-height: 100dvh;
+        padding: 8px 14px 12px;
+        opacity: 1;
+        transform: translateY(0);
+        visibility: visible;
+        pointer-events: auto;
+        transition:
+            flex-grow 260ms cubic-bezier(.22,.7,.2,1),
+            max-height 260ms cubic-bezier(.22,.7,.2,1),
+            padding 260ms cubic-bezier(.22,.7,.2,1),
+            opacity 180ms ease 55ms,
+            transform 260ms cubic-bezier(.22,.7,.2,1),
+            visibility 0s;
+    }
+    .MainScreen .HistoryHeader {
+        flex: 0 0 auto;
+        min-height: 46px;
+        padding: 0 6px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .MainScreen .HistoryTitle {
+        color: #f3f1f7;
+        font-size: 20px;
+        line-height: 1;
+        font-weight: 600;
+        letter-spacing: -.02em;
+    }
+    .MainScreen .HistoryHint {
+        color: #777f8c;
+        font-size: 12px;
+        line-height: 1.2;
+        text-align: right;
+    }
+    .MainScreen .HistoryList {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        scrollbar-width: none;
+        overscroll-behavior: contain;
+    }
+    .MainScreen .HistoryList::-webkit-scrollbar {
+        display: none;
+    }
+    .MainScreen .HistoryItem {
+        position: relative;
+        padding: 13px 14px 14px;
+        border-radius: 20px;
+        background: #11151d;
+        border: 1px solid rgba(255,255,255,.04);
+    }
+    .MainScreen .HistoryItem + .HistoryItem {
+        margin-top: 8px;
+    }
+    .MainScreen .HistoryExpression,
+    .MainScreen .HistoryResult {
+        max-width: 100%;
+        margin-left: auto;
+        width: fit-content;
+        box-sizing: border-box;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        text-align: right;
+        -webkit-tap-highlight-color: transparent;
+        transition: opacity 70ms ease, transform 70ms ease;
+    }
+    .MainScreen .HistoryExpression {
+        min-height: 28px;
+        padding: 4px 7px;
+        border-radius: 9px;
+        color: #929aa8;
+        font-size: 15px;
+        line-height: 20px;
+        font-weight: 400;
+    }
+    .MainScreen .HistoryResult {
+        min-height: 38px;
+        margin-top: 2px;
+        padding: 3px 7px;
+        border-radius: 11px;
+        color: #f3f1f7;
+        font-size: clamp(24px, 6.8vw, 32px);
+        line-height: 32px;
+        font-weight: 450;
+        font-variant-numeric: tabular-nums;
+    }
+    .MainScreen .HistoryResult.NumberViewport {
+        width: 100%;
+        cursor: ew-resize;
+        text-overflow: clip;
+    }
+    .MainScreen .HistoryExpression:active,
+    .MainScreen .HistoryResult:active {
+        opacity: .62;
+        transform: scale(.985);
+    }
+    .MainScreen .HistoryMeta {
+        margin-top: 4px;
+        padding: 0 7px;
+        color: #5f6672;
+        font-size: 10.5px;
+        line-height: 1.2;
+        text-align: right;
+    }
+    .MainScreen .HistoryButton[active="1"] {
+        background: rgba(223,200,255,.13);
+    }
+    .MainScreen .KeyboardContainer {
+        max-height: 100dvh;
+        overflow: hidden;
+        opacity: 1;
+        transform: translateY(0);
+        transition:
+            flex-grow 260ms cubic-bezier(.22,.7,.2,1),
+            flex-basis 260ms cubic-bezier(.22,.7,.2,1),
+            max-height 260ms cubic-bezier(.22,.7,.2,1),
+            opacity 130ms ease,
+            transform 260ms cubic-bezier(.22,.7,.2,1);
+        will-change: max-height, transform, opacity;
+    }
+    .MainScreen[history_on="1"] .KeyboardContainer {
+        flex-grow: 0;
+        flex-basis: 0;
+        max-height: 0;
+        opacity: 0;
+        transform: translateY(28px);
+        pointer-events: none;
+    }
+    .MainScreen .MainDisplay {
+        position: relative;
+    }
+    .MainScreen .MainDisplay::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: clamp(20px, 5.5vw, 34px);
+        right: clamp(20px, 5.5vw, 34px);
+        height: 1px;
+        background: rgba(255,255,255,.055);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 90ms ease;
+    }
+    .MainScreen[history_on="1"] .MainDisplay {
+        flex: 0 0 auto;
+        min-height: 0;
+        padding: 13px clamp(20px, 5.5vw, 34px) max(18px, env(safe-area-inset-bottom, 0px));
+        gap: 4px;
+        background: #0d1016;
+    }
+    .MainScreen[history_on="1"] .MainDisplay::before {
+        opacity: 1;
+        transition: opacity 120ms ease 180ms;
+    }
+    .MainScreen[history_on="1"] .input_block {
+        min-height: 54px;
+        flex: 0 0 auto;
+    }
+    .MainScreen[history_on="1"] .output_block {
+        min-height: 36px;
+    }
+    .MainScreen[history_on="1"] .input {
+        font-size: clamp(34px, 10vw, 52px);
+    }
+    .MainScreen[history_on="1"] .output {
+        font-size: clamp(22px, 6vw, 31px);
+    }
+    .MainScreen .AnsToken {
+        display: inline-block;
+        margin: 0 .04em;
+        padding: .02em .12em .06em;
+        border-radius: .25em;
+        background: rgba(223,200,255,.12);
+        color: inherit;
+        box-shadow: inset 0 0 0 1px rgba(223,200,255,.12);
+        vertical-align: baseline;
+    }
+
+    @media (max-height: 680px) {
+        .MainScreen .MainDisplay {
+            flex-basis: 150px;
+            min-height: 138px;
+            padding-top: 4px;
+            padding-bottom: 6px;
+            gap: 2px;
+        }
+        .MainScreen .input {
+            font-size: clamp(34px, 9vw, 48px);
+        }
+        .MainScreen .output {
+            font-size: clamp(21px, 5.7vw, 28px);
+        }
+        .MainScreen .TopBar {
+            flex-basis: 52px;
+        }
+        .MainScreen .TopBar_button {
+            height: 44px;
+            width: 44px;
+        }
+    }
+
+
+    @media (prefers-reduced-motion: reduce) {
+        .MainScreen .HistoryPanel,
+        .MainScreen .KeyboardContainer,
+        .MainScreen .MainDisplay {
+            transition-duration: 0.01ms !important;
+            transition-delay: 0ms !important;
+        }
+    }
+    /* ===== Calculation timeout dialog ===== */
+    .TimeoutOverlay {
+        position: fixed;
+        inset: 0;
+        z-index: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: rgba(0, 0, 0, 0.56);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+    }
+    .TimeoutDialog {
+        width: min(100%, 390px);
+        border-radius: 28px;
+        padding: 24px 22px 18px;
+        box-sizing: border-box;
+        background: #171b24;
+        border: 1px solid rgba(255,255,255,.055);
+        box-shadow: 0 18px 55px rgba(0,0,0,.42);
+    }
+    .TimeoutTitle {
+        color: #f6f3fb;
+        font-size: 21px;
+        line-height: 1.25;
+        font-weight: 600;
+        letter-spacing: -.01em;
+    }
+    .TimeoutText {
+        margin-top: 10px;
+        color: #a8adb8;
+        font-size: 15px;
+        line-height: 1.45;
+    }
+    .TimeoutActions {
+        margin-top: 22px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+    .TimeoutButton {
+        min-height: 44px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 999px;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: default;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .TimeoutButtonSecondary {
+        background: #252b36;
+        color: #e7e9ef;
+    }
+    .TimeoutButtonPrimary {
+        background: #dfc8ff;
+        color: #251833;
+    }
+
+</style>
+<body>
+<div class="back" id="LeftBoard_back" onclick="OpenLeftBoard()"></div>
+<div class="LeftBoard" id="LeftBoard">
+    <div class="LeftBoard_header">
+        <div class="LeftBoard_title">Калькуляторы</div>
+        <div class="LeftBoard_subtitle">Выберите режим</div>
+    </div>
+    <div class="LeftBoard_list">
+        <div class="LeftBoard_item LeftBoard_item--active">BigCalc</div>
+        <div class="LeftBoard_item">ИМТ</div>
+        <div class="LeftBoard_item">FloatX</div>
+    </div>
+    <div class="LeftBoard_add">
+        <span class="LeftBoard_addIcon">+</span>
+        <span>Добавить калькулятор</span>
+    </div>
+</div>
+<div class="back" id="RightBoard_back" onclick="OpenRightBoard()"></div>
+<div class="RightBoard" id="RightBoard">
+    <div class="RightBoard_item" onclick="OpenWindow('Settings'); OpenRightBoard()">Настройки</div>
+    <div class="RightBoard_item" onclick="OpenWindow('About'); OpenRightBoard()">О проекте</div>
+</div>
+
+<main class="MainScreen">
+<div class="TopBar">
+    <div class="TopBar_left">
+        <div class="TopBar_button" onclick="OpenLeftBoard()"><img class="icon" src="res/menu.png"/></div>
+        <div class="TopBar_button HistoryButton" id="HistoryButton" active="0" onclick="ToggleHistory()"><img class="icon" src="res/history.png"/></div>
+    </div>
+    <div class="TopBar_right">
+        <div class="TopBar_button" onclick="OpenRightBoard()"><img class="icon" src="res/more.png"/></div>
+    </div>
+</div>
+
+<div class="HistoryPanel" id="HistoryPanel">
+    <div class="HistoryHeader">
+        <div class="HistoryTitle">История</div>
+        <div class="HistoryHint">Нажмите — вставить · проведите — цифры</div>
+    </div>
+    <div class="HistoryList">
+        <div class="HistoryItem">
+            <div class="HistoryExpression" data-expression="2^(1/2)" onclick="InsertHistoryExpression(this)">2^(1/2)</div>
+            <div class="HistoryResult NumberViewport" tabindex="0" data-history-id="h4" data-result="1,41421356237309504880168872420969807856967187537694807317667973799" data-number-digits="141421356237309504880168872420969807856967187537694807317667973799" data-number-exponent="0" data-number-sign="1" data-viewport-start="0" onclick="InsertHistoryResult(this)">1,4142135623730950</div>
+            <div class="HistoryMeta">deg · fac</div>
+        </div>
+        <div class="HistoryItem">
+            <div class="HistoryExpression" data-expression="sin(30)+cos(60)" onclick="InsertHistoryExpression(this)">sin(30)+cos(60)</div>
+            <div class="HistoryResult NumberViewport" tabindex="0" data-history-id="h3" data-result="1" data-number-digits="1" data-number-exact="1" data-number-exponent="0" data-number-sign="1" data-viewport-start="0" onclick="InsertHistoryResult(this)">1</div>
+            <div class="HistoryMeta">deg · fac</div>
+        </div>
+        <div class="HistoryItem">
+            <div class="HistoryExpression" data-expression="40!" onclick="InsertHistoryExpression(this)">40!</div>
+            <div class="HistoryResult NumberViewport" tabindex="0" data-history-id="h2" data-result="815915283247897734345611269596115894272000000000" data-number-digits="815915283247897734345611269596115894272000000000" data-number-exact="1" data-number-exponent="47" data-number-sign="1" data-viewport-start="0" onclick="InsertHistoryResult(this)">8,159152832478977E47</div>
+            <div class="HistoryMeta">deg · fac</div>
+        </div>
+        <div class="HistoryItem">
+            <div class="HistoryExpression" data-expression="π^e" onclick="InsertHistoryExpression(this)">π^e</div>
+            <div class="HistoryResult NumberViewport" tabindex="0" data-history-id="h1" data-result="22,459157718361045473427152204543735027589315" data-number-digits="22459157718361045473427152204543735027589315" data-number-exponent="1" data-number-sign="1" data-viewport-start="0" onclick="InsertHistoryResult(this)">22,45915771836104</div>
+            <div class="HistoryMeta">deg · fac</div>
+        </div>
+    </div>
+</div>
+<div class="MainDisplay"> <!-- If there are a lot of input or output blocks (in custom calculators), this div will be a vertically scrollable container for them.-->
+    <div class="input_block">
+        <div class="input" id="MainInput" contenteditable>122+√2</div> 
+    </div>
+    <div class="output_block">
+        <div class="output NumberViewport" id="MainOutput" tabindex="0" data-number-digits="1234142135623730950488016887242096980785696718753769480731766797" data-number-exponent="2" data-number-sign="1" data-viewport-start="0" aria-label="Результат. Проведите по числу, чтобы прокручивать цифры.">123,414213562373095048</div>
+        <!--123,414213562373095048-->
+    </div>
+</div>
+<div class="KeyboardContainer">
+<div class="Keyboard">
+    <div class="KeyboardRow">
+        <div class="Key">
+            <div class="KeyButton KeyButton-t1" onclick="exp()">↕</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t1" id="deg_rad" onclick="deg()">deg</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t1" id="fac_Gm" onclick="fac()">fac</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t1"></div>
+        </div>
+    </div>
+
+    <div class="KeyboardRow_dop">
+        <div class="Key">
+            <div class="KeyButton">√</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">π</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">^</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">!</div>
+        </div>
+    </div>
+    <div class="KeyboardRow_dop">
+        <div class="Key">
+            <div class="KeyButton">[ ]</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">sin</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">cos</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">tan</div>
+        </div>
+    </div>
+    <div class="KeyboardRow_dop">
+        <div class="Key">
+            <div class="KeyButton">{ }</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">e</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">ln</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">log</div>
+        </div>
+    </div>
+
+    <div class="KeyboardRow">
+        <div class="Key">
+            <div class="KeyButton KeyButton-t2">AC</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t3">( )</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t3">%</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t3">÷</div>
+        </div>
+    </div>
+    <div class="KeyboardRow">
+        <div class="Key">
+            <div class="KeyButton">7</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">8</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">9</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t3">×</div>
+        </div>
+    </div>
+    <div class="KeyboardRow">
+        <div class="Key">
+            <div class="KeyButton">4</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">5</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">6</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t3">-</div>
+        </div>
+    </div>
+    <div class="KeyboardRow">
+        <div class="Key">
+            <div class="KeyButton">1</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">2</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">3</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t3">+</div>
+        </div>
+    </div>
+    <div class="KeyboardRow">
+        <div class="Key">
+            <div class="KeyButton">0</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">,</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton">⌫</div>
+        </div>
+        <div class="Key">
+            <div class="KeyButton KeyButton-t4">=</div>
+        </div>
+    </div>
+</div>
+</div>
+
+</main>
+
+<div class="window" id="Settings">
+    <div class="SettingsTopBar">
+        <div class="SettingsBack" onclick="OpenWindow('Settings')"><img src="res/left-arrow.png"/></div>
+        <div class="SettingsTitle">Настройки</div>
+    </div>
+    <div class="SettingsContent">
+        <section class="SettingsSection">
+            <div class="SettingsSectionTitle">Вычисления</div>
+            <div class="SettingsCard">
+                <div class="SettingsRow">
+                    <div class="SettingsText">
+                        <div class="SettingsLabel">Углы</div>
+                        <div class="SettingsDescription">Единица измерения аргументов тригонометрических функций</div>
+                    </div>
+                    <div class="SettingsSegmented" aria-label="Режим углов">
+                        <div class="SettingsSegment" id="settings_deg" active="1" onclick="setAngleMode('deg')">deg</div>
+                        <div class="SettingsSegment" id="settings_rad" active="0" onclick="setAngleMode('rad')">rad</div>
+                    </div>
+                </div>
+                <div class="SettingsRow">
+                    <div class="SettingsText">
+                        <div class="SettingsLabel">Факториал</div>
+                        <div class="SettingsDescription">Обычный факториал или продолжение через Gamma</div>
+                    </div>
+                    <div class="SettingsSegmented" aria-label="Режим факториала">
+                        <div class="SettingsSegment" id="settings_fac" active="1" onclick="setFactorialMode('fac')">fac</div>
+                        <div class="SettingsSegment" id="settings_gm" active="0" onclick="setFactorialMode('Gm')">Gm</div>
+                    </div>
+                </div>
+                <div class="SettingsRow">
+                    <div class="SettingsText">
+                        <div class="SettingsLabel">Лимит непрерывного вычисления</div>
+                        <div class="SettingsDescription">Время одного soft-timeout шага. После паузы вычисление можно продолжить без потери состояния.</div>
+                    </div>
+                    <label class="SettingsNumberControl">
+                        <input class="SettingsNumberInput" id="settings_timeout" value="5" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Лимит вычисления в секундах" oninput="sanitizeTimeoutInput(this)" onblur="validateTimeout()" onkeydown="if(event.key==='Enter'){this.blur()}">
+                        <span class="SettingsUnit">с</span>
+                    </label>
+                </div>
+            </div>
+        </section>
+        <section class="SettingsSection">
+            <div class="SettingsSectionTitle">Интерфейс</div>
+            <div class="SettingsCard">
+                <div class="SettingsRow">
+                    <div class="SettingsText">
+                        <div class="SettingsLabel">Инерция прокрутки чисел</div>
+                        <div class="SettingsDescription">Чем больше коэффициент, тем дальше пролистывается число при одинаковом свайпе.</div>
+                    </div>
+                    <label class="SettingsNumberControl">
+                        <input class="SettingsNumberInput" id="settings_number_inertia" value="1,6" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Коэффициент инерции прокрутки чисел" oninput="sanitizeDecimalSettingInput(this)" onblur="validateNumberInertia()" onkeydown="if(event.key==='Enter'){this.blur()}">
+                        <span class="SettingsUnit">×</span>
+                    </label>
+                </div>
+            </div>
+        </section>
+        <div class="SettingsFootnote">Изменения применяются сразу. Режим углов и факториала также синхронизируются с переключателями на клавиатуре.</div>
+    </div>
+</div>
+
+<div class="window" id="About">
+    <div class="SettingsTopBar">
+        <div class="SettingsBack" onclick="OpenWindow('About')"><img src="res/left-arrow.png"/></div>
+        <div class="SettingsTitle">О проекте</div>
+    </div>
+    <div class="AboutContent">
+        <div class="AboutWrap">
+            <section class="AboutHero">
+                <div class="AboutEyebrow">Калькулятор</div>
+                <div class="AboutName">BigCalc</div>
+                <div class="AboutVersion">Версия 0.0.0 · прототип</div>
+            </section>
+
+            <section class="AboutSection">
+                <div class="AboutSectionTitle">О BigCalc</div>
+                <div class="AboutCard">
+                    <div class="AboutPlaceholder">Здесь будет описание проекта.</div>
+                </div>
+            </section>
+
+            <a class="AboutGitHub" href="https://github.com/dimailcreator/BigCalc" target="_blank" rel="noopener noreferrer">
+                <span class="AboutGitHubText">Открыть на GitHub</span>
+                <span class="AboutGitHubArrow">↗</span>
+            </a>
+            <div class="AboutRepo">dimailcreator/BigCalc</div>
+        </div>
+    </div>
+</div>
+
+
+<div class="TimeoutOverlay" id="TimeoutOverlay" role="dialog" aria-modal="true" aria-labelledby="TimeoutTitle">
+    <div class="TimeoutDialog">
+        <div class="TimeoutTitle" id="TimeoutTitle">Вычисление занимает слишком много времени</div>
+        <div class="TimeoutText">Можно продолжить вычисление с сохранением уже полученного результата или остановить его.</div>
+        <div class="TimeoutActions">
+            <button class="TimeoutButton TimeoutButtonSecondary" type="button">Отменить</button>
+            <button class="TimeoutButton TimeoutButtonPrimary" type="button">Продолжить</button>
+        </div>
+    </div>
+</div>
+
+
+</body>
+<script>
+counter = 0
+const root = document.documentElement;
+
+function exp() {
+    counter ^= 1;
+    root.classList.remove('exp-open', 'exp-close');
+    void root.offsetWidth; // принудительный reflow — сбрасывает анимацию
+    root.classList.add(counter ? 'exp-open' : 'exp-close');
+}
+
+let angleMode = 'deg';
+let factorialMode = 'fac';
+let softTimeoutSeconds = 5;
+let numberScrollInertia = 1.6;
+
+function setAngleMode(mode) {
+    angleMode = mode === 'rad' ? 'rad' : 'deg';
+    deg_rad.innerHTML = angleMode;
+    settings_deg.setAttribute('active', angleMode === 'deg' ? '1' : '0');
+    settings_rad.setAttribute('active', angleMode === 'rad' ? '1' : '0');
+}
+
+function deg() {
+    setAngleMode(angleMode === 'deg' ? 'rad' : 'deg');
+}
+
+function setFactorialMode(mode) {
+    factorialMode = mode === 'Gm' ? 'Gm' : 'fac';
+    fac_Gm.innerHTML = factorialMode;
+    settings_fac.setAttribute('active', factorialMode === 'fac' ? '1' : '0');
+    settings_gm.setAttribute('active', factorialMode === 'Gm' ? '1' : '0');
+}
+
+function fac() {
+    setFactorialMode(factorialMode === 'fac' ? 'Gm' : 'fac');
+}
+
+function sanitizeDecimalSettingInput(input) {
+    const selectionStart = input.selectionStart ?? input.value.length;
+    const beforeCursor = input.value.slice(0, selectionStart);
+
+    const sanitize = (value) => {
+        value = value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
+        const separator = value.indexOf(',');
+        if (separator !== -1) {
+            value = value.slice(0, separator + 1) + value.slice(separator + 1).replace(/,/g, '');
+        }
+        return value;
+    };
+
+    const sanitizedBeforeCursor = sanitize(beforeCursor);
+    const sanitized = sanitize(input.value);
+    input.value = sanitized;
+
+    const caret = Math.min(sanitizedBeforeCursor.length, sanitized.length);
+    input.setSelectionRange(caret, caret);
+}
+
+function sanitizeTimeoutInput(input) {
+    sanitizeDecimalSettingInput(input);
+}
+
+function validateTimeout() {
+    sanitizeTimeoutInput(settings_timeout);
+    const normalized = settings_timeout.value.trim().replace(',', '.');
+    const value = Number(normalized);
+    if (Number.isFinite(value) && value > 0) {
+        softTimeoutSeconds = value;
+    }
+    settings_timeout.value = String(softTimeoutSeconds).replace('.', ',');
+}
+
+function validateNumberInertia() {
+    sanitizeDecimalSettingInput(settings_number_inertia);
+    const normalized = settings_number_inertia.value.trim().replace(',', '.');
+    const value = Number(normalized);
+    if (Number.isFinite(value) && value > 0) {
+        numberScrollInertia = Math.min(10, Math.max(0.1, value));
+    }
+    settings_number_inertia.value = String(numberScrollInertia).replace('.', ',');
+    applyNumberScrollInertia();
+}
+
+function getNumberScrollStep(slotWidth) {
+    return Math.max(1, slotWidth / numberScrollInertia);
+}
+
+function applyNumberScrollInertia() {
+    document.querySelectorAll('.NumberViewport').forEach((element) => renderNumberViewport(element, true));
+}
+
+
+// ===== Number viewport demo: native inertia + discrete digit positions =====
+// The visible value stays fixed; a transparent native track supplies momentum.
+// A larger user-facing inertia coefficient means a shorter physical distance per digit.
+
+function getNumberSlotWidth(element) {
+    const probe = document.createElement('span');
+    probe.textContent = '0';
+    probe.style.cssText = 'position:fixed;left:-10000px;top:-10000px;visibility:hidden;pointer-events:none;font:inherit;font-variant-numeric:tabular-nums;width:1ch;padding:0;margin:0;';
+    element.appendChild(probe);
+    const width = Math.max(1, probe.getBoundingClientRect().width);
+    probe.remove();
+    return width;
+}
+
+const NUMBER_TRACK_WIDTH_PX = 200000;
+const NUMBER_TRACK_CENTER_PX = NUMBER_TRACK_WIDTH_PX / 2;
+const NUMBER_SCROLL_END_DELAY_MS = 110;
+
+function parseBigIntValue(value, fallback = 0n) {
+    try {
+        const normalized = String(value ?? '').trim();
+        return normalized ? BigInt(normalized) : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function clampLogicalStart(element, value, meta = null) {
+    const safeMeta = meta ?? getNumberViewportMeta(element);
+    let next = value < 0n ? 0n : value;
+    if (safeMeta.exact && safeMeta.maxStart !== null && next > safeMeta.maxStart) {
+        next = safeMeta.maxStart;
+    }
+    return next;
+}
+
+function getNumberViewportMeta(element) {
+    const digits = (element.dataset.numberDigits ?? '').replace(/\D/g, '');
+    const exponent10 = parseBigIntValue(element.dataset.numberExponent, 0n);
+    const sign = Number.parseInt(element.dataset.numberSign ?? '1', 10) < 0 ? -1 : 1;
+    const slotWidth = getNumberSlotWidth(element);
+
+    // clientWidth includes padding, while NumberScrollSurface occupies only the
+    // content box. Using clientWidth directly made history entries overestimate
+    // their capacity by roughly one slot, clipping the first digit / `..`.
+    const style = getComputedStyle(element);
+    const paddingInline = (Number.parseFloat(style.paddingLeft) || 0) +
+        (Number.parseFloat(style.paddingRight) || 0);
+    const contentWidth = Math.max(0, element.clientWidth - paddingInline);
+    const capacity = Math.max(6, Math.floor(contentWidth / slotWidth));
+
+    const exact = element.dataset.numberExact === '1';
+    const minDigits = Math.min(2, Math.max(1, digits.length));
+
+    let maxStart = null;
+    let exactIntegerLength = null;
+    const isExactInteger = exact && exponent10 >= BigInt(digits.length - 1);
+
+    if (exact && isExactInteger) {
+        // Exact integers use a plain decimal-integer viewport, never E-notation.
+        // A long integer is virtualized with `..` on whichever side still has
+        // hidden digits. At the far right we reserve one slot for the left `..`
+        // and show the largest possible suffix.
+        exactIntegerLength = exponent10 + 1n;
+        const freeWithoutSign = BigInt(Math.max(1, capacity - (sign < 0 ? 1 : 0)));
+        if (exactIntegerLength <= freeWithoutSign) {
+            maxStart = 0n;
+        } else {
+            const suffixCapacity = freeWithoutSign > 1n ? freeWithoutSign - 1n : 1n;
+            maxStart = exactIntegerLength > suffixCapacity
+                ? exactIntegerLength - suffixCapacity
+                : 0n;
+        }
+    } else if (exact) {
+        // For other exact values, prevent scrolling when the complete canonical
+        // decimal representation already fits.
+        const commaBoundary = exponent10 + 1n;
+        const hasFractionalDigits = exponent10 >= 0n &&
+            commaBoundary > 0n && commaBoundary < BigInt(digits.length);
+        const canonicalSlots = (sign < 0 ? 1 : 0) + digits.length + (hasFractionalDigits ? 1 : 0);
+        maxStart = canonicalSlots <= capacity
+            ? 0n
+            : BigInt(Math.max(0, digits.length - minDigits));
+    }
+
+    return { digits, exponent10, sign, slotWidth, capacity, exact, minDigits, maxStart, isExactInteger, exactIntegerLength };
+}
+
+function noteDesiredDigits(element, exclusiveEnd) {
+    const verified = BigInt((element.dataset.numberDigits ?? '').replace(/\D/g, '').length);
+    if (exclusiveEnd <= verified) {
+        element.dataset.desiredDigits = verified.toString();
+        return;
+    }
+    // UI_SPEC requests additional precision in +50 digit blocks. We only keep
+    // the target here; a real CalculationHandle would refine toward it.
+    const block = 50n;
+    const desired = ((exclusiveEnd + block - 1n) / block) * block;
+    element.dataset.desiredDigits = desired.toString();
+}
+
+function digitAt(meta, index) {
+    if (index < 0n || index >= BigInt(meta.digits.length)) return '\u00A0';
+    return meta.digits[Number(index)];
+}
+
+function buildNumberViewport(element) {
+    const meta = getNumberViewportMeta(element);
+    const { digits, exponent10, sign, capacity, exact, minDigits } = meta;
+    if (!digits) return { parts: [{ text: 'Ошибка отображения', kind: 'text' }], meta };
+
+    let start = parseBigIntValue(element.dataset.viewportStart, 0n);
+    start = clampLogicalStart(element, start, meta);
+    element.dataset.viewportStart = start.toString();
+
+    const slots = [];
+    let free = capacity;
+
+    if (sign < 0 && free > 0) {
+        slots.push({ text: '-', kind: 'sign' });
+        free--;
+    }
+
+    if (start > 0n && free > 0) {
+        slots.push({ text: '..', kind: 'ellipsis' });
+        free--;
+    }
+
+    // The real decimal comma sits after the digit whose power is 10^0.
+    const commaBoundary = exponent10 + 1n;
+    const digitsBeforeCommaFromStart = commaBoundary - start;
+    const commaHasRightSide = !exact || commaBoundary < BigInt(digits.length);
+
+    // Exact integers stay in ordinary integer notation even when they are
+    // wider than the viewport. Hidden integer digits are represented by `..`
+    // on the corresponding side; scientific E-notation is not needed here.
+    if (meta.isExactInteger) {
+        const totalLength = meta.exactIntegerLength ?? (exponent10 + 1n);
+        const hasLeftHidden = start > 0n;
+
+        // The left indicator may already have been emitted above. Work out how
+        // many integer digit slots remain and reserve one more for a right `..`
+        // when the suffix still does not fit.
+        let available = free;
+        const remaining = totalLength - start;
+        let digitCount = remaining < BigInt(available) ? Number(remaining) : available;
+        let hasRightHidden = remaining > BigInt(available);
+        if (hasRightHidden && available > 1) digitCount = available - 1;
+
+        for (let i = 0; i < digitCount; i++) {
+            const index = start + BigInt(i);
+            const text = index < BigInt(digits.length) ? digits[Number(index)] : '0';
+            slots.push({ text, kind: 'digit' });
+        }
+        if (hasRightHidden) slots.push({ text: '..', kind: 'ellipsis' });
+
+        noteDesiredDigits(element, start + BigInt(digitCount));
+        return { parts: slots, meta };
+    }
+
+    const commaCanBeShown = commaHasRightSide &&
+        exponent10 >= 0n &&
+        digitsBeforeCommaFromStart >= 0n &&
+        digitsBeforeCommaFromStart <= BigInt(Math.max(0, free - 1));
+
+    if (commaCanBeShown) {
+        let index = start;
+        let used = 0;
+        while (used < free) {
+            if (exact && index >= BigInt(digits.length)) break;
+            if (index === commaBoundary) {
+                slots.push({ text: ',', kind: 'comma' });
+                used++;
+                if (used >= free) break;
+            }
+            slots.push({ text: digitAt(meta, index), kind: index < BigInt(digits.length) ? 'digit' : 'placeholder' });
+            index++;
+            used++;
+        }
+        // Do not leave a dangling comma for an exact integer such as `1`.
+        // Lazy values may still show it because positions to the right can be
+        // requested and rendered as placeholders.
+        if (used < free && index === commaBoundary && commaHasRightSide) {
+            slots.push({ text: ',', kind: 'comma' });
+        }
+        noteDesiredDigits(element, index);
+        return { parts: slots, meta };
+    }
+
+    // Decimal comma is outside the window. Reserve room for E<k>, where k
+    // belongs to the LAST significand position. Lazy values are not bounded by
+    // the amount of digits currently verified: unknown positions are virtual.
+    let bestCount = 0;
+    let bestExponent = 0n;
+    const exactRemaining = exact ? BigInt(digits.length) - start : null;
+
+    for (let count = free; count >= minDigits; count--) {
+        if (exactRemaining !== null && exactRemaining < BigInt(count)) continue;
+        const lastExponent = exponent10 - (start + BigInt(count) - 1n);
+        const suffix = 'E' + lastExponent.toString();
+        if (count + suffix.length <= free) {
+            bestCount = count;
+            bestExponent = lastExponent;
+            break;
+        }
+    }
+
+    if (bestCount < minDigits) {
+        return { parts: [{ text: 'Ошибка отображения', kind: 'text' }], meta };
+    }
+
+    for (let i = 0; i < bestCount; i++) {
+        const index = start + BigInt(i);
+        const known = index < BigInt(digits.length);
+        slots.push({ text: digitAt(meta, index), kind: known ? 'digit' : 'placeholder' });
+    }
+    for (const ch of ('E' + bestExponent.toString())) {
+        slots.push({ text: ch, kind: 'exponent' });
+    }
+    noteDesiredDigits(element, start + BigInt(bestCount));
+    return { parts: slots, meta };
+}
+
+function ensureNumberViewportStructure(element, meta) {
+    let surface = element.querySelector(':scope > .NumberScrollSurface');
+    let track = element.querySelector(':scope > .NumberScrollTrack');
+
+    if (!surface || !track) {
+        element.replaceChildren();
+
+        surface = document.createElement('span');
+        surface.className = 'NumberScrollSurface';
+        const row = document.createElement('span');
+        row.className = 'NumberSlots';
+        surface.appendChild(row);
+
+        track = document.createElement('span');
+        track.className = 'NumberScrollTrack';
+        const trackInner = document.createElement('span');
+        trackInner.className = 'NumberScrollTrackInner';
+        track.appendChild(trackInner);
+
+        element.append(surface, track);
+    }
+
+    const row = surface.querySelector('.NumberSlots');
+    const trackInner = track.querySelector('.NumberScrollTrackInner');
+    const scrollStep = getNumberScrollStep(meta.slotWidth);
+
+    // Constant physical geometry: logical distance is never encoded as DOM size.
+    trackInner.style.width = `${NUMBER_TRACK_WIDTH_PX + element.clientWidth}px`;
+    element.dataset.numberSlotWidth = String(meta.slotWidth);
+    element.dataset.numberScrollStep = String(scrollStep);
+    return { surface, row, track };
+}
+
+function recenterNumberTrack(element, track, start = null) {
+    const logicalStart = start ?? parseBigIntValue(element.dataset.viewportStart, 0n);
+    element.dataset.virtualBaseStart = logicalStart.toString();
+    element.dataset.recenteringTrack = '1';
+    track.scrollLeft = NUMBER_TRACK_CENTER_PX;
+    requestAnimationFrame(() => {
+        element.dataset.recenteringTrack = '0';
+    });
+}
+
+function renderNumberViewport(element, syncScroll = true) {
+    const { parts, meta } = buildNumberViewport(element);
+    const { row, track } = ensureNumberViewportStructure(element, meta);
+    row.replaceChildren();
+
+    if (parts.length === 1 && parts[0].kind === 'text') {
+        const text = document.createElement('span');
+        text.textContent = parts[0].text;
+        row.appendChild(text);
+    } else {
+        for (const part of parts) {
+            const slot = document.createElement('span');
+            slot.className = 'NumberSlot';
+            if (part.kind === 'ellipsis') slot.classList.add('NumberEllipsis');
+            if (part.kind === 'exponent') slot.classList.add('NumberExponent');
+            if (part.kind === 'placeholder') slot.classList.add('NumberPlaceholder');
+            slot.textContent = part.text;
+            row.appendChild(slot);
+        }
+    }
+
+    if (syncScroll) {
+        recenterNumberTrack(element, track);
+    }
+}
+
+function logicalStartFromTrack(element, track) {
+    const slotWidth = Number(element.dataset.numberSlotWidth) || getNumberSlotWidth(element);
+    const scrollStep = Number(element.dataset.numberScrollStep) || getNumberScrollStep(slotWidth);
+    const base = parseBigIntValue(element.dataset.virtualBaseStart, parseBigIntValue(element.dataset.viewportStart, 0n));
+    const delta = Math.round((track.scrollLeft - NUMBER_TRACK_CENTER_PX) / scrollStep);
+    return clampLogicalStart(element, base + BigInt(delta));
+}
+
+function finishNumberMomentum(element, track) {
+    if (element.dataset.recenteringTrack === '1') return;
+    const next = logicalStartFromTrack(element, track);
+    element.dataset.viewportStart = next.toString();
+    renderNumberViewport(element, false);
+    recenterNumberTrack(element, track, next);
+}
+
+function shiftNumberViewport(element, steps) {
+    const current = parseBigIntValue(element.dataset.viewportStart, 0n);
+    const next = clampLogicalStart(element, current + BigInt(steps));
+    if (next === current) return false;
+    element.dataset.viewportStart = next.toString();
+    renderNumberViewport(element, true);
+    return true;
+}
+
+function setupNumberViewport(element) {
+    if (element.dataset.viewportReady === '1') return;
+    element.dataset.viewportReady = '1';
+
+    renderNumberViewport(element, true);
+    const track = element.querySelector(':scope > .NumberScrollTrack');
+    if (!track) return;
+
+    let raf = 0;
+    let pointerStart = null;
+    let scrollEndTimer = 0;
+
+    const scheduleScrollEnd = () => {
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(() => finishNumberMomentum(element, track), NUMBER_SCROLL_END_DELAY_MS);
+    };
+
+    track.addEventListener('scroll', () => {
+        if (element.dataset.recenteringTrack === '1') return;
+        element.dataset.lastScrollAt = String(Date.now());
+        scheduleScrollEnd();
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+            raf = 0;
+            const next = logicalStartFromTrack(element, track);
+            const current = parseBigIntValue(element.dataset.viewportStart, 0n);
+            if (next !== current) {
+                element.dataset.viewportStart = next.toString();
+                renderNumberViewport(element, false);
+            }
+        });
+    }, { passive: true });
+
+    // Chrome/WebView exposes scrollend; the timer above is a fallback.
+    track.addEventListener('scrollend', () => {
+        clearTimeout(scrollEndTimer);
+        finishNumberMomentum(element, track);
+    }, { passive: true });
+
+    track.addEventListener('pointerdown', (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY, scrollLeft: track.scrollLeft };
+    }, { passive: true });
+
+    const finishPointer = (event) => {
+        if (!pointerStart || pointerStart.id !== event.pointerId) return;
+        const moved = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+        const scrolled = Math.abs(track.scrollLeft - pointerStart.scrollLeft);
+        if (moved > 7 || scrolled > 2) {
+            element.dataset.suppressClickUntil = String(Date.now() + 180);
+        }
+        pointerStart = null;
+    };
+    track.addEventListener('pointerup', finishPointer, { passive: true });
+    track.addEventListener('pointercancel', finishPointer, { passive: true });
+
+    element.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight') {
+            if (shiftNumberViewport(element, 1)) event.preventDefault();
+        } else if (event.key === 'ArrowLeft') {
+            if (shiftNumberViewport(element, -1)) event.preventDefault();
+        }
+    });
+}
+
+function initializeNumberViewports() {
+    const viewports = document.querySelectorAll('.NumberViewport');
+    viewports.forEach(setupNumberViewport);
+
+    if ('ResizeObserver' in window) {
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) renderNumberViewport(entry.target, true);
+        });
+        viewports.forEach((element) => observer.observe(element));
+    } else {
+        window.addEventListener('resize', () => viewports.forEach(element => renderNumberViewport(element, true)));
+    }
+}
+
+initializeNumberViewports();
+
+function ToggleHistory(forceOpen = null) {
+    const main = document.querySelector('.MainScreen');
+    const isOpen = (main.getAttribute('history_on') ?? '0') === '1';
+    const nextOpen = forceOpen === null ? !isOpen : Boolean(forceOpen);
+    main.setAttribute('history_on', nextOpen ? '1' : '0');
+    HistoryButton.setAttribute('active', nextOpen ? '1' : '0');
+}
+
+// Swipe down from the top of the calculator to open history.
+function setupHistorySwipe() {
+    const main = document.querySelector('.MainScreen');
+    const topBar = main?.querySelector('.TopBar');
+    if (!main || !topBar || main.dataset.historySwipeReady === '1') return;
+    main.dataset.historySwipeReady = '1';
+
+    let gesture = null;
+    let suppressClickUntil = 0;
+
+    main.addEventListener('pointerdown', (event) => {
+        if ((main.getAttribute('history_on') ?? '0') === '1') return;
+        if (event.button !== undefined && event.button !== 0) return;
+
+        const topLimit = topBar.getBoundingClientRect().bottom + 24;
+        if (event.clientY > topLimit) return;
+
+        gesture = {
+            id: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            startedAt: performance.now(),
+            vertical: false
+        };
+    }, { passive: true });
+
+    main.addEventListener('pointermove', (event) => {
+        if (!gesture || gesture.id !== event.pointerId) return;
+        const dx = event.clientX - gesture.x;
+        const dy = event.clientY - gesture.y;
+
+        if (!gesture.vertical && dy > 14 && dy > Math.abs(dx) * 1.25) {
+            gesture.vertical = true;
+        }
+        if (gesture.vertical && dy > 0) {
+            // The page itself does not vertically scroll, so cancelling the
+            // default gesture only after direction is known is safe here.
+            event.preventDefault();
+        }
+    }, { passive: false });
+
+    const finish = (event) => {
+        if (!gesture || gesture.id !== event.pointerId) return;
+        const dx = event.clientX - gesture.x;
+        const dy = event.clientY - gesture.y;
+        const elapsed = Math.max(1, performance.now() - gesture.startedAt);
+        const velocityY = dy / elapsed;
+        const isVertical = dy > Math.abs(dx) * 1.2;
+        const shouldOpen = isVertical && dy > 54 && (gesture.vertical || velocityY > 0.45);
+
+        if (shouldOpen) {
+            suppressClickUntil = performance.now() + 260;
+            ToggleHistory(true);
+        }
+        gesture = null;
+    };
+
+    main.addEventListener('pointerup', finish, { passive: true });
+    main.addEventListener('pointercancel', () => { gesture = null; }, { passive: true });
+
+    // A pointer gesture that began on a top-bar button would otherwise emit
+    // its normal click immediately after the swipe.
+    main.addEventListener('click', (event) => {
+        if (performance.now() >= suppressClickUntil) return;
+        if (!event.target.closest('.TopBar_button')) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }, true);
+}
+
+setupHistorySwipe();
+
+function rangeBelongsToInput(range) {
+    return MainInput.contains(range.commonAncestorContainer) || range.commonAncestorContainer === MainInput;
+}
+
+function insertIntoMainInput(node) {
+    MainInput.focus();
+    const selection = window.getSelection();
+    let range = null;
+
+    if (selection && selection.rangeCount > 0) {
+        const candidate = selection.getRangeAt(0);
+        if (rangeBelongsToInput(candidate)) {
+            range = candidate;
+        }
+    }
+
+    if (!range) {
+        range = document.createRange();
+        range.selectNodeContents(MainInput);
+        range.collapse(false);
+    }
+
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+
+    if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+}
+
+function InsertHistoryExpression(element) {
+    insertIntoMainInput(document.createTextNode(element.dataset.expression ?? element.textContent ?? ''));
+}
+
+function InsertHistoryResult(element) {
+    const suppressUntil = Number(element.dataset.suppressClickUntil ?? '0');
+    const lastScrollAt = Number(element.dataset.lastScrollAt ?? '0');
+    if (Date.now() < suppressUntil || Date.now() - lastScrollAt < 140) return;
+    const token = document.createElement('span');
+    token.className = 'AnsToken';
+    token.contentEditable = 'false';
+    token.dataset.historyId = element.dataset.historyId ?? '';
+    token.dataset.result = element.dataset.result ?? element.textContent ?? '';
+    token.textContent = element.dataset.result ?? element.textContent ?? '';
+    insertIntoMainInput(token);
+}
+
+function OpenLeftBoard() {
+    let pos = LeftBoard.getAttribute('on')??'0'
+    if (pos == '0') {
+        LeftBoard.setAttribute('on', '1')
+        LeftBoard_back.setAttribute('on', '1')
+    } else {
+        LeftBoard.setAttribute('on', '0')
+        LeftBoard_back.setAttribute('on', '0')
+    }
+}
+function OpenRightBoard() {
+    let pos = RightBoard.getAttribute('on')??'0'
+    if (pos == '0') {
+        RightBoard.setAttribute('on', '1')
+        RightBoard_back.setAttribute('on', '1')
+    } else {
+        RightBoard.setAttribute('on', '0')
+        RightBoard_back.setAttribute('on', '0')
+    }
+}
+
+function OpenWindow(window_id) {
+    let element = document.getElementById(window_id)
+    let pos = element.getAttribute('window_on')??'0'
+    if (pos == '0') {
+        element.setAttribute('window_on', '1')
+    } else {
+        element.setAttribute('window_on', '0')
+    }
+}
+
+</script>
