@@ -1,0 +1,29 @@
+:root {
+  color: #f6f3fb;
+  background: #090b10;
+  font-family: system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+  margin: 0;
+}
+
+.app-shell {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 24px;
+}
+
+.app-shell h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 6vw, 2.5rem);
+  font-weight: 600;
+}

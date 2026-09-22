@@ -1,6 +1,8 @@
 dist/
+dist-app/
 dist-test/
 node_modules/
 coverage/
+test-results/
 *.tsbuildinfo
 IMPLEMENTATION_PLAN.md
