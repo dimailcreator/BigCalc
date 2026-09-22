@@ -9,6 +9,44 @@ import {
   serializeAlgorithmResults
 } from "./algorithm-harness.mjs";
 import { productionCases } from "./production-candidates.mjs";
+import { compareScalingRows } from "./scaling-comparison.mjs";
+
+test("AR-10 ratios preserve missing/incompatible metrics and reject false comparisons", () => {
+  const before = {
+    operation: "e",
+    source: "e",
+    mode: "direct",
+    digits: 100,
+    timeMs: 20,
+    extractionMs: 0,
+    rssMiB: 30,
+    heapMiB: 10,
+    checkpoints: 80,
+    termCount: 20,
+    termMetric: "series",
+    verifiedDigits: 100,
+    verifiedHash: "checked-prefix"
+  };
+  const after = {
+    ...before,
+    timeMs: 5,
+    rssMiB: 15,
+    checkpoints: 40,
+    termCount: 3,
+    termMetric: "iterations"
+  };
+  const [row] = compareScalingRows([before], [after]);
+  assert.equal(row.timeRatio, 0.25);
+  assert.equal(row.rssRatio, 0.5);
+  assert.equal(row.checkpointRatio, 0.5);
+  assert.equal(row.termRatio, null);
+  assert.equal(row.extractionRatio, null);
+  assert.throws(() => compareScalingRows([before], [{ ...after, verifiedHash: "wrong" }]));
+  assert.throws(() => compareScalingRows([before], [{ ...after, verifiedDigits: 99 }]));
+  assert.throws(() => compareScalingRows([before], []));
+  assert.throws(() => compareScalingRows([before], [after, after]));
+  assert.throws(() => compareScalingRows([before, before], [after]));
+});
 import { BinaryFactorialE, cases as eCases } from "./e-candidates.mjs";
 
 test("AR-8 candidates agree through sequential and direct refinement", async () => {

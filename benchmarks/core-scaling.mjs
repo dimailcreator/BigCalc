@@ -1,6 +1,20 @@
 import { performance } from "node:perf_hooks";
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
 
-import {
+const option = (name) => {
+  const index = process.argv.indexOf(name);
+  if (index < 0) return undefined;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith("--")) throw new Error(`Missing ${name} value`);
+  return value;
+};
+const coreRoot = resolve(option("--core-root") ?? "dist/core");
+const loadCore = (file) => import(pathToFileURL(resolve(coreRoot, file)).href);
+const output = option("--output");
+const {
   ballToOutwardInterval,
   createEvaluationContext,
   createEvaluationGraphFromSource,
@@ -10,12 +24,15 @@ import {
   precisionBitsForRequest,
   rationalToBall,
   verifiedNumberFromBall
-} from "../dist/core/index.js";
-import {
-  getLn2ProviderStateSnapshot,
-  getPiComputationSnapshot
-} from "../dist/core/math/constants.js";
-import { getBernoulliCacheSnapshot } from "../dist/core/math/elementary.js";
+} = await loadCore("index.js");
+const constants = await loadCore("math/constants.js");
+const { getLn2ProviderStateSnapshot } = constants;
+const { getBernoulliCacheSnapshot } = await loadCore("math/elementary.js");
+// Stage 37 predates the internal routing module. Do not invent observations for it.
+const routing = constants.getPiComputationSnapshot
+  ? await loadCore("math/algorithm-strategy.js")
+  : null;
+const specialGamma = routing ? await loadCore("math/gamma-special.js") : null;
 
 const full = process.argv.includes("--full");
 const json = process.argv.includes("--json");
@@ -45,8 +62,19 @@ const cases = [
     fullMax: 1_000
   }
 ];
+if (process.argv.includes("--extended"))
+  cases.push(
+    { name: "large-exp", source: "exp(1000000)", fullMax: 3000 },
+    { name: "near-one-ln", source: "ln(1+1/100000000000000000000)", fullMax: 3000 },
+    { name: "near-one-log", source: "log{1+1/100000000000000000000}(2)", fullMax: 3000 },
+    { name: "rational-power", source: "(7/3)^(5/7)", fullMax: 3000 }
+  );
 
 const rows = [];
+const references = new Map();
+const save = () => {
+  if (output) writeFileSync(output, JSON.stringify(rows, null, 2) + "\n");
+};
 for (const benchmarkCase of cases) {
   const limit = full ? benchmarkCase.fullMax : (benchmarkCase.quickMax ?? 1_000);
   const digits = precisionGrid.filter((value) => value <= limit);
@@ -57,6 +85,7 @@ for (const benchmarkCase of cases) {
 benchmarkConversions(precisionGrid);
 benchmarkRationalToBall(precisionGrid);
 benchmarkRationalNormalization(precisionGrid);
+save();
 
 if (json) {
   process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
@@ -68,6 +97,7 @@ if (json) {
 }
 
 async function benchmarkExpression(benchmarkCase, digits, mode) {
+  let previous = "";
   let checkpoints = 0;
   const created = createEvaluationGraphFromSource(benchmarkCase.source, {
     settings: benchmarkCase.settings,
@@ -97,9 +127,17 @@ async function benchmarkExpression(benchmarkCase, digits, mode) {
         `${benchmarkCase.name}: insufficient verified digits at ${significantDigits}`
       );
     }
+    const prefix = verified.digits.slice(0, significantDigits);
+    const signature = `${verified.sign}:${verified.exponent10}:${prefix}`;
+    const key = `${benchmarkCase.name}:${significantDigits}`;
+    if (!prefix.startsWith(previous) || (references.has(key) && references.get(key) !== signature))
+      throw new Error(`${benchmarkCase.name}: sequential/direct verified prefix mismatch`);
+    references.set(key, signature);
+    previous = prefix;
 
     rows.push({
       operation: benchmarkCase.name,
+      source: benchmarkCase.source,
       mode,
       digits: significantDigits,
       timeMs: rounded(refineMs),
@@ -113,21 +151,32 @@ async function benchmarkExpression(benchmarkCase, digits, mode) {
       peakBigIntDigits: structural.peakBigIntDigits,
       peakMetric: structural.peakMetric,
       retainedBigIntDigits: structural.retainedBigIntDigits,
-      stateReuse: structural.stateReuse
+      stateReuse: structural.stateReuse,
+      algorithmSelected: routing?.getAlgorithmRoutingSnapshot(created.context) ?? null,
+      specialGammaState: benchmarkCase.name.startsWith("gamma")
+        ? (specialGamma?.getSpecialGammaSnapshot(created.context) ?? null)
+        : null,
+      verifiedDigits: verified.verifiedDigits,
+      verifiedHash: createHash("sha256").update(signature).digest("hex")
     });
+    save();
+    if (output) console.error(benchmarkCase.name, mode, significantDigits, rounded(refineMs));
   }
 }
 
 function structuralSnapshot(name, created, checkpointDelta, ball) {
   if (name === "pi") {
-    const snapshot = getPiComputationSnapshot(created.context);
+    const modern = constants.getPiComputationSnapshot !== undefined;
+    const snapshot = modern
+      ? constants.getPiComputationSnapshot(created.context)
+      : constants.getPiProviderStateSnapshot(created.context);
     return {
-      termCount: snapshot.termCount,
-      termMetric: "pi-series-terms+agm-iterations",
+      termCount: modern ? snapshot.termCount : snapshot.completedTerms,
+      termMetric: modern ? "pi-series-terms+agm-iterations" : "series-terms",
       peakBigIntDigits: snapshot.peakBigIntDigits,
       peakMetric: "working-state",
-      retainedBigIntDigits: snapshot.retainedBigIntDigits,
-      stateReuse: snapshot.stateReuse
+      retainedBigIntDigits: modern ? snapshot.retainedBigIntDigits : snapshot.cachedBigIntDigits,
+      stateReuse: modern ? snapshot.stateReuse : snapshot.cacheHits
     };
   }
 
@@ -158,6 +207,16 @@ function structuralSnapshot(name, created, checkpointDelta, ball) {
 
   if (name === "gamma" || name === "gamma-reflection") {
     const snapshot = getBernoulliCacheSnapshot(created.context);
+    const special = specialGamma?.getSpecialGammaSnapshot(created.context);
+    if (special?.entries > 0)
+      return {
+        termCount: special.terms,
+        termMetric: "special-gamma-series-terms",
+        peakBigIntDigits: Math.max(special.retainedBigIntDigits, ballComponentDigits(ball)),
+        peakMetric: "retained-state/result",
+        retainedBigIntDigits: special.retainedBigIntDigits + snapshot.retainedBigIntDigits,
+        stateReuse: null
+      };
     return {
       termCount: snapshot.tangentNumbers,
       termMetric: "cached-coefficients",

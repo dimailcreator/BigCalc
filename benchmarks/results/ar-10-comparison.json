@@ -1,0 +1,2257 @@
+[
+  {
+    "operation": "pi",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 8.46,
+    "postMs": 9.49,
+    "timeRatio": 1.1217494089834514,
+    "extractionRatio": 1.0208333333333333,
+    "rssRatio": 1.054234062797336,
+    "heapRatio": 1.0423728813559323,
+    "checkpointRatio": 1,
+    "termRatio": null,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "pi-series-terms+agm-iterations",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 108,
+        "argumentClass": "constant",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "pi",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 9.59,
+    "postMs": 13.35,
+    "timeRatio": 1.392075078206465,
+    "extractionRatio": 1.5033112582781456,
+    "rssRatio": 1.0352905384849407,
+    "heapRatio": 1.0649895178197066,
+    "checkpointRatio": 1,
+    "termRatio": null,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "pi-series-terms+agm-iterations",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 308,
+        "argumentClass": "constant",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "pi",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 154.58,
+    "postMs": 89.12,
+    "timeRatio": 0.5765299521283478,
+    "extractionRatio": 0.5459297983569827,
+    "rssRatio": 1.020609579100145,
+    "heapRatio": 1.0647181628392484,
+    "checkpointRatio": 1,
+    "termRatio": null,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "pi-series-terms+agm-iterations",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 1008,
+        "argumentClass": "constant",
+        "requests": 3,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "pi",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 993.62,
+    "postMs": 401.77,
+    "timeRatio": 0.40434975141402146,
+    "extractionRatio": 7.9704142011834325,
+    "rssRatio": 1.003960396039604,
+    "heapRatio": 1.0727650727650728,
+    "checkpointRatio": 0.5603015075376885,
+    "termRatio": null,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "pi-series-terms+agm-iterations",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "agm",
+        "workingDigits": 3008,
+        "argumentClass": "constant",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "pi",
+    "mode": "sequential",
+    "digits": 10000,
+    "baselineMs": 10611.52,
+    "postMs": 4078.62,
+    "timeRatio": 0.38435775459123667,
+    "extractionRatio": 7.469387755102041,
+    "rssRatio": 0.9553297092885843,
+    "heapRatio": 1.0677618069815196,
+    "checkpointRatio": 0.164969450101833,
+    "termRatio": null,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "pi-series-terms+agm-iterations",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "agm",
+        "workingDigits": 10008,
+        "argumentClass": "constant",
+        "requests": 5,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "pi",
+    "mode": "direct",
+    "digits": 10000,
+    "baselineMs": 9226.39,
+    "postMs": 2872.52,
+    "timeRatio": 0.31133737030409514,
+    "extractionRatio": 4.151653363740023,
+    "rssRatio": 0.8127962085308056,
+    "heapRatio": 1.065439672801636,
+    "checkpointRatio": 0.11790393013100436,
+    "termRatio": null,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "pi-series-terms+agm-iterations",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "agm",
+        "workingDigits": 10008,
+        "argumentClass": "constant",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "e",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 1.67,
+    "postMs": 1.57,
+    "timeRatio": 0.940119760479042,
+    "extractionRatio": 1.0357142857142856,
+    "rssRatio": 0.8125863089366739,
+    "heapRatio": 1.074074074074074,
+    "checkpointRatio": 0.987012987012987,
+    "termRatio": 1,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "e",
+        "strategy": "sequential",
+        "workingDigits": 108,
+        "argumentClass": "factorial-series",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "e",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 2.78,
+    "postMs": 2.2,
+    "timeRatio": 0.7913669064748202,
+    "extractionRatio": 0.974025974025974,
+    "rssRatio": 0.8128574245710904,
+    "heapRatio": 1.0739219712525667,
+    "checkpointRatio": 1,
+    "termRatio": 1,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "e",
+        "strategy": "sequential",
+        "workingDigits": 308,
+        "argumentClass": "factorial-series",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "e",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 18.65,
+    "postMs": 12.91,
+    "timeRatio": 0.6922252010723862,
+    "extractionRatio": 2.18348623853211,
+    "rssRatio": 0.8146687697160884,
+    "heapRatio": 1.0758196721311475,
+    "checkpointRatio": 3.9859649122807017,
+    "termRatio": 1.002202643171806,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "e",
+        "strategy": "binary",
+        "workingDigits": 1008,
+        "argumentClass": "factorial-series",
+        "requests": 3,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "e",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 284.54,
+    "postMs": 156.29,
+    "timeRatio": 0.5492725100161664,
+    "extractionRatio": 14.762886597938145,
+    "rssRatio": 0.8187772925764192,
+    "heapRatio": 1.0755102040816324,
+    "checkpointRatio": 4.025936599423631,
+    "termRatio": 1.0008726003490402,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "e",
+        "strategy": "binary",
+        "workingDigits": 3008,
+        "argumentClass": "factorial-series",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "e",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 310.67,
+    "postMs": 90.18,
+    "timeRatio": 0.29027585540927675,
+    "extractionRatio": 4.211206896551724,
+    "rssRatio": 0.8138476755687438,
+    "heapRatio": 1.0795918367346937,
+    "checkpointRatio": 4.015679442508711,
+    "termRatio": 1.0008726003490402,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "e",
+        "strategy": "binary",
+        "workingDigits": 3008,
+        "argumentClass": "factorial-series",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "small-sin",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 3.72,
+    "postMs": 6.46,
+    "timeRatio": 1.736559139784946,
+    "extractionRatio": 1,
+    "rssRatio": 0.8187919463087249,
+    "heapRatio": 1.0823293172690762,
+    "checkpointRatio": 3.1666666666666665,
+    "termRatio": 3.1666666666666665,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "sequential",
+        "workingDigits": 112,
+        "argumentClass": "sin",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "small-sin",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 4.86,
+    "postMs": 2.97,
+    "timeRatio": 0.6111111111111112,
+    "extractionRatio": 1,
+    "rssRatio": 0.8187919463087249,
+    "heapRatio": 1.0843373493975903,
+    "checkpointRatio": 2.4516129032258065,
+    "termRatio": 2.4516129032258065,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 312,
+        "argumentClass": "sin",
+        "requests": 2,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "small-sin",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 55.33,
+    "postMs": 16.1,
+    "timeRatio": 0.2909813844207483,
+    "extractionRatio": 1.5242165242165242,
+    "rssRatio": 0.8155762008302035,
+    "heapRatio": 1.0821643286573146,
+    "checkpointRatio": 2.2934131736526946,
+    "termRatio": 2.2934131736526946,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 1012,
+        "argumentClass": "sin",
+        "requests": 3,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "small-sin",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 1167,
+    "postMs": 150.3,
+    "timeRatio": 0.12879177377892032,
+    "extractionRatio": 5.503184713375797,
+    "rssRatio": 0.8175927743962301,
+    "heapRatio": 1.077534791252485,
+    "checkpointRatio": 2.2494226327944573,
+    "termRatio": 2.2494226327944573,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 3012,
+        "argumentClass": "sin",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "small-sin",
+    "mode": "sequential",
+    "digits": 10000,
+    "baselineMs": 16702.62,
+    "postMs": 1841.47,
+    "timeRatio": 0.11025036790635243,
+    "extractionRatio": 4.707878787878788,
+    "rssRatio": 0.8269268677311257,
+    "heapRatio": 1.0828402366863905,
+    "checkpointRatio": 4.917721518987341,
+    "termRatio": 4.917721518987341,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "binary",
+        "workingDigits": 10012,
+        "argumentClass": "sin",
+        "requests": 5,
+        "changes": 2
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "small-sin",
+    "mode": "direct",
+    "digits": 10000,
+    "baselineMs": 21338.19,
+    "postMs": 1827.19,
+    "timeRatio": 0.08563003703688082,
+    "extractionRatio": 6.031695721077655,
+    "rssRatio": 0.9930939226519336,
+    "heapRatio": 1.0846456692913384,
+    "checkpointRatio": 4.9084451460142065,
+    "termRatio": 4.9084451460142065,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "binary",
+        "workingDigits": 10012,
+        "argumentClass": "sin",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "sincos-tan",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 9.01,
+    "postMs": 3.53,
+    "timeRatio": 0.3917869034406215,
+    "extractionRatio": 1.2222222222222223,
+    "rssRatio": 0.9952681388012617,
+    "heapRatio": 1.078740157480315,
+    "checkpointRatio": 3.309090909090909,
+    "termRatio": 3.309090909090909,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "sequential",
+        "workingDigits": 112,
+        "argumentClass": "both",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "sincos-tan",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 10.26,
+    "postMs": 4.49,
+    "timeRatio": 0.43762183235867447,
+    "extractionRatio": 0.8955223880597014,
+    "rssRatio": 0.9958693941778127,
+    "heapRatio": 1.0869565217391306,
+    "checkpointRatio": 1.8760330578512396,
+    "termRatio": 1.8760330578512396,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 312,
+        "argumentClass": "both",
+        "requests": 2,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "sincos-tan",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 110.49,
+    "postMs": 34.31,
+    "timeRatio": 0.3105258394424835,
+    "extractionRatio": 0.9180327868852459,
+    "rssRatio": 0.9880062917813606,
+    "heapRatio": 1.086785009861933,
+    "checkpointRatio": 1.105740181268882,
+    "termRatio": 1.105740181268882,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 1012,
+        "argumentClass": "both",
+        "requests": 3,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "sincos-tan",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 1881.82,
+    "postMs": 285.82,
+    "timeRatio": 0.15188487740591555,
+    "extractionRatio": 4.256410256410256,
+    "rssRatio": 0.9830011723329426,
+    "heapRatio": 1.0821917808219177,
+    "checkpointRatio": 0.7740440324449595,
+    "termRatio": 0.7740440324449595,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 3012,
+        "argumentClass": "both",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "sincos-tan",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 1534.81,
+    "postMs": 391.28,
+    "timeRatio": 0.2549370931906881,
+    "extractionRatio": 8.02,
+    "rssRatio": 0.9929147805550088,
+    "heapRatio": 1.0797665369649805,
+    "checkpointRatio": 0.7748267898383372,
+    "termRatio": 0.7748267898383372,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 3012,
+        "argumentClass": "both",
+        "requests": 1,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-radian-sin",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 5.4,
+    "postMs": 7.38,
+    "timeRatio": 1.3666666666666665,
+    "extractionRatio": 0.8333333333333334,
+    "rssRatio": 0.9905808477237048,
+    "heapRatio": 1.087890625,
+    "checkpointRatio": 2.549019607843137,
+    "termRatio": 2.549019607843137,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 132,
+        "argumentClass": "constant",
+        "requests": 1,
+        "changes": 0
+      },
+      {
+        "operation": "sincos",
+        "strategy": "sequential",
+        "workingDigits": 112,
+        "argumentClass": "sin",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-radian-sin",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 18.44,
+    "postMs": 14.53,
+    "timeRatio": 0.7879609544468545,
+    "extractionRatio": 1,
+    "rssRatio": 0.9943103786541103,
+    "heapRatio": 1.0896686159844053,
+    "checkpointRatio": 2.168421052631579,
+    "termRatio": 2.168421052631579,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 332,
+        "argumentClass": "constant",
+        "requests": 2,
+        "changes": 0
+      },
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 312,
+        "argumentClass": "sin",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-radian-sin",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 184.27,
+    "postMs": 119,
+    "timeRatio": 0.6457915016009117,
+    "extractionRatio": 1.057991513437058,
+    "rssRatio": 0.9845370914073203,
+    "heapRatio": 1.0851063829787235,
+    "checkpointRatio": 1.9655172413793103,
+    "termRatio": 1.9655172413793103,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 1032,
+        "argumentClass": "constant",
+        "requests": 3,
+        "changes": 0
+      },
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 1012,
+        "argumentClass": "sin",
+        "requests": 6,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-radian-sin",
+    "mode": "direct",
+    "digits": 1000,
+    "baselineMs": 151.9,
+    "postMs": 100.2,
+    "timeRatio": 0.6596445029624753,
+    "extractionRatio": 1.16015625,
+    "rssRatio": 0.9851822967440047,
+    "heapRatio": 1.0828516377649324,
+    "checkpointRatio": 1.8484848484848484,
+    "termRatio": 1.8484848484848484,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 1032,
+        "argumentClass": "constant",
+        "requests": 1,
+        "changes": 0
+      },
+      {
+        "operation": "sincos",
+        "strategy": "rectangular",
+        "workingDigits": 1012,
+        "argumentClass": "sin",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "exp",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 4.36,
+    "postMs": 8.79,
+    "timeRatio": 2.016055045871559,
+    "extractionRatio": 1.173913043478261,
+    "rssRatio": 0.9859703819173812,
+    "heapRatio": 1.0863723608445297,
+    "checkpointRatio": 2.682051282051282,
+    "termRatio": 2.682051282051282,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "sequential",
+        "workingDigits": 122,
+        "argumentClass": "reduced-positive",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "exp",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 13.99,
+    "postMs": 12.42,
+    "timeRatio": 0.8877769835596855,
+    "extractionRatio": 0.9240506329113923,
+    "rssRatio": 0.9869497467861317,
+    "heapRatio": 1.0881226053639848,
+    "checkpointRatio": 2.0704898446833933,
+    "termRatio": 2.0704898446833933,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 322,
+        "argumentClass": "reduced-positive",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "exp",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 223.93,
+    "postMs": 62.22,
+    "timeRatio": 0.277854686732461,
+    "extractionRatio": 1.176706827309237,
+    "rssRatio": 0.998823067869753,
+    "heapRatio": 1.091778202676864,
+    "checkpointRatio": 1.862082362082362,
+    "termRatio": 1.862082362082362,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 1022,
+        "argumentClass": "reduced-positive",
+        "requests": 6,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "exp",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 4760.23,
+    "postMs": 588.72,
+    "timeRatio": 0.12367469639072064,
+    "extractionRatio": 7.01010101010101,
+    "rssRatio": 1.0019719976336028,
+    "heapRatio": 1.0954198473282444,
+    "checkpointRatio": 1.868759507675287,
+    "termRatio": 1.868759507675287,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 3022,
+        "argumentClass": "reduced-positive",
+        "requests": 8,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "exp",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 4455.8,
+    "postMs": 572.64,
+    "timeRatio": 0.12851564253332734,
+    "extractionRatio": 9.108910891089108,
+    "rssRatio": 1.0039502271380603,
+    "heapRatio": 1.0910815939278937,
+    "checkpointRatio": 1.627408477842004,
+    "termRatio": 1.627408477842004,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 3022,
+        "argumentClass": "reduced-positive",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln-reduction",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 4.57,
+    "postMs": 11.33,
+    "timeRatio": 2.4792122538293215,
+    "extractionRatio": 1.0454545454545454,
+    "rssRatio": 1.0009859988168013,
+    "heapRatio": 1.094876660341556,
+    "checkpointRatio": 2.002493765586035,
+    "termRatio": 2.002493765586035,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 121,
+        "argumentClass": "reduced",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln-reduction",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 14.93,
+    "postMs": 15.28,
+    "timeRatio": 1.0234427327528466,
+    "extractionRatio": 1.2987012987012987,
+    "rssRatio": 1.004918355301987,
+    "heapRatio": 1.0967741935483872,
+    "checkpointRatio": 1.7683189655172413,
+    "termRatio": 1.7683189655172413,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 321,
+        "argumentClass": "reduced",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln-reduction",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 232.38,
+    "postMs": 89.4,
+    "timeRatio": 0.38471469145365356,
+    "extractionRatio": 0.9448621553884712,
+    "rssRatio": 1.0017699115044247,
+    "heapRatio": 1.0964083175803403,
+    "checkpointRatio": 1.653833388649187,
+    "termRatio": 1.653833388649187,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 1021,
+        "argumentClass": "reduced",
+        "requests": 6,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln-reduction",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 4856.15,
+    "postMs": 793.66,
+    "timeRatio": 0.16343399606684308,
+    "extractionRatio": 7.037383177570093,
+    "rssRatio": 1.0132883776279256,
+    "heapRatio": 1.0897196261682245,
+    "checkpointRatio": 1.6506337709370755,
+    "termRatio": 1.6506337709370755,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 3021,
+        "argumentClass": "reduced",
+        "requests": 8,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln-reduction",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 4875.2,
+    "postMs": 790.32,
+    "timeRatio": 0.16211027239908107,
+    "extractionRatio": 6.584158415841585,
+    "rssRatio": 1.0138833796112652,
+    "heapRatio": 1.0956848030018762,
+    "checkpointRatio": 1.4724886420999495,
+    "termRatio": 1.4724886420999495,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 3021,
+        "argumentClass": "reduced",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln2",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 2.47,
+    "postMs": 2.89,
+    "timeRatio": 1.1700404858299596,
+    "extractionRatio": 1.3043478260869563,
+    "rssRatio": 0.9984405458089669,
+    "heapRatio": 1.09811320754717,
+    "checkpointRatio": 2.478927203065134,
+    "termRatio": 1.2598425196850394,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 121,
+        "argumentClass": "reduced",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln2",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 9.91,
+    "postMs": 6.98,
+    "timeRatio": 0.7043390514631686,
+    "extractionRatio": 0.768421052631579,
+    "rssRatio": 1.0063091482649842,
+    "heapRatio": 1.095505617977528,
+    "checkpointRatio": 2.5416666666666665,
+    "termRatio": 1.0476190476190477,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 321,
+        "argumentClass": "near-one",
+        "requests": 4,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln2",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 146.94,
+    "postMs": 31.88,
+    "timeRatio": 0.21695930311691847,
+    "extractionRatio": 1.4637681159420288,
+    "rssRatio": 1.010073079202054,
+    "heapRatio": 1.097196261682243,
+    "checkpointRatio": 2.3786622443338863,
+    "termRatio": 1.0177736202057999,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 1021,
+        "argumentClass": "near-one",
+        "requests": 6,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln2",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 3184.95,
+    "postMs": 348.51,
+    "timeRatio": 0.10942400979607216,
+    "extractionRatio": 7.79,
+    "rssRatio": 1.014910536779324,
+    "heapRatio": 1.090909090909091,
+    "checkpointRatio": 2.401633118116217,
+    "termRatio": 1.011378002528445,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 3021,
+        "argumentClass": "near-one",
+        "requests": 8,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln2",
+    "mode": "sequential",
+    "digits": 10000,
+    "baselineMs": 67615.5,
+    "postMs": 5726.38,
+    "timeRatio": 0.08469034466949146,
+    "extractionRatio": 3.385086823289071,
+    "rssRatio": 1.1937893999533038,
+    "heapRatio": 1.0904059040590406,
+    "checkpointRatio": 2.3264391009472565,
+    "termRatio": 1.0027621678255072,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 10021,
+        "argumentClass": "near-one",
+        "requests": 10,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "ln2",
+    "mode": "direct",
+    "digits": 10000,
+    "baselineMs": 90913.54,
+    "postMs": 5806.63,
+    "timeRatio": 0.06386980421178189,
+    "extractionRatio": 4.372496662216288,
+    "rssRatio": 1.1969555035128805,
+    "heapRatio": 1.096296296296296,
+    "checkpointRatio": 1.9760533206379434,
+    "termRatio": 1.0027621678255072,
+    "baselineTermMetric": "series-terms",
+    "postTermMetric": "series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 10021,
+        "argumentClass": "near-one",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "nth-root-power",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 3.68,
+    "postMs": 2.89,
+    "timeRatio": 0.7853260869565217,
+    "extractionRatio": 0.9615384615384615,
+    "rssRatio": 1.1962573099415206,
+    "heapRatio": 1.0964749536178109,
+    "checkpointRatio": 1,
+    "termRatio": 1,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "nth-root-power",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 3.11,
+    "postMs": 2.93,
+    "timeRatio": 0.942122186495177,
+    "extractionRatio": 0.4823529411764706,
+    "rssRatio": 1.1962114125350796,
+    "heapRatio": 1.0964749536178109,
+    "checkpointRatio": 1,
+    "termRatio": 1,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "nth-root-power",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 14.14,
+    "postMs": 14.09,
+    "timeRatio": 0.9964639321074964,
+    "extractionRatio": 0.7543859649122806,
+    "rssRatio": 1.1982698152910918,
+    "heapRatio": 1.096296296296296,
+    "checkpointRatio": 1,
+    "termRatio": 1,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "nth-root-power",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 260.08,
+    "postMs": 144.19,
+    "timeRatio": 0.5544063365118426,
+    "extractionRatio": 3.3257575757575752,
+    "rssRatio": 1.194061257891045,
+    "heapRatio": 1.098148148148148,
+    "checkpointRatio": 2.0833333333333335,
+    "termRatio": 2.0833333333333335,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "nth-root-power",
+    "mode": "sequential",
+    "digits": 10000,
+    "baselineMs": 1903.63,
+    "postMs": 2020.86,
+    "timeRatio": 1.0615823453086997,
+    "extractionRatio": 4.74365821094793,
+    "rssRatio": 1.0082660893524895,
+    "heapRatio": 1.0955882352941175,
+    "checkpointRatio": 2.25,
+    "termRatio": 2.25,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "nth-root-power",
+    "mode": "direct",
+    "digits": 10000,
+    "baselineMs": 1736.22,
+    "postMs": 1705.74,
+    "timeRatio": 0.9824446210733663,
+    "extractionRatio": 5.97532894736842,
+    "rssRatio": 1.0100216152485753,
+    "heapRatio": 1.0952380952380953,
+    "checkpointRatio": 1.5769230769230769,
+    "termRatio": 1.5769230769230769,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 26.91,
+    "postMs": 22.64,
+    "timeRatio": 0.84132292827945,
+    "extractionRatio": 1.2173913043478262,
+    "rssRatio": 1.0120031483667846,
+    "heapRatio": 1.1021897810218977,
+    "checkpointRatio": 0.06950207468879668,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 166,
+        "argumentClass": "constant",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 150.16,
+    "postMs": 33.44,
+    "timeRatio": 0.22269579115610014,
+    "extractionRatio": 2.904109589041096,
+    "rssRatio": 1.0009773260359658,
+    "heapRatio": 1.0958408679927667,
+    "checkpointRatio": 0.02383288938735455,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 366,
+        "argumentClass": "constant",
+        "requests": 4,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 7602.57,
+    "postMs": 196.44,
+    "timeRatio": 0.025838630884030007,
+    "extractionRatio": 0.6848484848484848,
+    "rssRatio": 0.9968707216898102,
+    "heapRatio": 1.0446735395189004,
+    "checkpointRatio": 0.009984865046666106,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 1066,
+        "argumentClass": "constant",
+        "requests": 6,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma",
+    "mode": "direct",
+    "digits": 1000,
+    "baselineMs": 5542.18,
+    "postMs": 258.56,
+    "timeRatio": 0.04665312205666362,
+    "extractionRatio": 1.3804034582132565,
+    "rssRatio": 0.9881645324020178,
+    "heapRatio": 1.0499139414802066,
+    "checkpointRatio": 0.010431879824744418,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 1066,
+        "argumentClass": "constant",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma-reflection",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 23.17,
+    "postMs": 7.38,
+    "timeRatio": 0.31851532153646955,
+    "extractionRatio": 1.032258064516129,
+    "rssRatio": 0.9945419103313842,
+    "heapRatio": 1.0776014109347443,
+    "checkpointRatio": 0.07954545454545454,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 166,
+        "argumentClass": "constant",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma-reflection",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 134.42,
+    "postMs": 18.72,
+    "timeRatio": 0.13926499032882012,
+    "extractionRatio": 0.9145299145299146,
+    "rssRatio": 1.0021530632217654,
+    "heapRatio": 1.0718038528896672,
+    "checkpointRatio": 0.0268145444335252,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 366,
+        "argumentClass": "constant",
+        "requests": 4,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma-reflection",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 5712.51,
+    "postMs": 202.57,
+    "timeRatio": 0.03546076943410165,
+    "extractionRatio": 0.8426527958387516,
+    "rssRatio": 0.9918683446272991,
+    "heapRatio": 1.0425170068027212,
+    "checkpointRatio": 0.010600856549209177,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 1066,
+        "argumentClass": "constant",
+        "requests": 6,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "gamma-reflection",
+    "mode": "direct",
+    "digits": 1000,
+    "baselineMs": 5779.26,
+    "postMs": 194.55,
+    "timeRatio": 0.03366347940739818,
+    "extractionRatio": 0.8078740157480315,
+    "rssRatio": 0.752317880794702,
+    "heapRatio": 1.0514579759862779,
+    "checkpointRatio": 0.01100959516801101,
+    "termRatio": null,
+    "baselineTermMetric": "cached-coefficients",
+    "postTermMetric": "special-gamma-series-terms",
+    "algorithmSelected": [
+      {
+        "operation": "pi",
+        "strategy": "chudnovsky",
+        "workingDigits": 1066,
+        "argumentClass": "constant",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": true,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-exp",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 223.68,
+    "postMs": 5.7,
+    "timeRatio": 0.025482832618025753,
+    "extractionRatio": 0.008377484943168954,
+    "rssRatio": 0.7495994173343044,
+    "heapRatio": 1.09347442680776,
+    "checkpointRatio": 2.889502762430939,
+    "termRatio": 2.889502762430939,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "sequential",
+        "workingDigits": 122,
+        "argumentClass": "reduced-positive",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-exp",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 238.18,
+    "postMs": 16.49,
+    "timeRatio": 0.06923335292635821,
+    "extractionRatio": 0.02245670995670996,
+    "rssRatio": 0.7474512088552288,
+    "heapRatio": 1.0811287477954143,
+    "checkpointRatio": 2.340341655716163,
+    "termRatio": 2.340341655716163,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 322,
+        "argumentClass": "reduced-positive",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-exp",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 438.65,
+    "postMs": 78.31,
+    "timeRatio": 0.17852501994756642,
+    "extractionRatio": 0.10940266920053555,
+    "rssRatio": 0.7514602803738317,
+    "heapRatio": 1.0845070422535212,
+    "checkpointRatio": 2.058305369127517,
+    "termRatio": 2.058305369127517,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 1022,
+        "argumentClass": "reduced-positive",
+        "requests": 6,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-exp",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 4494.66,
+    "postMs": 728.16,
+    "timeRatio": 0.1620055799548798,
+    "extractionRatio": 0.8500083584085589,
+    "rssRatio": 0.7518301610541728,
+    "heapRatio": 1.0878734622144113,
+    "checkpointRatio": 1.9948415622697127,
+    "termRatio": 1.9948415622697127,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 3022,
+        "argumentClass": "reduced-positive",
+        "requests": 8,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "large-exp",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 4161.25,
+    "postMs": 831.4,
+    "timeRatio": 0.19979573445479124,
+    "extractionRatio": 0.9518173777534431,
+    "rssRatio": 0.7497431381183033,
+    "heapRatio": 1.0824561403508772,
+    "checkpointRatio": 1.7212614445574772,
+    "termRatio": 1.7212614445574772,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "exp",
+        "strategy": "rectangular",
+        "workingDigits": 3022,
+        "argumentClass": "reduced-positive",
+        "requests": 2,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-ln",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 3.62,
+    "postMs": 6.56,
+    "timeRatio": 1.8121546961325965,
+    "extractionRatio": 0.48,
+    "rssRatio": 0.7465014577259476,
+    "heapRatio": 1.0790861159929699,
+    "checkpointRatio": 1.9696969696969697,
+    "termRatio": 1.9696969696969697,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 222,
+        "argumentClass": "near-one",
+        "requests": 4,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-ln",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 8.94,
+    "postMs": 13.03,
+    "timeRatio": 1.4574944071588367,
+    "extractionRatio": 0.8292682926829269,
+    "rssRatio": 0.7628423390081421,
+    "heapRatio": 1.0730434782608695,
+    "checkpointRatio": 2.5254237288135593,
+    "termRatio": 2.5254237288135593,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 622,
+        "argumentClass": "reduced",
+        "requests": 8,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-ln",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 67.48,
+    "postMs": 108.03,
+    "timeRatio": 1.6009187907528155,
+    "extractionRatio": 27.652173913043477,
+    "rssRatio": 0.7580549807862844,
+    "heapRatio": 1.0802792321116927,
+    "checkpointRatio": 1.9938650306748467,
+    "termRatio": 1.9938650306748467,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 2022,
+        "argumentClass": "reduced",
+        "requests": 12,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-ln",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 964.24,
+    "postMs": 1128.5,
+    "timeRatio": 1.1703517796399237,
+    "extractionRatio": 26.19672131147541,
+    "rssRatio": 0.9943944534592122,
+    "heapRatio": 1.096322241681261,
+    "checkpointRatio": 3.49890590809628,
+    "termRatio": 3.49890590809628,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "binary",
+        "workingDigits": 6022,
+        "argumentClass": "reduced",
+        "requests": 16,
+        "changes": 2
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-ln",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 982.44,
+    "postMs": 1107.22,
+    "timeRatio": 1.1270103008835144,
+    "extractionRatio": 33.67213114754098,
+    "rssRatio": 0.9982240639336986,
+    "heapRatio": 1.094570928196147,
+    "checkpointRatio": 3.477223427331887,
+    "termRatio": 3.477223427331887,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "binary",
+        "workingDigits": 6022,
+        "argumentClass": "reduced",
+        "requests": 4,
+        "changes": 1
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-log",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 11.52,
+    "postMs": 20.93,
+    "timeRatio": 1.816840277777778,
+    "extractionRatio": 2.6739130434782608,
+    "rssRatio": 0.999852114758947,
+    "heapRatio": 1.083916083916084,
+    "checkpointRatio": 2.691358024691358,
+    "termRatio": 2.691358024691358,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "sequential",
+        "workingDigits": 222,
+        "argumentClass": "near-one",
+        "requests": 8,
+        "changes": 0
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-log",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 54.69,
+    "postMs": 45.01,
+    "timeRatio": 0.8230023770341928,
+    "extractionRatio": 1.0176470588235293,
+    "rssRatio": 0.9891080365027967,
+    "heapRatio": 1.0874125874125875,
+    "checkpointRatio": 2.852981029810298,
+    "termRatio": 2.852981029810298,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 622,
+        "argumentClass": "reduced",
+        "requests": 16,
+        "changes": 3
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-log",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 1477.48,
+    "postMs": 357.55,
+    "timeRatio": 0.24199989170750197,
+    "extractionRatio": 24.045454545454547,
+    "rssRatio": 1.0019296422740092,
+    "heapRatio": 1.0850694444444444,
+    "checkpointRatio": 2.71023198011599,
+    "termRatio": 2.71023198011599,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "rectangular",
+        "workingDigits": 2022,
+        "argumentClass": "reduced",
+        "requests": 24,
+        "changes": 7
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-log",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 22007.27,
+    "postMs": 4005.26,
+    "timeRatio": 0.18199713094809125,
+    "extractionRatio": 15.615384615384617,
+    "rssRatio": 1.0045756457564576,
+    "heapRatio": 1.1003460207612457,
+    "checkpointRatio": 2.771299179167846,
+    "termRatio": 2.771299179167846,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "binary",
+        "workingDigits": 6022,
+        "argumentClass": "reduced",
+        "requests": 32,
+        "changes": 11
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "near-one-log",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 23223.24,
+    "postMs": 3976.85,
+    "timeRatio": 0.17124440861826343,
+    "extractionRatio": 8.411764705882353,
+    "rssRatio": 1.0101920236336779,
+    "heapRatio": 1.0932642487046633,
+    "checkpointRatio": 2.4086186758468062,
+    "termRatio": 2.4086186758468062,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [
+      {
+        "operation": "ln",
+        "strategy": "binary",
+        "workingDigits": 6022,
+        "argumentClass": "reduced",
+        "requests": 8,
+        "changes": 3
+      }
+    ],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "rational-power",
+    "mode": "sequential",
+    "digits": 100,
+    "baselineMs": 1.43,
+    "postMs": 1.55,
+    "timeRatio": 1.083916083916084,
+    "extractionRatio": 1,
+    "rssRatio": 1.0113653136531364,
+    "heapRatio": 1.083623693379791,
+    "checkpointRatio": 1,
+    "termRatio": 1,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "rational-power",
+    "mode": "sequential",
+    "digits": 300,
+    "baselineMs": 5.05,
+    "postMs": 3.85,
+    "timeRatio": 0.7623762376237624,
+    "extractionRatio": 0.6460176991150443,
+    "rssRatio": 1.0072314049586777,
+    "heapRatio": 1.0834782608695652,
+    "checkpointRatio": 1,
+    "termRatio": 1,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "rational-power",
+    "mode": "sequential",
+    "digits": 1000,
+    "baselineMs": 23.09,
+    "postMs": 22.88,
+    "timeRatio": 0.9909051537462105,
+    "extractionRatio": 1.0844686648501363,
+    "rssRatio": 1.0063403125921557,
+    "heapRatio": 1.0815972222222223,
+    "checkpointRatio": 1,
+    "termRatio": 1,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "rational-power",
+    "mode": "sequential",
+    "digits": 3000,
+    "baselineMs": 173.31,
+    "postMs": 176.49,
+    "timeRatio": 1.0183486238532111,
+    "extractionRatio": 4.1572327044025155,
+    "rssRatio": 1.0051538801354736,
+    "heapRatio": 1.0833333333333335,
+    "checkpointRatio": 1.896551724137931,
+    "termRatio": 1.896551724137931,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "rational-power",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 246.64,
+    "postMs": 265.34,
+    "timeRatio": 1.075819007460266,
+    "extractionRatio": 6.79,
+    "rssRatio": 1.003970588235294,
+    "heapRatio": 1.0814558058925479,
+    "checkpointRatio": 1.2954545454545454,
+    "termRatio": 1.2954545454545454,
+    "baselineTermMetric": "checkpoints",
+    "postTermMetric": "checkpoints",
+    "algorithmSelected": [],
+    "specialGamma": false,
+    "verifiedMatch": true
+  },
+  {
+    "operation": "interval-ball-conversion",
+    "mode": "100x",
+    "digits": 100,
+    "baselineMs": 1.33,
+    "postMs": 1.14,
+    "timeRatio": 0.857142857142857,
+    "extractionRatio": null,
+    "rssRatio": 1.003970588235294,
+    "heapRatio": 1.0814558058925479,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "interval-ball-conversion",
+    "mode": "100x",
+    "digits": 300,
+    "baselineMs": 2.66,
+    "postMs": 2.17,
+    "timeRatio": 0.8157894736842105,
+    "extractionRatio": null,
+    "rssRatio": 1.003970588235294,
+    "heapRatio": 1.0814558058925479,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "interval-ball-conversion",
+    "mode": "100x",
+    "digits": 1000,
+    "baselineMs": 5.15,
+    "postMs": 4.53,
+    "timeRatio": 0.8796116504854369,
+    "extractionRatio": null,
+    "rssRatio": 1.003970588235294,
+    "heapRatio": 1.0814558058925479,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "interval-ball-conversion",
+    "mode": "20x",
+    "digits": 3000,
+    "baselineMs": 3.18,
+    "postMs": 2.43,
+    "timeRatio": 0.7641509433962265,
+    "extractionRatio": null,
+    "rssRatio": 1.003970588235294,
+    "heapRatio": 1.0831889081455808,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "interval-ball-conversion",
+    "mode": "20x",
+    "digits": 10000,
+    "baselineMs": 8.5,
+    "postMs": 7.95,
+    "timeRatio": 0.9352941176470588,
+    "extractionRatio": null,
+    "rssRatio": 1.003970588235294,
+    "heapRatio": 1.081174438687392,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-ball-conversion",
+    "mode": "100x",
+    "digits": 100,
+    "baselineMs": 11.94,
+    "postMs": 11.8,
+    "timeRatio": 0.9882747068676718,
+    "extractionRatio": null,
+    "rssRatio": 1.0136478267319389,
+    "heapRatio": 1.0831889081455808,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-ball-conversion",
+    "mode": "100x",
+    "digits": 300,
+    "baselineMs": 62.06,
+    "postMs": 43.73,
+    "timeRatio": 0.704640670319046,
+    "extractionRatio": null,
+    "rssRatio": 1.0082827984026033,
+    "heapRatio": 1.0830449826989619,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-ball-conversion",
+    "mode": "100x",
+    "digits": 1000,
+    "baselineMs": 207.35,
+    "postMs": 209.63,
+    "timeRatio": 1.0109959006510731,
+    "extractionRatio": null,
+    "rssRatio": 1.0063459268004722,
+    "heapRatio": 1.081174438687392,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-ball-conversion",
+    "mode": "20x",
+    "digits": 3000,
+    "baselineMs": 539.95,
+    "postMs": 562.88,
+    "timeRatio": 1.042466895082878,
+    "extractionRatio": null,
+    "rssRatio": 1.009025003698772,
+    "heapRatio": 1.082901554404145,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-ball-conversion",
+    "mode": "20x",
+    "digits": 10000,
+    "baselineMs": 6751.02,
+    "postMs": 6678.73,
+    "timeRatio": 0.9892919884698903,
+    "extractionRatio": null,
+    "rssRatio": 1.008259587020649,
+    "heapRatio": 1.0790378006872852,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "conversions",
+    "postTermMetric": "conversions",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-normalization",
+    "mode": "direct",
+    "digits": 100,
+    "baselineMs": 0.01,
+    "postMs": 0.01,
+    "timeRatio": 1,
+    "extractionRatio": null,
+    "rssRatio": 1.008259587020649,
+    "heapRatio": 1.0755336617405582,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "normalizations",
+    "postTermMetric": "normalizations",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-normalization",
+    "mode": "direct",
+    "digits": 300,
+    "baselineMs": 0,
+    "postMs": 0.01,
+    "timeRatio": null,
+    "extractionRatio": null,
+    "rssRatio": 1.008259587020649,
+    "heapRatio": 1.077175697865353,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "normalizations",
+    "postTermMetric": "normalizations",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-normalization",
+    "mode": "direct",
+    "digits": 1000,
+    "baselineMs": 0.01,
+    "postMs": 0.01,
+    "timeRatio": 1,
+    "extractionRatio": null,
+    "rssRatio": 1.008259587020649,
+    "heapRatio": 1.0754098360655737,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "normalizations",
+    "postTermMetric": "normalizations",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-normalization",
+    "mode": "direct",
+    "digits": 3000,
+    "baselineMs": 0.04,
+    "postMs": 0.04,
+    "timeRatio": 1,
+    "extractionRatio": null,
+    "rssRatio": 1.008259587020649,
+    "heapRatio": 1.0752864157119477,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "normalizations",
+    "postTermMetric": "normalizations",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  },
+  {
+    "operation": "rational-normalization",
+    "mode": "direct",
+    "digits": 10000,
+    "baselineMs": 0.1,
+    "postMs": 0.11,
+    "timeRatio": 1.0999999999999999,
+    "extractionRatio": null,
+    "rssRatio": 1.008259587020649,
+    "heapRatio": 1.0747967479674796,
+    "checkpointRatio": null,
+    "termRatio": 1,
+    "baselineTermMetric": "normalizations",
+    "postTermMetric": "normalizations",
+    "algorithmSelected": null,
+    "specialGamma": false,
+    "verifiedMatch": null
+  }
+]
