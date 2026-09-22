@@ -87,29 +87,29 @@ Production implementation должна использовать централи
 
 ## 3.1. Color tokens
 
-| Token | Значение | Назначение |
-|---|---|---|
-| `background` | `#090b10` | Основной фон приложения |
-| `surface-main` | `#11151d` | Drawer, history cards |
-| `surface-card` | `#151a22` | Settings/About cards |
-| `surface-popup` | `#171b24` | Popup menu, timeout dialog |
-| `surface-control` | `#202630` / `#202631` | Controls, segmented background, secondary surfaces |
-| `surface-control-active` | `#374258` | Активный segmented control |
-| `key-normal` | `#1b202a` | Обычные calculator keys |
-| `key-special` | `#2a3040` | Operators и special keys |
-| `key-ac` | `#294a7e` | `AC` |
-| `key-equals` | `#dfc8ff` | `=` и primary accent action |
-| `text-primary` | `#f6f3fb` | Основной текст |
-| `text-primary-soft` | `#f3f1f7` | Заголовки/cards |
-| `text-secondary` | `#a8adb8` | Result, dialog descriptions |
-| `text-muted` | `#8f96a3` | Secondary labels/descriptions |
-| `text-history-expression` | `#929aa8` | Expression в истории |
-| `text-disabled` | `#747b88` | Footnotes и tertiary text |
-| `text-history-meta` | `#5f6672` | Meta history entry |
-| `caret` | `#b9d1ff` | Cursor/caret и focus accent |
-| `equals-foreground` | `#251833` | Текст на лавандовом accent |
-| `ac-foreground` | `#e4eeff` | Текст `AC` |
-| `overlay` | `rgba(0,0,0,0.50)`–`rgba(0,0,0,0.56)` | Modal/drawer scrim |
+| Token                     | Значение                              | Назначение                                         |
+| ------------------------- | ------------------------------------- | -------------------------------------------------- |
+| `background`              | `#090b10`                             | Основной фон приложения                            |
+| `surface-main`            | `#11151d`                             | Drawer, history cards                              |
+| `surface-card`            | `#151a22`                             | Settings/About cards                               |
+| `surface-popup`           | `#171b24`                             | Popup menu, timeout dialog                         |
+| `surface-control`         | `#202630` / `#202631`                 | Controls, segmented background, secondary surfaces |
+| `surface-control-active`  | `#374258`                             | Активный segmented control                         |
+| `key-normal`              | `#1b202a`                             | Обычные calculator keys                            |
+| `key-special`             | `#2a3040`                             | Operators и special keys                           |
+| `key-ac`                  | `#294a7e`                             | `AC`                                               |
+| `key-equals`              | `#dfc8ff`                             | `=` и primary accent action                        |
+| `text-primary`            | `#f6f3fb`                             | Основной текст                                     |
+| `text-primary-soft`       | `#f3f1f7`                             | Заголовки/cards                                    |
+| `text-secondary`          | `#a8adb8`                             | Result, dialog descriptions                        |
+| `text-muted`              | `#8f96a3`                             | Secondary labels/descriptions                      |
+| `text-history-expression` | `#929aa8`                             | Expression в истории                               |
+| `text-disabled`           | `#747b88`                             | Footnotes и tertiary text                          |
+| `text-history-meta`       | `#5f6672`                             | Meta history entry                                 |
+| `caret`                   | `#b9d1ff`                             | Cursor/caret и focus accent                        |
+| `equals-foreground`       | `#251833`                             | Текст на лавандовом accent                         |
+| `ac-foreground`           | `#e4eeff`                             | Текст `AC`                                         |
+| `overlay`                 | `rgba(0,0,0,0.50)`–`rgba(0,0,0,0.56)` | Modal/drawer scrim                                 |
 
 Допускаются локальные очень близкие оттенки внутри одной surface hierarchy, если они уже заданы этой спецификацией.
 
@@ -2041,25 +2041,25 @@ src/app/styles/tokens.css
 
 ```css
 :root {
-    --bc-bg: #090b10;
+  --bc-bg: #090b10;
 
-    --bc-surface-main: #11151d;
-    --bc-surface-card: #151a22;
-    --bc-surface-popup: #171b24;
-    --bc-surface-control: #202630;
-    --bc-surface-control-active: #374258;
+  --bc-surface-main: #11151d;
+  --bc-surface-card: #151a22;
+  --bc-surface-popup: #171b24;
+  --bc-surface-control: #202630;
+  --bc-surface-control-active: #374258;
 
-    --bc-key-normal: #1b202a;
-    --bc-key-special: #2a3040;
-    --bc-key-ac: #294a7e;
-    --bc-key-equals: #dfc8ff;
+  --bc-key-normal: #1b202a;
+  --bc-key-special: #2a3040;
+  --bc-key-ac: #294a7e;
+  --bc-key-equals: #dfc8ff;
 
-    --bc-text-primary: #f6f3fb;
-    --bc-text-secondary: #a8adb8;
-    --bc-text-muted: #8f96a3;
+  --bc-text-primary: #f6f3fb;
+  --bc-text-secondary: #a8adb8;
+  --bc-text-muted: #8f96a3;
 
-    --bc-caret: #b9d1ff;
-    --bc-accent-foreground: #251833;
+  --bc-caret: #b9d1ff;
+  --bc-accent-foreground: #251833;
 }
 ```
 
