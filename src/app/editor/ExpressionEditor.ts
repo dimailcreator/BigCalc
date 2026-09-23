@@ -1,6 +1,13 @@
 import { parseEditorText } from "./ClipboardParser.js";
-import { ExpressionModel } from "./ExpressionModel.js";
+import { BackspaceRepeater } from "./BackspaceRepeater.js";
+import { ExpressionModel, createAtomicIdentifierToken } from "./ExpressionModel.js";
+import { insertSmartBracket } from "./SmartBrackets.js";
 import type { AnsToken, ExpressionToken } from "./ExpressionModel.js";
+import type { SmartBracketPair } from "./SmartBrackets.js";
+
+export const FUNCTION_KEY_NAMES = ["sin", "cos", "tan", "ln", "log"] as const;
+export type FunctionKeyName = (typeof FUNCTION_KEY_NAMES)[number];
+const functionKeyNames = new Set<string>(FUNCTION_KEY_NAMES);
 
 export interface ExpressionEditorOptions {
   readonly onChange: (model: ExpressionModel) => void;
@@ -15,6 +22,7 @@ export class ExpressionEditor {
   readonly #track: HTMLSpanElement;
   readonly #onChange: ExpressionEditorOptions["onChange"];
   readonly #onEnter: ExpressionEditorOptions["onEnter"];
+  readonly #backspaceRepeater: BackspaceRepeater;
   #model = new ExpressionModel();
   #historyOpen = false;
   #composing = false;
@@ -24,6 +32,9 @@ export class ExpressionEditor {
   constructor(options: ExpressionEditorOptions) {
     this.#onChange = options.onChange;
     this.#onEnter = options.onEnter;
+    this.#backspaceRepeater = new BackspaceRepeater(() => {
+      this.deleteBackward();
+    });
     this.root = document.createElement("div");
     this.root.className = "expression-editor";
     this.input = document.createElement("input");
@@ -54,10 +65,16 @@ export class ExpressionEditor {
   }
 
   clear(): void {
+    this.#backspaceRepeater.stop();
     this.#update(new ExpressionModel());
   }
 
+  dispose(): void {
+    this.#backspaceRepeater.stop();
+  }
+
   setHistoryOpen(open: boolean): void {
+    if (open) this.#backspaceRepeater.stop();
     this.#historyOpen = open;
     this.root.dataset.historyOpen = String(open);
   }
@@ -68,6 +85,33 @@ export class ExpressionEditor {
 
   insertAns(token: AnsToken): void {
     this.insertHistoryTokens([token]);
+  }
+
+  insertSmartBracket(pair: SmartBracketPair): void {
+    if (this.#historyOpen) return;
+    this.#update(insertSmartBracket(this.#model, pair));
+    this.focus();
+  }
+
+  insertFunction(name: FunctionKeyName): void {
+    if (!functionKeyNames.has(name)) throw new TypeError("Unknown function key");
+    if (this.#historyOpen) return;
+    this.#update(this.#model.insert(createAtomicIdentifierToken(name)));
+    this.focus();
+  }
+
+  deleteBackward(): void {
+    if (this.#historyOpen) return;
+    this.#update(this.#model.deleteBackward());
+  }
+
+  startBackspaceHold(): void {
+    if (this.#historyOpen) return;
+    this.#backspaceRepeater.start();
+  }
+
+  stopBackspaceHold(): void {
+    this.#backspaceRepeater.stop();
   }
 
   #bindEvents(): void {
@@ -148,7 +192,7 @@ export class ExpressionEditor {
       if (this.#historyOpen) return;
       this.#onNativeSelection();
       if (event.key === "Backspace") {
-        this.#update(this.#model.deleteBackward());
+        this.deleteBackward();
       } else {
         const { start, end } = this.#model.selection;
         const selected =
@@ -168,7 +212,7 @@ export class ExpressionEditor {
     if (event.inputType === "insertText" && event.data !== null) {
       this.#insertText(event.data);
     } else if (event.inputType === "deleteContentBackward") {
-      this.#update(this.#model.deleteBackward());
+      this.deleteBackward();
     }
   }
 

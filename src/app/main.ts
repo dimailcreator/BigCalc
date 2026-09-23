@@ -72,6 +72,7 @@ equalsButton.addEventListener("click", () => {
 window.addEventListener(
   "pagehide",
   () => {
+    editor.dispose();
     controller.dispose();
     calculationClient.terminate();
   },
