@@ -1,4 +1,4 @@
-import { CORE_PUBLIC_API_VERSION } from "@bigcalc/core";
+import { createBrowserCalculationClient } from "./calculation/CalculationClient.js";
 import "./styles/base.css";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
@@ -9,10 +9,19 @@ if (appRoot === null) {
 
 const shell = document.createElement("main");
 const heading = document.createElement("h1");
+const calculationClient = createBrowserCalculationClient();
 
 shell.className = "app-shell";
 heading.textContent = "BigCalc app booted";
 
-appRoot.dataset.coreApiVersion = CORE_PUBLIC_API_VERSION;
+appRoot.dataset.calculationWorker = "started";
 shell.append(heading);
 appRoot.replaceChildren(shell);
+
+window.addEventListener(
+  "pagehide",
+  () => {
+    calculationClient.terminate();
+  },
+  { once: true }
+);
