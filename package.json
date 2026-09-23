@@ -16,10 +16,10 @@
     "build": "tsc -p tsconfig.build.json",
     "dev:app": "vite --config vite.config.js",
     "build:app": "vite build --config vite.config.js",
-    "typecheck:app": "tsc -p tsconfig.app.json --noEmit",
-    "test:app": "npm run test:app:e2e",
+    "typecheck:app": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.app-test.json --noEmit",
+    "test:app": "vitest run --config vitest.config.js",
     "test:app:e2e": "playwright test --config playwright.config.js",
-    "check:app": "npm run typecheck:app && npm run test:app && npm run build:app",
+    "check:app": "npm run typecheck:app && npm run test:app && npm run test:app:e2e && npm run build:app",
     "typecheck": "tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "tsc -p tsconfig.test.json && node dist-test/tests/run-tests.js && npm run test:benchmarks",
     "test:benchmarks": "npm run build && node --test benchmarks/algorithm-harness.test.mjs",
@@ -43,6 +43,7 @@
     "prettier": "^3.9.6",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.68.0",
-    "vite": "^6.4.3"
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7"
   }
 }
