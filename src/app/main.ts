@@ -1,6 +1,7 @@
 import { createBrowserCalculationClient } from "./calculation/CalculationClient.js";
 import { LiveCalculatorController } from "./calculator/LiveCalculatorController.js";
 import type { LiveCalculatorViewState } from "./calculator/LiveCalculatorController.js";
+import { ExpressionEditor } from "./editor/ExpressionEditor.js";
 import "./styles/base.css";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
@@ -17,7 +18,6 @@ const angleModeButton = createButton("deg", "Режим углов: градус
 const factorialModeButton = createButton("fac", "Режим факториала: только целые", "mode-button");
 const clearButton = createButton("AC", "Очистить", "clear-button");
 const display = document.createElement("section");
-const expressionInput = document.createElement("input");
 const resultOutput = document.createElement("output");
 const equalsButton = createButton("=", "Равно", "equals-button");
 const calculationClient = createBrowserCalculationClient();
@@ -29,21 +29,23 @@ controls.className = "mode-controls";
 display.className = "main-display";
 display.setAttribute("aria-label", "Калькулятор");
 
-expressionInput.className = "expression-input";
-expressionInput.type = "text";
-expressionInput.inputMode = "text";
-expressionInput.autocomplete = "off";
-expressionInput.spellcheck = false;
-expressionInput.setAttribute("aria-label", "Выражение");
-expressionInput.setAttribute("enterkeyhint", "done");
-
 resultOutput.className = "result-output";
 resultOutput.setAttribute("aria-label", "Результат");
 resultOutput.setAttribute("aria-live", "polite");
 
 controls.append(angleModeButton, factorialModeButton, clearButton);
 header.append(heading, controls);
-display.append(expressionInput, resultOutput);
+const editor = new ExpressionEditor({
+  onChange(model) {
+    const representation = model.serializeForEvaluation();
+    if (representation.kind === "source") controller.setExpression(representation.source);
+    else controller.clear();
+  },
+  onEnter() {
+    if (editor.model.serializeForEvaluation().kind === "source") controller.evaluateExplicitly();
+  }
+});
+display.append(editor.root, resultOutput);
 shell.append(header, display, equalsButton);
 appRoot.dataset.calculationWorker = "started";
 appRoot.replaceChildren(shell);
@@ -52,14 +54,6 @@ const controller = new LiveCalculatorController(calculationClient, render, {
   initialSignificantDigits: initialDigitDemand(window.innerWidth)
 });
 
-expressionInput.addEventListener("input", () => {
-  controller.setExpression(expressionInput.value);
-});
-expressionInput.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter") return;
-  event.preventDefault();
-  controller.evaluateExplicitly();
-});
 angleModeButton.addEventListener("click", () => {
   controller.toggleAngleMode();
 });
@@ -68,10 +62,11 @@ factorialModeButton.addEventListener("click", () => {
 });
 clearButton.addEventListener("click", () => {
   controller.clear();
-  expressionInput.focus();
+  editor.clear();
+  editor.focus();
 });
 equalsButton.addEventListener("click", () => {
-  controller.evaluateExplicitly();
+  if (editor.model.serializeForEvaluation().kind === "source") controller.evaluateExplicitly();
 });
 
 window.addEventListener(
@@ -84,8 +79,6 @@ window.addEventListener(
 );
 
 function render(state: LiveCalculatorViewState): void {
-  if (expressionInput.value !== state.source) expressionInput.value = state.source;
-
   resultOutput.textContent = state.resultText;
   resultOutput.dataset.kind = state.resultKind;
   display.dataset.phase = state.phase;
