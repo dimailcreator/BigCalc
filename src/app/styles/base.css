@@ -1,8 +1,18 @@
 :root {
   color: #f6f3fb;
   background: #090b10;
-  font-family: system-ui, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color-scheme: dark;
+  --background: #090b10;
+  --surface-control: #202630;
+  --surface-control-active: #374258;
+  --key-ac: #294a7e;
+  --key-equals: #dfc8ff;
+  --text-primary: #f6f3fb;
+  --text-secondary: #a8adb8;
+  --caret: #b9d1ff;
+  --equals-foreground: #251833;
+  --ac-foreground: #e4eeff;
 }
 
 * {
@@ -13,17 +23,174 @@ body {
   min-width: 320px;
   min-height: 100dvh;
   margin: 0;
+  overflow: hidden;
+  background: var(--background);
 }
 
-.app-shell {
+button,
+input {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.calculator-shell {
   display: grid;
+  grid-template-rows: auto minmax(160px, 1fr) auto;
+  width: min(100%, 720px);
   min-height: 100dvh;
-  place-items: center;
-  padding: 24px;
+  margin: 0 auto;
+  padding: max(12px, env(safe-area-inset-top)) clamp(16px, 4vw, 28px)
+    max(16px, env(safe-area-inset-bottom));
 }
 
-.app-shell h1 {
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  gap: 16px;
+}
+
+.top-bar h1 {
   margin: 0;
-  font-size: clamp(1.5rem, 6vw, 2.5rem);
+  font-size: 19px;
   font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.mode-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-button,
+.clear-button,
+.equals-button {
+  min-width: 48px;
+  min-height: 48px;
+  border: 0;
+  border-radius: 18px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform 70ms ease-out,
+    filter 70ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.mode-button {
+  background: var(--surface-control);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mode-button[aria-pressed="false"] {
+  background: var(--surface-control-active);
+}
+
+.clear-button {
+  background: var(--key-ac);
+  color: var(--ac-foreground);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.main-display {
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  min-height: 160px;
+  padding: clamp(18px, 5dvh, 48px) 0 clamp(18px, 3dvh, 30px);
+  gap: clamp(6px, 1.6dvh, 14px);
+}
+
+.expression-input {
+  width: 100%;
+  min-height: 1.2em;
+  padding: 0;
+  overflow-x: auto;
+  border: 0;
+  border-radius: 10px;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  caret-color: var(--caret);
+  font-size: clamp(42px, 12.2vw, 68px);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-align: right;
+}
+
+.expression-input:focus-visible {
+  box-shadow: 0 0 0 2px rgba(185, 209, 255, 0.22);
+}
+
+.result-output {
+  display: block;
+  min-height: 1.16em;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: clamp(26px, 7.1vw, 38px);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.16;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-output[data-kind="error"] {
+  font-size: clamp(18px, 5vw, 25px);
+}
+
+.equals-button {
+  justify-self: stretch;
+  min-height: clamp(64px, 12dvh, 92px);
+  background: var(--key-equals);
+  color: var(--equals-foreground);
+  font-size: clamp(28px, 8vw, 40px);
+  font-weight: 600;
+}
+
+.mode-button:active,
+.clear-button:active,
+.equals-button:active {
+  transform: scale(0.95);
+  filter: brightness(1.2);
+}
+
+.mode-button:focus-visible,
+.clear-button:focus-visible,
+.equals-button:focus-visible {
+  outline: 2px solid rgba(185, 209, 255, 0.72);
+  outline-offset: 2px;
+}
+
+@media (height <= 680px) {
+  .expression-input {
+    font-size: clamp(34px, 9vw, 48px);
+  }
+
+  .result-output {
+    font-size: clamp(21px, 5.7vw, 28px);
+  }
+
+  .equals-button {
+    min-height: 58px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-button,
+  .clear-button,
+  .equals-button {
+    transition-duration: 0.01ms;
+    transition-delay: 0ms;
+  }
 }

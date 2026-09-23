@@ -1,0 +1,247 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type {
+  CalculationSettingsDto,
+  CreateCalculationResponse,
+  RefinementResultDto
+} from "../../../src/app/calculation/CalculationProtocol.js";
+import { createWorkerHandleId } from "../../../src/app/calculation/CalculationSession.js";
+import type {
+  CalculationRequestId,
+  CalculationSessionId
+} from "../../../src/app/calculation/CalculationSession.js";
+import { LiveCalculatorController } from "../../../src/app/calculator/LiveCalculatorController.js";
+import type {
+  CalculationGateway,
+  LiveCalculatorViewState
+} from "../../../src/app/calculator/LiveCalculatorController.js";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("LiveCalculatorController", () => {
+  it("waits for a full 150 ms quiet period before creating a calculation", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+
+    controller.setExpression("2");
+    await vi.advanceTimersByTimeAsync(100);
+    controller.setExpression("2+3");
+    await vi.advanceTimersByTimeAsync(149);
+    expect(gateway.creates).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(gateway.creates).toHaveLength(1);
+    expect(gateway.creates[0]?.source).toBe("2+3");
+  });
+
+  it("ignores a late refinement from a disposed stale session", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const states: LiveCalculatorViewState[] = [];
+    const controller = createController(gateway, (state) => states.push(state));
+
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    expect(gateway.refinements).toHaveLength(1);
+
+    controller.setExpression("2+3");
+    await vi.advanceTimersByTimeAsync(150);
+    expect(gateway.refinements).toHaveLength(2);
+    expect(gateway.disposals).toEqual([gateway.refinements[0]?.sessionId]);
+
+    gateway.refinements[0]?.deferred.resolve(complete("314159", 0n));
+    await Promise.resolve();
+    expect(controller.state.resultText).toBe("");
+
+    gateway.refinements[1]?.deferred.resolve(complete("5", 0n, true));
+    await Promise.resolve();
+    expect(controller.state).toMatchObject({
+      source: "2+3",
+      phase: "completed",
+      resultText: "5",
+      resultKind: "value"
+    });
+    expect(states.at(-1)?.resultText).toBe("5");
+  });
+
+  it("hides automatic mathematical errors until explicit equals", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    gateway.creationError = {
+      type: "create-failed",
+      sessionId: null,
+      error: {
+        kind: "calc-error",
+        code: "SyntaxError",
+        message: "Unexpected end"
+      }
+    };
+    const controller = createController(gateway);
+
+    controller.setExpression("1+");
+    await vi.advanceTimersByTimeAsync(150);
+    expect(controller.state).toMatchObject({ phase: "failed", resultText: "" });
+
+    controller.evaluateExplicitly();
+    expect(controller.state).toMatchObject({
+      phase: "failed",
+      resultText: "Ошибка синтаксиса",
+      resultKind: "error"
+    });
+  });
+
+  it("continues the same paused session when equals is pressed", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    const first = gateway.refinements[0];
+    if (first === undefined) throw new Error("Expected initial refinement");
+    first.deferred.resolve({
+      status: "paused",
+      reason: "time-limit",
+      requestedDigits: 24,
+      verifiedDigits: 0,
+      partial: null
+    });
+    await Promise.resolve();
+
+    controller.evaluateExplicitly();
+    expect(gateway.continuations).toHaveLength(1);
+    expect(gateway.continuations[0]?.sessionId).toBe(first.sessionId);
+    gateway.continuations[0]?.deferred.resolve(complete("314159", 0n));
+    await Promise.resolve();
+    expect(controller.state.resultText).toBe("3,14159...");
+  });
+
+  it("recalculates for settings and AC preserves the selected modes", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+
+    controller.setExpression("sin(30)");
+    await vi.advanceTimersByTimeAsync(150);
+    controller.toggleAngleMode();
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(gateway.creates).toHaveLength(2);
+    expect(gateway.creates[0]?.settings.angleMode).toBe("degrees");
+    expect(gateway.creates[1]?.settings.angleMode).toBe("radians");
+    controller.toggleFactorialMode();
+    controller.clear();
+    expect(controller.state).toMatchObject({
+      source: "",
+      resultText: "",
+      phase: "idle",
+      settings: { angleMode: "radians", factorialMode: "gamma" }
+    });
+  });
+});
+
+interface PendingRefinement {
+  readonly sessionId: CalculationSessionId;
+  readonly requestId: CalculationRequestId;
+  readonly deferred: Deferred<RefinementResultDto>;
+}
+
+class FakeGateway implements CalculationGateway {
+  readonly creates: {
+    readonly sessionId: CalculationSessionId;
+    readonly source: string;
+    readonly settings: CalculationSettingsDto;
+  }[] = [];
+  readonly refinements: PendingRefinement[] = [];
+  readonly continuations: PendingRefinement[] = [];
+  readonly disposals: CalculationSessionId[] = [];
+  creationError: {
+    readonly type: "create-failed";
+    readonly sessionId: null;
+    readonly error: Extract<CreateCalculationResponse, { readonly type: "create-failed" }>["error"];
+  } | null = null;
+
+  create(
+    sessionId: CalculationSessionId,
+    source: string,
+    settings: CalculationSettingsDto
+  ): Promise<CreateCalculationResponse> {
+    this.creates.push({ sessionId, source, settings });
+    if (this.creationError !== null) {
+      return Promise.resolve({
+        type: "create-failed",
+        sessionId,
+        error: this.creationError.error
+      });
+    }
+    return Promise.resolve({
+      type: "created",
+      sessionId,
+      workerHandleId: createWorkerHandleId(`handle-${sessionId}`)
+    });
+  }
+
+  refine(
+    sessionId: CalculationSessionId,
+    requestId: CalculationRequestId
+  ): Promise<RefinementResultDto> {
+    const deferred = createDeferred<RefinementResultDto>();
+    this.refinements.push({ sessionId, requestId, deferred });
+    return deferred.promise;
+  }
+
+  continue(
+    sessionId: CalculationSessionId,
+    requestId: CalculationRequestId
+  ): Promise<RefinementResultDto> {
+    const deferred = createDeferred<RefinementResultDto>();
+    this.continuations.push({ sessionId, requestId, deferred });
+    return deferred.promise;
+  }
+
+  dispose(sessionId: CalculationSessionId): Promise<void> {
+    this.disposals.push(sessionId);
+    return Promise.resolve();
+  }
+}
+
+interface Deferred<T> {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolvePromise: ((value: T) => void) | undefined;
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve;
+  });
+  if (resolvePromise === undefined) throw new Error("Failed to create test deferred");
+  return { promise, resolve: resolvePromise };
+}
+
+function createController(
+  gateway: CalculationGateway,
+  onChange: (state: LiveCalculatorViewState) => void = () => undefined
+): LiveCalculatorController {
+  return new LiveCalculatorController(gateway, onChange, {
+    initialSignificantDigits: 24
+  });
+}
+
+function complete(digits: string, exponent10: bigint, exact = false): RefinementResultDto {
+  return {
+    status: "complete",
+    requestedDigits: digits.length,
+    value: {
+      sign: 1,
+      digits,
+      exponent10,
+      verifiedDigits: digits.length,
+      valueExact: exact,
+      decimalTerminating: exact,
+      rounded: false
+    }
+  };
+}

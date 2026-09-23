@@ -4,6 +4,7 @@ dist-test
 node_modules
 coverage
 test-results
+android
 package-lock.json
 AGENTS.md
 CORE_SPEC.md

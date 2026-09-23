@@ -9,7 +9,8 @@ export default tseslint.config(
       "dist-test/**",
       "node_modules/**",
       "coverage/**",
-      "test-results/**"
+      "test-results/**",
+      "android/**"
     ]
   },
   {

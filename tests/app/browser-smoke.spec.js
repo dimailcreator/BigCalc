@@ -8,9 +8,9 @@ test("boots the browser shell with the calculation Worker boundary", async ({ pa
 
   expect(response?.ok()).toBe(true);
   await expect(page).toHaveTitle("BigCalc");
-  await expect(page.getByRole("heading", { level: 1, name: "BigCalc app booted" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "BigCalc" })).toBeVisible();
   await expect(page.locator("#app")).toHaveAttribute("data-calculation-worker", "started");
-  await expect(page.locator(".app-shell")).toHaveCSS("display", "grid");
+  await expect(page.locator(".calculator-shell")).toHaveCSS("display", "grid");
   expect(pageErrors).toEqual([]);
 });
 

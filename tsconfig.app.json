@@ -12,6 +12,6 @@
       "@bigcalc/core": ["./src/core/api.ts"]
     }
   },
-  "include": ["src/app/**/*.ts"],
+  "include": ["src/app/**/*.ts", "capacitor.config.ts"],
   "exclude": ["dist-app", "node_modules"]
 }
