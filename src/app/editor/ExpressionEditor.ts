@@ -2,6 +2,7 @@ import { parseEditorText } from "./ClipboardParser.js";
 import { BackspaceRepeater } from "./BackspaceRepeater.js";
 import { ExpressionModel, createAtomicIdentifierToken } from "./ExpressionModel.js";
 import { insertSmartBracket } from "./SmartBrackets.js";
+import { insertSquareRootMacro } from "./SquareRootMacro.js";
 import type { AnsToken, ExpressionToken } from "./ExpressionModel.js";
 import type { SmartBracketPair } from "./SmartBrackets.js";
 
@@ -93,11 +94,22 @@ export class ExpressionEditor {
     this.focus();
   }
 
+  insertSquareRoot(): void {
+    if (this.#historyOpen) return;
+    this.#update(insertSquareRootMacro(this.#model));
+    this.focus();
+  }
+
   insertFunction(name: FunctionKeyName): void {
     if (!functionKeyNames.has(name)) throw new TypeError("Unknown function key");
     if (this.#historyOpen) return;
     this.#update(this.#model.insert(createAtomicIdentifierToken(name)));
     this.focus();
+  }
+
+  insertText(text: string): void {
+    this.#insertText(text);
+    if (!this.#historyOpen) this.focus();
   }
 
   deleteBackward(): void {
