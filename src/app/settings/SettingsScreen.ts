@@ -1,4 +1,5 @@
 import type { AppSettings } from "../state/AppState.js";
+import { createNavigationIcon } from "../navigation/NavigationIcon.js";
 import {
   formatSettingNumber,
   parseNumberScrollInertia,
@@ -37,7 +38,7 @@ export class SettingsScreen {
     this.#back = document.createElement("button");
     this.#back.type = "button";
     this.#back.className = "settings-back";
-    this.#back.textContent = "←";
+    this.#back.append(createNavigationIcon("back"));
     this.#back.setAttribute("aria-label", "Назад к калькулятору");
     this.#back.addEventListener("click", options.onBack);
     const title = document.createElement("h2");

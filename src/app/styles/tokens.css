@@ -1,0 +1,32 @@
+:root {
+  color-scheme: dark;
+  --bc-bg: #090b10;
+  --bc-surface-main: #11151d;
+  --bc-surface-card: #151a22;
+  --bc-surface-popup: #171b24;
+  --bc-surface-control: #202630;
+  --bc-surface-control-soft: #202631;
+  --bc-surface-control-active: #374258;
+  --bc-key-normal: #1b202a;
+  --bc-key-special: #2a3040;
+  --bc-key-ac: #294a7e;
+  --bc-key-equals: #dfc8ff;
+  --bc-text-primary: #f6f3fb;
+  --bc-text-primary-soft: #f3f1f7;
+  --bc-text-secondary: #a8adb8;
+  --bc-text-muted: #8f96a3;
+  --bc-text-history-expression: #929aa8;
+  --bc-text-disabled: #747b88;
+  --bc-text-history-meta: #5f6672;
+  --bc-caret: #b9d1ff;
+  --bc-accent-foreground: #251833;
+  --bc-ac-foreground: #e4eeff;
+  --bc-border-subtle: rgba(255, 255, 255, 0.04);
+  --bc-border-normal: rgba(255, 255, 255, 0.045);
+  --bc-border-popup: rgba(255, 255, 255, 0.055);
+  --bc-scrim: rgba(0, 0, 0, 0.5);
+  --bc-scrim-timeout: rgba(0, 0, 0, 0.56);
+  --bc-shadow-drawer: 18px 0 48px rgba(0, 0, 0, 0.32);
+  --bc-shadow-popup: 0 18px 46px rgba(0, 0, 0, 0.38);
+  --bc-shadow-dialog: 0 18px 55px rgba(0, 0, 0, 0.42);
+}

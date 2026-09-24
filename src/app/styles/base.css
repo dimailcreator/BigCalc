@@ -1,20 +1,7 @@
 :root {
-  color: #f6f3fb;
-  background: #090b10;
+  color: var(--bc-text-primary);
+  background: var(--bc-bg);
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  color-scheme: dark;
-  --background: #090b10;
-  --surface-control: #202630;
-  --surface-control-active: #374258;
-  --key-normal: #1b202a;
-  --key-special: #2a3040;
-  --key-ac: #294a7e;
-  --key-equals: #dfc8ff;
-  --text-primary: #f6f3fb;
-  --text-secondary: #a8adb8;
-  --caret: #b9d1ff;
-  --equals-foreground: #251833;
-  --ac-foreground: #e4eeff;
 }
 
 * {
@@ -26,7 +13,7 @@ body {
   min-height: 100dvh;
   margin: 0;
   overflow: hidden;
-  background: var(--background);
+  background: var(--bc-bg);
 }
 
 button,
@@ -40,7 +27,7 @@ button {
 
 .calculator-shell {
   display: grid;
-  grid-template-rows: clamp(52px, 8.5dvh, 76px) 0 minmax(138px, 1fr) minmax(0, 2fr);
+  grid-template-rows: clamp(58px, 8.5dvh, 76px) 0 clamp(180px, 28dvh, 260px) minmax(0, 1fr);
   width: min(100%, 720px);
   height: 100dvh;
   min-height: 520px;
@@ -50,7 +37,7 @@ button {
 }
 
 .calculator-shell[data-history-open="true"] {
-  grid-template-rows: clamp(52px, 8.5dvh, 76px) minmax(0, 1fr) auto 0;
+  grid-template-rows: clamp(58px, 8.5dvh, 76px) minmax(0, 1fr) auto 0;
 }
 
 .calculator-shell[data-history-open="true"] .calculator-keyboard {
@@ -61,7 +48,7 @@ button {
   flex: none;
   min-height: 142px;
   padding: 13px clamp(4px, 1.5vw, 8px) max(18px, env(safe-area-inset-bottom));
-  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  border-top: 1px solid var(--bc-border-popup);
   background: #0d1016;
   gap: 4px;
 }
@@ -81,7 +68,7 @@ button {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.56);
+  background: var(--bc-scrim-timeout);
   backdrop-filter: blur(3px);
 }
 
@@ -92,15 +79,15 @@ button {
 .timeout-dialog {
   width: min(100%, 390px);
   padding: 24px 22px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--bc-border-popup);
   border-radius: 28px;
-  background: #171b24;
-  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.42);
+  background: var(--bc-surface-popup);
+  box-shadow: var(--bc-shadow-dialog);
 }
 
 .timeout-dialog h2 {
   margin: 0;
-  color: #f6f3fb;
+  color: var(--bc-text-primary);
   font-size: 21px;
   font-weight: 600;
   line-height: 1.25;
@@ -108,7 +95,7 @@ button {
 
 .timeout-dialog p {
   margin: 10px 0 0;
-  color: #a8adb8;
+  color: var(--bc-text-secondary);
   font-size: 15px;
   line-height: 1.45;
 }
@@ -131,7 +118,7 @@ button {
 }
 
 .timeout-dialog-actions button:focus-visible {
-  outline: 2px solid #b9d1ff;
+  outline: 2px solid var(--bc-caret);
   outline-offset: 2px;
 }
 
@@ -141,8 +128,8 @@ button {
 }
 
 .timeout-dialog-continue {
-  color: #251833;
-  background: #dfc8ff;
+  color: var(--bc-accent-foreground);
+  background: var(--bc-key-equals);
 }
 
 .top-bar {
@@ -170,10 +157,23 @@ button {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  color: var(--text-primary);
+  color: var(--bc-text-primary);
   background: transparent;
   font-size: clamp(25px, 6.2vw, 31px);
   cursor: pointer;
+  transition:
+    background-color 90ms ease-out,
+    transform 90ms ease-out;
+}
+
+.history-toggle svg,
+.drawer-toggle svg,
+.overflow-toggle svg,
+.settings-back svg {
+  display: block;
+  width: clamp(25px, 6.2vw, 31px);
+  height: clamp(25px, 6.2vw, 31px);
+  opacity: 0.9;
 }
 
 .history-toggle:active,
@@ -188,7 +188,7 @@ button {
 .history-toggle:focus-visible,
 .drawer-toggle:focus-visible,
 .overflow-toggle:focus-visible {
-  outline: 2px solid var(--caret);
+  outline: 2px solid var(--bc-caret);
   outline-offset: 2px;
 }
 
@@ -200,7 +200,7 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 320px;
-  background: #090b10;
+  background: var(--bc-bg);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -228,15 +228,20 @@ button {
 }
 
 .settings-back {
+  display: grid;
+  place-items: center;
   width: 48px;
   height: 48px;
   padding: 0;
   border: 0;
   border-radius: 999px;
-  color: #f3f1f7;
+  color: var(--bc-text-primary-soft);
   background: transparent;
   font-size: 25px;
   cursor: pointer;
+  transition:
+    background-color 90ms ease-out,
+    transform 90ms ease-out;
 }
 
 .settings-back:active {
@@ -244,7 +249,7 @@ button {
   transform: scale(0.94);
 }
 .settings-back:focus-visible {
-  outline: 2px solid var(--caret);
+  outline: 2px solid var(--bc-caret);
   outline-offset: 2px;
 }
 .settings-top-bar h2 {
@@ -268,7 +273,7 @@ button {
 }
 .settings-section-title {
   margin: 0 12px 9px;
-  color: #8f96a3;
+  color: var(--bc-text-muted);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -277,9 +282,9 @@ button {
 .settings-card {
   margin-bottom: 24px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--bc-border-normal);
   border-radius: 24px;
-  background: #151a22;
+  background: var(--bc-surface-card);
 }
 .settings-row {
   display: flex;
@@ -289,14 +294,14 @@ button {
   gap: 14px;
 }
 .settings-row + .settings-row {
-  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  border-top: 1px solid var(--bc-border-popup);
 }
 .settings-row-text {
   flex: 1;
   min-width: 0;
 }
 .settings-row-label {
-  color: #f3f1f7;
+  color: var(--bc-text-primary-soft);
   font-size: 17px;
   font-weight: 500;
   line-height: 1.25;
@@ -304,7 +309,7 @@ button {
 .settings-row-description {
   max-width: 360px;
   margin-top: 4px;
-  color: #8f96a3;
+  color: var(--bc-text-muted);
   font-size: 12.5px;
   line-height: 1.35;
 }
@@ -314,7 +319,7 @@ button {
   gap: 2px;
   padding: 3px;
   border-radius: 15px;
-  background: #202630;
+  background: var(--bc-surface-control);
 }
 .settings-segment {
   min-width: 54px;
@@ -327,16 +332,17 @@ button {
   font-size: 14px;
   font-weight: 550;
   cursor: pointer;
+  transition: transform 70ms ease-out;
 }
 .settings-segment[aria-pressed="true"] {
   color: #f5f2fa;
-  background: #374258;
+  background: var(--bc-surface-control-active);
 }
 .settings-segment:active {
   transform: scale(0.96);
 }
 .settings-segment:focus-visible {
-  outline: 2px solid var(--caret);
+  outline: 2px solid var(--bc-caret);
 }
 .settings-numeric {
   display: flex;
@@ -344,9 +350,9 @@ button {
   align-items: center;
   height: 42px;
   padding: 0 11px 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--bc-border-subtle);
   border-radius: 14px;
-  background: #202630;
+  background: var(--bc-surface-control);
   gap: 5px;
 }
 .settings-numeric input {
@@ -379,7 +385,7 @@ button {
 }
 .settings-footnote {
   margin: 0 12px;
-  color: #747b88;
+  color: var(--bc-text-disabled);
   font-size: 12.5px;
   line-height: 1.4;
 }
@@ -400,7 +406,7 @@ button {
   inset: 0;
   width: 100%;
   border: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--bc-scrim);
   cursor: default;
 }
 .calculator-drawer {
@@ -409,14 +415,18 @@ button {
   height: 100dvh;
   padding: max(18px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom));
   border-right: 1px solid rgba(255, 255, 255, 0.05);
-  background: #11151d;
-  box-shadow: 18px 0 48px rgba(0, 0, 0, 0.32);
+  background: var(--bc-surface-main);
+  box-shadow: var(--bc-shadow-drawer);
   overflow-y: auto;
+  scrollbar-width: none;
   animation: drawer-enter 220ms ease-out both;
+}
+.calculator-drawer::-webkit-scrollbar {
+  display: none;
 }
 .calculator-drawer h2 {
   margin: 0 16px;
-  color: #f6f3fb;
+  color: var(--bc-text-primary);
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -424,7 +434,7 @@ button {
 }
 .calculator-drawer p {
   margin: 6px 16px 28px;
-  color: #8f96a3;
+  color: var(--bc-text-muted);
   font-size: 13px;
 }
 .calculator-drawer-item {
@@ -442,8 +452,8 @@ button {
   cursor: pointer;
 }
 .calculator-drawer-item[aria-current="true"] {
-  color: #f6f3fb;
-  background: #202631;
+  color: var(--bc-text-primary);
+  background: var(--bc-surface-control-soft);
   font-weight: 550;
 }
 .calculator-drawer-item:active {
@@ -452,8 +462,33 @@ button {
 }
 .calculator-drawer-item:focus-visible,
 .overflow-menu button:focus-visible {
-  outline: 2px solid var(--caret);
+  outline: 2px solid var(--bc-caret);
   outline-offset: 2px;
+}
+
+/* Reserved for the disabled v1 add-calculator action; no element is rendered yet. */
+.calculator-drawer-add {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 20px;
+  color: #e2e7f0;
+  background: var(--bc-surface-control-soft);
+  font-size: 16px;
+  font-weight: 550;
+  gap: 10px;
+  cursor: pointer;
+}
+.calculator-drawer-add .plus {
+  font-size: 25px;
+  font-weight: 300;
+}
+.calculator-drawer-add:active {
+  filter: brightness(1.2);
+  transform: scale(0.985);
 }
 @keyframes drawer-enter {
   from {
@@ -476,10 +511,11 @@ button {
   right: 12px;
   width: min(72vw, 280px);
   padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--bc-border-popup);
   border-radius: 24px;
-  background: #171b24;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
+  background: var(--bc-surface-popup);
+  box-shadow: var(--bc-shadow-popup);
+  transform-origin: top right;
   animation: overflow-enter 140ms ease-out both;
 }
 .overflow-menu button {
@@ -517,12 +553,16 @@ button {
   margin: 0 auto;
   padding: 24px 14px max(28px, env(safe-area-inset-bottom));
   overflow-y: auto;
+  scrollbar-width: none;
+}
+.about-content::-webkit-scrollbar {
+  display: none;
 }
 .about-hero {
   padding: 20px 18px 22px;
-  border: 1px solid rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--bc-border-normal);
   border-radius: 26px;
-  background: #151a22;
+  background: var(--bc-surface-card);
 }
 .about-eyebrow {
   color: #89919e;
@@ -532,7 +572,7 @@ button {
 }
 .about-hero h3 {
   margin: 12px 0 16px;
-  color: #f6f3fb;
+  color: var(--bc-text-primary);
   font-size: clamp(34px, 9vw, 48px);
   font-weight: 650;
   letter-spacing: -0.04em;
@@ -544,7 +584,7 @@ button {
   padding: 0 12px;
   border-radius: 999px;
   color: #b7bdc8;
-  background: #202630;
+  background: var(--bc-surface-control);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
@@ -553,10 +593,10 @@ button {
 }
 .about-card {
   padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--bc-border-normal);
   border-radius: 24px;
   color: #9ba2ae;
-  background: #151a22;
+  background: var(--bc-surface-card);
   font-size: 15px;
   line-height: 1.5;
 }
@@ -567,8 +607,8 @@ button {
   margin-top: 18px;
   padding: 0 18px;
   border-radius: 19px;
-  color: #251833;
-  background: #dfc8ff;
+  color: var(--bc-accent-foreground);
+  background: var(--bc-key-equals);
   font-size: 16px;
   font-weight: 650;
   text-decoration: none;
@@ -578,11 +618,11 @@ button {
   transform: scale(0.985);
 }
 .about-github:focus-visible {
-  outline: 2px solid var(--caret);
+  outline: 2px solid var(--bc-caret);
   outline-offset: 2px;
 }
 .about-repo {
-  color: #747b88;
+  color: var(--bc-text-disabled);
   font-size: 12.5px;
   text-align: center;
 }
@@ -622,7 +662,7 @@ button {
 
 .history-header h2 {
   margin: 0;
-  color: #f3f1f7;
+  color: var(--bc-text-primary-soft);
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -637,19 +677,22 @@ button {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+.history-list::-webkit-scrollbar {
+  display: none;
 }
 .history-empty {
   margin: 30px 0;
-  color: #929aa8;
+  color: var(--bc-text-history-expression);
   text-align: center;
 }
 .history-card {
   margin-bottom: 8px;
   padding: 13px 14px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--bc-border-subtle);
   border-radius: 20px;
-  background: #11151d;
+  background: var(--bc-surface-main);
 }
 .history-expression {
   display: block;
@@ -658,7 +701,7 @@ button {
   padding: 4px 7px;
   border: 0;
   border-radius: 9px;
-  color: #929aa8;
+  color: var(--bc-text-history-expression);
   background: transparent;
   font-size: 15px;
   line-height: 20px;
@@ -670,7 +713,7 @@ button {
 .history-card .history-result {
   padding: 3px 7px;
   border-radius: 11px;
-  color: #f3f1f7;
+  color: var(--bc-text-primary-soft);
   font-size: clamp(24px, 6.8vw, 32px);
   line-height: 32px;
   cursor: pointer;
@@ -678,7 +721,7 @@ button {
 .history-meta {
   margin-top: 4px;
   padding: 0 7px;
-  color: #5f6672;
+  color: var(--bc-text-history-meta);
   font-size: 10.5px;
   text-align: right;
 }
@@ -688,7 +731,7 @@ button {
   transform: scale(0.985);
 }
 .history-expression:focus-visible {
-  outline: 2px solid var(--caret);
+  outline: 2px solid var(--bc-caret);
 }
 .top-bar {
   touch-action: none;
@@ -699,8 +742,12 @@ button {
   flex-direction: column;
   justify-content: end;
   min-height: 0;
-  padding: clamp(18px, 5dvh, 48px) 0 clamp(18px, 3dvh, 30px);
+  padding: clamp(8px, 2dvh, 18px) clamp(4px, 1.5vw, 6px) clamp(12px, 2dvh, 20px);
   gap: clamp(6px, 1.6dvh, 14px);
+  transition:
+    padding 260ms cubic-bezier(0.22, 0.7, 0.2, 1),
+    gap 260ms cubic-bezier(0.22, 0.7, 0.2, 1),
+    background-color 260ms ease;
 }
 
 .expression-editor {
@@ -708,7 +755,7 @@ button {
   width: 100%;
   min-height: 1.2em;
   border-radius: 10px;
-  color: var(--text-primary);
+  color: var(--bc-text-primary);
   font-size: clamp(42px, 12.2vw, 68px);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
@@ -787,7 +834,7 @@ button {
   display: inline-block;
   width: 0;
   height: 0.98em;
-  border-left: 2px solid var(--caret);
+  border-left: 2px solid var(--bc-caret);
   vertical-align: -0.13em;
 }
 
@@ -821,7 +868,7 @@ button {
   display: block;
   min-height: 1.16em;
   overflow: hidden;
-  color: var(--text-secondary);
+  color: var(--bc-text-secondary);
   font-size: clamp(26px, 7.1vw, 38px);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
@@ -940,7 +987,7 @@ button {
   padding: 0 0.08em;
   border: 0;
   border-radius: clamp(17px, 5.8vw, 30px);
-  color: var(--text-primary);
+  color: var(--bc-text-primary);
   font-size: min(46px, 7.6vw);
   font-weight: 400;
   line-height: 1;
@@ -962,7 +1009,7 @@ button {
 }
 
 .keyboard-key-normal {
-  background: var(--key-normal);
+  background: var(--bc-key-normal);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
 }
 
@@ -974,20 +1021,20 @@ button {
 }
 
 .keyboard-key-special {
-  background: var(--key-special);
+  background: var(--bc-key-special);
   color: #e6e8ef;
 }
 
 .keyboard-key-ac {
-  background: var(--key-ac);
-  color: var(--ac-foreground);
+  background: var(--bc-key-ac);
+  color: var(--bc-ac-foreground);
   font-size: min(28px, 6vw);
   font-weight: 600;
 }
 
 .keyboard-key-equals {
-  background: var(--key-equals);
-  color: var(--equals-foreground);
+  background: var(--bc-key-equals);
+  color: var(--bc-accent-foreground);
   font-weight: 600;
 }
 
@@ -1018,6 +1065,22 @@ button {
 }
 
 @media (height <= 680px) {
+  .calculator-shell {
+    grid-template-rows: 52px 0 150px minmax(0, 1fr);
+  }
+
+  .calculator-shell[data-history-open="true"] {
+    grid-template-rows: 52px minmax(0, 1fr) auto 0;
+  }
+
+  .history-toggle,
+  .drawer-toggle,
+  .overflow-toggle {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
   .expression-editor {
     font-size: clamp(34px, 9vw, 48px);
   }
@@ -1039,9 +1102,15 @@ button {
   .calculator-drawer,
   .overflow-menu,
   .history-panel,
+  .main-display,
   .keyboard-grid,
   .keyboard-row-additional,
-  .keyboard-key {
+  .keyboard-key,
+  .history-toggle,
+  .drawer-toggle,
+  .overflow-toggle,
+  .settings-back,
+  .settings-segment {
     transition-duration: 0.01ms;
     transition-delay: 0ms;
   }

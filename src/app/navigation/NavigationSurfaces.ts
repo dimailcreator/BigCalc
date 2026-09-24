@@ -1,4 +1,5 @@
 import type { CalculatorModuleRegistration } from "./NavigationController.js";
+import { createNavigationIcon } from "./NavigationIcon.js";
 
 export class CalculatorDrawer {
   readonly root: HTMLDivElement;
@@ -123,7 +124,7 @@ export class AboutScreen {
     this.#back = document.createElement("button");
     this.#back.type = "button";
     this.#back.className = "settings-back";
-    this.#back.textContent = "←";
+    this.#back.append(createNavigationIcon("back"));
     this.#back.setAttribute("aria-label", "Назад к калькулятору");
     this.#back.addEventListener("click", onBack);
     const title = document.createElement("h2");

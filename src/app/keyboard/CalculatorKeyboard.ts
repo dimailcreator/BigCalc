@@ -104,8 +104,8 @@ export class CalculatorKeyboard {
     if (key === "backspace") button.replaceChildren(createBackspaceIcon());
     const label = this.#accessibleLabel(key);
     if (label !== null) button.setAttribute("aria-label", label);
-    button.addEventListener("click", () => {
-      this.#activate(key);
+    button.addEventListener("click", (event) => {
+      this.#activate(key, event);
     });
     if (key === "backspace") this.#bindBackspaceHold(button);
     cell.append(button);
@@ -161,7 +161,7 @@ export class CalculatorKeyboard {
     }
   }
 
-  #activate(key: KeyboardKeyId): void {
+  #activate(key: KeyboardKeyId, event: MouseEvent): void {
     switch (key) {
       case "expand":
         this.#setExpanded(!this.#expanded);
@@ -179,10 +179,11 @@ export class CalculatorKeyboard {
         this.#actions.equals();
         return;
       case "backspace":
-        if (this.#ignoreBackspaceClick) {
+        if (this.#ignoreBackspaceClick && event.detail !== 0) {
           this.#ignoreBackspaceClick = false;
           return;
         }
+        this.#ignoreBackspaceClick = false;
         this.#editor.deleteBackward();
         return;
       case "round":
@@ -260,9 +261,6 @@ export class CalculatorKeyboard {
     });
     button.addEventListener("pointerup", () => {
       this.#editor.stopBackspaceHold();
-      window.setTimeout(() => {
-        this.#ignoreBackspaceClick = false;
-      }, 0);
     });
     button.addEventListener("pointercancel", () => {
       this.#editor.stopBackspaceHold();
