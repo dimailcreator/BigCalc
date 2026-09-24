@@ -9,6 +9,10 @@ import { createAnsToken } from "./editor/ExpressionModel.js";
 import { CalculationHistory, expressionSegmentsFromModel } from "./history/CalculationHistory.js";
 import { HistoryPanel } from "./history/HistoryPanel.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
+import { defineCalculatorModule } from "./modules/CalculatorModule.js";
+import { CalculatorModuleHost } from "./modules/CalculatorModuleHost.js";
+import { CalculatorModuleSurface } from "./modules/CalculatorModuleSurface.js";
+import { installedModules } from "./modules/installedModules.js";
 import { createNavigationIcon } from "./navigation/NavigationIcon.js";
 import { NavigationController } from "./navigation/NavigationController.js";
 import type { NavigationEntry } from "./navigation/NavigationController.js";
@@ -176,7 +180,21 @@ const settingsScreen = new SettingsScreen({
 const aboutScreen = new AboutScreen(() => {
   navigation.back();
 });
-const modules = [{ id: "bigcalc", title: "BigCalc" }] as const;
+const moduleHost = new CalculatorModuleHost(
+  [
+    defineCalculatorModule({
+      id: "bigcalc",
+      title: "BigCalc",
+      createState: () => null,
+      deactivate() {
+        if (controller.state.timeoutDialogOpen) controller.freezeAfterTimeout();
+      }
+    }),
+    ...installedModules
+  ],
+  repositories.calculatorState
+);
+const modules = moduleHost.navigationModules;
 const drawer = new CalculatorDrawer(
   modules,
   "bigcalc",
@@ -199,6 +217,7 @@ const overflow = new OverflowMenu(
   }
 );
 shell.append(header, historyPanel.root, display, keyboard.root);
+const moduleSurface = new CalculatorModuleSurface(shell, moduleHost);
 drawerButton.addEventListener("click", () => {
   if (navigation.topLayer === "drawer") navigation.back();
   else navigation.openLayer("drawer");
@@ -208,6 +227,7 @@ overflowButton.addEventListener("click", () => {
   else navigation.openLayer("overflow");
 });
 historyButton.addEventListener("click", () => {
+  if (moduleHost.activeId !== moduleHost.primaryId) return;
   if (navigation.topLayer === "history") navigation.back();
   else navigation.openLayer("history");
 });
@@ -230,6 +250,7 @@ shell.addEventListener(
   (event) => {
     if (
       navigation.topLayer !== null ||
+      moduleHost.activeId !== moduleHost.primaryId ||
       (event.target instanceof Element && event.target.closest("button, .number-viewport"))
     )
       return;
@@ -323,6 +344,7 @@ window.addEventListener(
   "pagehide",
   () => {
     editor.dispose();
+    moduleHost.dispose();
     resultOutput.dispose();
     expressionOutput.dispose();
     historyPanel.dispose();
@@ -352,7 +374,12 @@ function render(state: LiveCalculatorViewState): void {
   display.dataset.phase = state.phase;
   display.setAttribute("aria-busy", state.phase === "running" ? "true" : "false");
   timeoutDialog.setOpen(state.timeoutDialogOpen);
-  if (state.timeoutDialogOpen && !navigation.hasLayer("timeout")) navigation.openLayer("timeout");
+  if (
+    state.timeoutDialogOpen &&
+    moduleHost.activeId === moduleHost.primaryId &&
+    !navigation.hasLayer("timeout")
+  )
+    navigation.openLayer("timeout");
   if (!state.timeoutDialogOpen && navigation.topLayer === "timeout") {
     timeoutNavigationDismissedByCalculation = true;
     navigation.back();
@@ -371,7 +398,12 @@ function renderNavigation(
   previous: readonly NavigationEntry[]
 ): void {
   const top = navigation.topLayer;
-  const historyOpen = navigation.hasLayer("history");
+  const activeId = navigation.activeModuleId;
+  const primaryActive = activeId === moduleHost.primaryId;
+  moduleSurface.setActive(activeId);
+  heading.textContent = moduleHost.titleFor(activeId);
+  historyButton.hidden = !primaryActive;
+  const historyOpen = primaryActive && navigation.hasLayer("history");
   if (previous.at(-1)?.kind === "layer" && previous.at(-1)?.id === "timeout" && top !== "timeout") {
     const dismissedByCalculation = timeoutNavigationDismissedByCalculation;
     timeoutNavigationDismissedByCalculation = false;
