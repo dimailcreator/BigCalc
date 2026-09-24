@@ -89,6 +89,36 @@ describe("application repositories", () => {
     expect(createApplicationRepositories(storage).settings.load()).toEqual(migrated);
   });
 
+  it("rejects persisted inertia outside the Settings control range", () => {
+    const storage = new MemoryStorage();
+    const repositories = createApplicationRepositories(storage);
+    expect(repositories.settings.save({ ...DEFAULT_APP_SETTINGS, numberScrollInertia: 4 })).toBe(
+      false
+    );
+    storage.setItem(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        ...DEFAULT_APP_SETTINGS,
+        numberScrollInertia: 4
+      })
+    );
+    expect(repositories.settings.load()).toEqual(DEFAULT_APP_SETTINGS);
+  });
+
+  it("normalizes a legacy inertia outside the Settings control range", () => {
+    const storage = new MemoryStorage();
+    new MathModeStore(storage).save({ angleMode: "radians", factorialMode: "gamma" });
+    new NumberScrollInertiaStore(storage).save(4);
+    const migrated = createApplicationRepositories(storage).settings.load();
+    expect(migrated).toEqual({
+      ...DEFAULT_APP_SETTINGS,
+      angleMode: "radians",
+      factorialMode: "gamma"
+    });
+    expect(createApplicationRepositories(storage).settings.load()).toEqual(migrated);
+  });
+
   it("preserves documents from a future schema version", () => {
     const storage = new MemoryStorage();
     const futureSettings = JSON.stringify({ schemaVersion: 2, opaque: "future" });

@@ -1,9 +1,9 @@
 import { LEGACY_MATH_MODES_KEY, MathModeStore } from "../settings/MathModeStore.js";
-import { isValidInertia } from "../settings/NumberScrollInertia.js";
 import {
   LEGACY_NUMBER_SCROLL_INERTIA_KEY,
   NumberScrollInertiaStore
 } from "../settings/NumberScrollInertiaStore.js";
+import { isAcceptedNumberScrollInertia } from "../settings/SettingsValues.js";
 import { DEFAULT_APP_SETTINGS } from "../state/AppState.js";
 import type { AppSettings } from "../state/AppState.js";
 import { APPLICATION_SCHEMA_VERSION } from "./contracts.js";
@@ -75,7 +75,9 @@ export class LocalSettingsRepository implements SettingsRepository {
     const migrated = Object.freeze({
       ...DEFAULT_APP_SETTINGS,
       ...modes,
-      numberScrollInertia: inertia
+      numberScrollInertia: isAcceptedNumberScrollInertia(inertia)
+        ? inertia
+        : DEFAULT_APP_SETTINGS.numberScrollInertia
     });
     this.save(migrated);
     return migrated;
@@ -90,7 +92,7 @@ function parseSettings(value: unknown): AppSettings | null {
     typeof value.maxCalculationTimeMs !== "number" ||
     !Number.isFinite(value.maxCalculationTimeMs) ||
     value.maxCalculationTimeMs < 0 ||
-    !isValidInertia(value.numberScrollInertia)
+    !isAcceptedNumberScrollInertia(value.numberScrollInertia)
   )
     return null;
   return Object.freeze({

@@ -159,7 +159,8 @@ button {
   letter-spacing: -0.02em;
 }
 
-.history-toggle {
+.history-toggle,
+.settings-toggle {
   display: grid;
   flex: 0 0 clamp(44px, 6.7dvh, 56px);
   place-items: center;
@@ -174,16 +175,208 @@ button {
   cursor: pointer;
 }
 
-.history-toggle:active {
+.history-toggle:active,
+.settings-toggle:active {
   background: rgba(255, 255, 255, 0.09);
   transform: scale(0.94);
 }
 .history-toggle[aria-expanded="true"] {
   background: rgba(223, 200, 255, 0.13);
 }
-.history-toggle:focus-visible {
+.history-toggle:focus-visible,
+.settings-toggle:focus-visible {
   outline: 2px solid var(--caret);
   outline-offset: 2px;
+}
+
+.settings-screen {
+  position: fixed;
+  z-index: 15;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  background: #090b10;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(18px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    visibility 180ms ease;
+}
+
+.settings-screen[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.settings-top-bar {
+  display: flex;
+  flex: 0 0 calc(64px + env(safe-area-inset-top));
+  align-items: center;
+  gap: 10px;
+  padding: env(safe-area-inset-top) 14px 0;
+}
+
+.settings-back {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #f3f1f7;
+  background: transparent;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.settings-back:active {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(0.94);
+}
+.settings-back:focus-visible {
+  outline: 2px solid var(--caret);
+  outline-offset: 2px;
+}
+.settings-top-bar h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.settings-content {
+  flex: 1;
+  width: min(100%, 620px);
+  min-height: 0;
+  margin: 0 auto;
+  padding: 18px 14px max(28px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.settings-content::-webkit-scrollbar {
+  display: none;
+}
+.settings-section-title {
+  margin: 0 12px 9px;
+  color: #8f96a3;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.settings-card {
+  margin-bottom: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  border-radius: 24px;
+  background: #151a22;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  min-height: 82px;
+  padding: 13px 14px 13px 18px;
+  gap: 14px;
+}
+.settings-row + .settings-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+.settings-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.settings-row-label {
+  color: #f3f1f7;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.settings-row-description {
+  max-width: 360px;
+  margin-top: 4px;
+  color: #8f96a3;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.settings-segments {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 15px;
+  background: #202630;
+}
+.settings-segment {
+  min-width: 54px;
+  height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  color: #aeb4bf;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.settings-segment[aria-pressed="true"] {
+  color: #f5f2fa;
+  background: #374258;
+}
+.settings-segment:active {
+  transform: scale(0.96);
+}
+.settings-segment:focus-visible {
+  outline: 2px solid var(--caret);
+}
+.settings-numeric {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 42px;
+  padding: 0 11px 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  background: #202630;
+  gap: 5px;
+}
+.settings-numeric input {
+  width: 48px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #f5f2fa;
+  background: transparent;
+  font-size: 16px;
+  text-align: right;
+}
+.settings-numeric:focus-within {
+  box-shadow: 0 0 0 2px rgba(185, 209, 255, 0.3);
+}
+.settings-numeric input[aria-invalid="true"] {
+  color: #ffb7b7;
+}
+.settings-numeric span {
+  color: #9ba2ae;
+  font-size: 14px;
+}
+.settings-input-error {
+  margin-top: 4px;
+  color: #ffb7b7;
+  font-size: 12px;
+}
+.settings-input-error[hidden] {
+  display: none;
+}
+.settings-footnote {
+  margin: 0 12px;
+  color: #747b88;
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 
 .history-panel {
@@ -633,6 +826,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .settings-screen,
   .history-panel,
   .keyboard-grid,
   .keyboard-row-additional,

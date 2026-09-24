@@ -22,10 +22,12 @@ export class HistoryPanel {
   readonly #options: HistoryPanelOptions;
   readonly #viewports: NumberViewport[] = [];
   readonly #refiners: HistoryResultRefiner[] = [];
+  #inertia: number;
   #open = false;
 
   constructor(options: HistoryPanelOptions) {
     this.#options = options;
+    this.#inertia = options.inertia;
     this.root = document.createElement("section");
     this.root.className = "history-panel";
     this.root.setAttribute("aria-label", "История вычислений");
@@ -45,6 +47,11 @@ export class HistoryPanel {
 
   get open(): boolean {
     return this.#open;
+  }
+
+  setInertia(value: number): void {
+    this.#inertia = value;
+    for (const viewport of this.#viewports) viewport.setInertia(value);
   }
 
   setOpen(open: boolean): void {
@@ -100,7 +107,7 @@ export class HistoryPanel {
     let pointerStartY = 0;
     let dragged = false;
     const viewport = new NumberViewport({
-      inertia: this.#options.inertia,
+      inertia: this.#inertia,
       onPrecisionDemand: (digits) => {
         if (armed) refiner.request(digits);
       }

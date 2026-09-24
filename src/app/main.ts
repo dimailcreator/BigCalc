@@ -8,6 +8,7 @@ import { CalculationHistory, expressionSegmentsFromModel } from "./history/Calcu
 import { HistoryPanel } from "./history/HistoryPanel.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
 import { createBrowserRepositories } from "./persistence/ApplicationRepositories.js";
+import { SettingsScreen } from "./settings/SettingsScreen.js";
 import { NumberViewport } from "./viewport/NumberViewport.js";
 import { initialViewportPrecisionDemand } from "./viewport/NumberViewportModel.js";
 import "./styles/base.css";
@@ -25,6 +26,7 @@ const display = document.createElement("section");
 const calculationClient = createBrowserCalculationClient();
 const repositories = createBrowserRepositories();
 const initialSettings = repositories.settings.load();
+let currentInertia = initialSettings.numberScrollInertia;
 const history = new CalculationHistory();
 history.restore(repositories.history.load());
 const resultOutput = new NumberViewport({
@@ -54,7 +56,12 @@ historyButton.className = "history-toggle";
 historyButton.textContent = "≡";
 historyButton.setAttribute("aria-label", "История");
 historyButton.setAttribute("aria-expanded", "false");
-header.append(historyButton, heading);
+const settingsButton = document.createElement("button");
+settingsButton.type = "button";
+settingsButton.className = "settings-toggle";
+settingsButton.textContent = "⚙";
+settingsButton.setAttribute("aria-label", "Настройки");
+header.append(historyButton, heading, settingsButton);
 const editor = new ExpressionEditor({
   onChange(model) {
     const representation = model.serializeForEvaluation();
@@ -124,13 +131,52 @@ const historyPanel = new HistoryPanel({
     repositories.history.save(history.entries);
   }
 });
+const settingsScreen = new SettingsScreen({
+  settings: initialSettings,
+  onBack() {
+    closeSettings();
+  },
+  onAngleMode(mode) {
+    if (controller.state.settings.angleMode === mode) return;
+    controller.toggleAngleMode();
+    saveSettings();
+  },
+  onFactorialMode(mode) {
+    if (controller.state.settings.factorialMode === mode) return;
+    controller.toggleFactorialMode();
+    saveSettings();
+  },
+  onTimeout(milliseconds) {
+    controller.setMaxCalculationTimeMs(milliseconds);
+    saveSettings();
+  },
+  onInertia(value) {
+    currentInertia = value;
+    resultOutput.setInertia(value);
+    expressionOutput.setInertia(value);
+    historyPanel.setInertia(value);
+    saveSettings();
+    settingsScreen.sync({ ...controller.state.settings, numberScrollInertia: value });
+  }
+});
 shell.append(header, historyPanel.root, display, keyboard.root);
+settingsButton.addEventListener("click", openSettings);
 historyButton.addEventListener("click", () => {
   if (historyPanel.open) closeHistory();
   else openHistory();
 });
 window.addEventListener("popstate", () => {
-  if (historyPanel.open) closeHistory(true);
+  if (settingsScreen.open) {
+    closeSettings(true);
+    return;
+  }
+  const navigationState: unknown = window.history.state;
+  const returnedToHistory =
+    navigationState !== null &&
+    typeof navigationState === "object" &&
+    "bigcalcHistoryPanel" in navigationState &&
+    navigationState.bigcalcHistoryPanel === true;
+  if (historyPanel.open && !returnedToHistory) closeHistory(true);
 });
 let swipeStart: { x: number; y: number; time: number } | null = null;
 shell.addEventListener(
@@ -176,7 +222,7 @@ const timeoutDialog = new TimeoutDialog(shell, {
   }
 });
 appRoot.dataset.calculationWorker = "started";
-appRoot.replaceChildren(shell, timeoutDialog.root);
+appRoot.replaceChildren(shell, timeoutDialog.root, settingsScreen.root);
 
 const controller = new LiveCalculatorController(calculationClient, render, {
   initialSignificantDigits: initialViewportPrecisionDemand(resultOutput.availableSlots),
@@ -241,6 +287,30 @@ function render(state: LiveCalculatorViewState): void {
     angleMode: degrees ? "degrees" : "radians",
     factorialMode: state.settings.factorialMode
   });
+  settingsScreen.sync({ ...state.settings, numberScrollInertia: currentInertia });
+}
+
+function openSettings(): void {
+  if (settingsScreen.open) return;
+  window.history.pushState({ bigcalcSettings: true }, "", window.location.href);
+  shell.inert = true;
+  settingsScreen.setOpen(true);
+}
+
+function closeSettings(fromPopstate = false): void {
+  if (!settingsScreen.open) return;
+  settingsScreen.setOpen(false);
+  shell.inert = false;
+  settingsButton.focus();
+  const navigationState: unknown = window.history.state;
+  if (
+    !fromPopstate &&
+    navigationState !== null &&
+    typeof navigationState === "object" &&
+    "bigcalcSettings" in navigationState &&
+    navigationState.bigcalcSettings === true
+  )
+    window.history.back();
 }
 
 function openHistory(): void {
@@ -271,7 +341,7 @@ function closeHistory(fromPopstate = false): void {
 
 function saveSettings(): void {
   repositories.settings.save({
-    ...repositories.settings.load(),
-    ...controller.state.settings
+    ...controller.state.settings,
+    numberScrollInertia: currentInertia
   });
 }
