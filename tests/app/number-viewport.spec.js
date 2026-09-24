@@ -42,7 +42,7 @@ test("keyboard and trackpad navigation keep whole digit positions and representa
   const slots = await result.locator(".number-slot").count();
   expect(slots).toBeGreaterThan(0);
   expect(slots).toBeLessThanOrEqual(256);
-  expect(await page.locator(".number-viewport-probe").count()).toBe(1);
+  expect(await result.locator(".number-viewport-probe").count()).toBe(1);
 });
 
 test("slow drag and fast swipe settle on discrete digits", async ({ page }) => {

@@ -1,4 +1,6 @@
 import type {
+  CalculationExpressionSegmentDto,
+  CalculationReferenceSnapshotDto,
   CalculationSettingsDto,
   CreateCalculationResponse,
   RefinementResultDto,
@@ -19,6 +21,12 @@ export interface CalculationGateway {
   create(
     sessionId: CalculationSessionId,
     source: string,
+    settings: CalculationSettingsDto
+  ): Promise<CreateCalculationResponse>;
+  createStructured(
+    sessionId: CalculationSessionId,
+    expression: readonly CalculationExpressionSegmentDto[],
+    references: readonly CalculationReferenceSnapshotDto[],
     settings: CalculationSettingsDto
   ): Promise<CreateCalculationResponse>;
   refine(
@@ -50,7 +58,16 @@ export interface LiveCalculatorViewState {
 export interface LiveCalculatorControllerOptions {
   readonly initialSignificantDigits: number;
   readonly debounceMs?: number;
+  readonly onExplicitSuccess?: (state: LiveCalculatorViewState) => void;
 }
+
+type CalculationInput =
+  | { readonly kind: "source"; readonly source: string }
+  | {
+      readonly kind: "structured";
+      readonly expression: readonly CalculationExpressionSegmentDto[];
+      readonly references: readonly CalculationReferenceSnapshotDto[];
+    };
 
 interface CurrentSession {
   readonly sessionId: CalculationSessionId;
@@ -67,7 +84,9 @@ export class LiveCalculatorController {
   readonly #onChange: (state: LiveCalculatorViewState) => void;
   readonly #initialSignificantDigits: number;
   readonly #debounceMs: number;
+  readonly #onExplicitSuccess: ((state: LiveCalculatorViewState) => void) | undefined;
   #source = "";
+  #input: CalculationInput = { kind: "source", source: "" };
   #settings: CalculationSettingsDto = Object.freeze({
     angleMode: DEFAULT_APP_SETTINGS.angleMode,
     factorialMode: DEFAULT_APP_SETTINGS.factorialMode,
@@ -107,6 +126,7 @@ export class LiveCalculatorController {
     this.#onChange = onChange;
     this.#initialSignificantDigits = options.initialSignificantDigits;
     this.#debounceMs = options.debounceMs ?? 150;
+    this.#onExplicitSuccess = options.onExplicitSuccess;
     this.#emit();
   }
 
@@ -115,15 +135,52 @@ export class LiveCalculatorController {
   }
 
   setExpression(source: string): void {
-    if (source === this.#source) return;
+    if (this.#input.kind === "source" && source === this.#source) return;
 
     this.#source = source;
+    this.#input = { kind: "source", source };
+    this.#startNewExpression();
+  }
+
+  setStructuredExpression(
+    expression: readonly CalculationExpressionSegmentDto[],
+    references: readonly CalculationReferenceSnapshotDto[],
+    displaySource: string
+  ): void {
+    this.#source = displaySource;
+    this.#input = Object.freeze({
+      kind: "structured",
+      expression: Object.freeze([...expression]),
+      references: Object.freeze([...references])
+    });
+    this.#startNewExpression();
+  }
+
+  /** Replace a successful source visually with Ans while retaining its live Worker handle. */
+  adoptResultReference(
+    id: string,
+    references: readonly CalculationReferenceSnapshotDto[],
+    displaySource: string
+  ): void {
+    if (this.#currentSession === null || this.#resultValue === null) {
+      throw new Error("A completed result is required before adopting an Ans reference");
+    }
+    this.#source = displaySource;
+    this.#input = Object.freeze({
+      kind: "structured",
+      expression: Object.freeze([{ kind: "reference" as const, id }]),
+      references: Object.freeze([...references])
+    });
+    this.#emit();
+  }
+
+  #startNewExpression(): void {
     this.#explicitRequested = false;
     this.#hiddenMathematicalError = "";
     this.#clearResult();
     this.#invalidateCurrentSession();
 
-    if (source.trim().length === 0) {
+    if (this.#source.trim().length === 0) {
       this.#phase = "idle";
       this.#emit();
       return;
@@ -168,6 +225,10 @@ export class LiveCalculatorController {
     if (this.#timeoutDialogOpen) return;
 
     this.#explicitRequested = true;
+    if (this.#currentSession?.initialResultReady && this.#resultValue !== null) {
+      this.#finalizeExplicitSuccess();
+      return;
+    }
     if (this.#hiddenMathematicalError.length > 0) {
       this.#showError(this.#hiddenMathematicalError);
       this.#emit();
@@ -216,6 +277,7 @@ export class LiveCalculatorController {
 
   clear(): void {
     this.#source = "";
+    this.#input = { kind: "source", source: "" };
     this.#explicitRequested = false;
     this.#hiddenMathematicalError = "";
     this.#clearResult();
@@ -253,6 +315,7 @@ export class LiveCalculatorController {
   async #startCalculation(generation: number): Promise<void> {
     if (generation !== this.#generation || this.#source.trim().length === 0) return;
 
+    const input = this.#input;
     const sessionId = this.#nextSessionId();
     const requestId = this.#nextRequestId();
     const session: CurrentSession = {
@@ -270,7 +333,15 @@ export class LiveCalculatorController {
 
     let created: CreateCalculationResponse;
     try {
-      created = await this.#gateway.create(sessionId, this.#source, this.#settings);
+      created =
+        input.kind === "source"
+          ? await this.#gateway.create(sessionId, input.source, this.#settings)
+          : await this.#gateway.createStructured(
+              sessionId,
+              input.expression,
+              input.references,
+              this.#settings
+            );
     } catch {
       this.#handleTransportFailure(session);
       return;
@@ -324,6 +395,7 @@ export class LiveCalculatorController {
         this.#resultValue = result.value;
         this.#resultKind = "value";
         this.#emit();
+        this.#finalizeExplicitSuccess();
         this.#pumpAdditionalRefinement(session);
         return;
       case "paused":
@@ -400,6 +472,12 @@ export class LiveCalculatorController {
     if (this.#explicitRequested) this.#showError(message);
     else this.#clearResult();
     this.#emit();
+  }
+
+  #finalizeExplicitSuccess(): void {
+    if (!this.#explicitRequested || this.#resultValue === null) return;
+    this.#explicitRequested = false;
+    this.#onExplicitSuccess?.(this.#snapshot());
   }
 
   #handleTransportFailure(session: CurrentSession): void {

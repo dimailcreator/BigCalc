@@ -1,5 +1,6 @@
-import type { CalculatorUiState, ExpressionSnapshot } from "./CalculatorState.js";
+import type { CalculatorUiState } from "./CalculatorState.js";
 import { createInitialCalculatorUiState } from "./CalculatorState.js";
+import type { CalculationHistoryEntry } from "../history/CalculationHistory.js";
 import type { UiState } from "./UiState.js";
 import { DEFAULT_UI_STATE } from "./UiState.js";
 
@@ -13,18 +14,7 @@ export interface AppSettings extends EvaluationSettingsSnapshot {
   readonly numberScrollInertia: number;
 }
 
-export interface HistoryResultReference {
-  readonly kind: "history-entry";
-  readonly historyEntryId: string;
-}
-
-export interface HistoryEntry {
-  readonly id: string;
-  readonly originalExpression: ExpressionSnapshot;
-  readonly displayedResult: string;
-  readonly evaluationSettings: EvaluationSettingsSnapshot;
-  readonly resultReference: HistoryResultReference;
-}
+export type HistoryEntry = CalculationHistoryEntry;
 
 export interface CalculatorModuleState<TState = unknown> {
   readonly moduleId: string;

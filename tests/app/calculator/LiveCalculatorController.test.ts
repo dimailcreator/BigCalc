@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
+  CalculationExpressionSegmentDto,
+  CalculationReferenceSnapshotDto,
   CalculationSettingsDto,
   CreateCalculationResponse,
   RefinementResultDto
@@ -20,6 +22,89 @@ afterEach(() => {
 });
 
 describe("LiveCalculatorController", () => {
+  it("uses a completed live result for equals without creating another session", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const successes: LiveCalculatorViewState[] = [];
+    const controller = createController(
+      gateway,
+      () => undefined,
+      (state) => successes.push(state)
+    );
+    controller.setExpression("2+3");
+    await vi.advanceTimersByTimeAsync(150);
+    gateway.refinements[0]?.deferred.resolve(complete("5", 0n, true));
+    await Promise.resolve();
+    expect(successes).toHaveLength(0);
+
+    controller.evaluateExplicitly();
+    expect(successes).toHaveLength(1);
+    expect(successes[0]).toMatchObject({ source: "2+3", resultText: "5" });
+    expect(gateway.creates).toHaveLength(1);
+    expect(gateway.refinements).toHaveLength(1);
+    expect(gateway.continuations).toHaveLength(0);
+  });
+
+  it("commits explicit success after the in-flight initial calculation completes", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const successes: LiveCalculatorViewState[] = [];
+    const controller = createController(
+      gateway,
+      () => undefined,
+      (state) => successes.push(state)
+    );
+    controller.setExpression("2+3");
+    controller.evaluateExplicitly();
+    expect(gateway.creates).toHaveLength(1);
+    await Promise.resolve();
+    gateway.refinements[0]?.deferred.resolve(complete("5", 0n, true));
+    await Promise.resolve();
+
+    expect(successes).toHaveLength(1);
+    expect(gateway.creates).toHaveLength(1);
+    expect(gateway.refinements).toHaveLength(1);
+  });
+
+  it("adopts an Ans identity without restarting and uses a structured session on later edits", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("sin(30)");
+    await vi.advanceTimersByTimeAsync(150);
+    gateway.refinements[0]?.deferred.resolve(complete("5", -1n, true));
+    await Promise.resolve();
+    const snapshots: readonly CalculationReferenceSnapshotDto[] = [
+      {
+        id: "history-1",
+        expression: [{ kind: "source", source: "sin(30)" }],
+        settings: gateway.creates[0]?.settings ?? {
+          angleMode: "degrees",
+          factorialMode: "integer",
+          maxCalculationTimeMs: 5_000
+        }
+      }
+    ];
+
+    controller.adoptResultReference("history-1", snapshots, "0,5");
+    expect(gateway.creates).toHaveLength(1);
+    expect(gateway.cancellations).toHaveLength(0);
+    expect(controller.state.resultText).toBe("0,5");
+
+    controller.setStructuredExpression(
+      [
+        { kind: "reference", id: "history-1" },
+        { kind: "source", source: "+1" }
+      ],
+      snapshots,
+      "0,5+1"
+    );
+    await vi.advanceTimersByTimeAsync(150);
+    expect(gateway.structuredCreates).toHaveLength(1);
+    expect(gateway.structuredCreates[0]?.references).toEqual(snapshots);
+    expect(gateway.cancellations).toEqual([gateway.creates[0]?.sessionId]);
+  });
+
   it("waits for a full 150 ms quiet period before creating a calculation", async () => {
     vi.useFakeTimers();
     const gateway = new FakeGateway();
@@ -40,11 +125,17 @@ describe("LiveCalculatorController", () => {
     vi.useFakeTimers();
     const gateway = new FakeGateway();
     const states: LiveCalculatorViewState[] = [];
-    const controller = createController(gateway, (state) => states.push(state));
+    const successes: LiveCalculatorViewState[] = [];
+    const controller = createController(
+      gateway,
+      (state) => states.push(state),
+      (state) => successes.push(state)
+    );
 
     controller.setExpression("π");
     await vi.advanceTimersByTimeAsync(150);
     expect(gateway.refinements).toHaveLength(1);
+    controller.evaluateExplicitly();
 
     controller.setExpression("2+3");
     await vi.advanceTimersByTimeAsync(150);
@@ -54,6 +145,7 @@ describe("LiveCalculatorController", () => {
     gateway.refinements[0]?.deferred.resolve(complete("314159", 0n));
     await Promise.resolve();
     expect(controller.state.resultText).toBe("");
+    expect(successes).toHaveLength(0);
 
     gateway.refinements[1]?.deferred.resolve(complete("5", 0n, true));
     await Promise.resolve();
@@ -78,7 +170,12 @@ describe("LiveCalculatorController", () => {
         message: "Unexpected end"
       }
     };
-    const controller = createController(gateway);
+    const successes: LiveCalculatorViewState[] = [];
+    const controller = createController(
+      gateway,
+      () => undefined,
+      (state) => successes.push(state)
+    );
 
     controller.setExpression("1+");
     await vi.advanceTimersByTimeAsync(150);
@@ -90,12 +187,18 @@ describe("LiveCalculatorController", () => {
       resultText: "Ошибка синтаксиса",
       resultKind: "error"
     });
+    expect(successes).toHaveLength(0);
   });
 
   it("continues the same paused session when equals is pressed", async () => {
     vi.useFakeTimers();
     const gateway = new FakeGateway();
-    const controller = createController(gateway);
+    const successes: LiveCalculatorViewState[] = [];
+    const controller = createController(
+      gateway,
+      () => undefined,
+      (state) => successes.push(state)
+    );
 
     controller.setExpression("π");
     await vi.advanceTimersByTimeAsync(150);
@@ -121,6 +224,7 @@ describe("LiveCalculatorController", () => {
     gateway.continuations[0]?.deferred.resolve(complete("314159", 0n));
     await Promise.resolve();
     expect(controller.state.resultText).toBe("3,14159...");
+    expect(successes).toHaveLength(1);
   });
 
   it("keeps an incomplete initial partial result hidden until initial demand completes", async () => {
@@ -390,6 +494,12 @@ class FakeGateway implements CalculationGateway {
     readonly source: string;
     readonly settings: CalculationSettingsDto;
   }[] = [];
+  readonly structuredCreates: {
+    readonly sessionId: CalculationSessionId;
+    readonly expression: readonly CalculationExpressionSegmentDto[];
+    readonly references: readonly CalculationReferenceSnapshotDto[];
+    readonly settings: CalculationSettingsDto;
+  }[] = [];
   readonly refinements: PendingRefinement[] = [];
   readonly continuations: PendingRefinement[] = [];
   readonly disposals: CalculationSessionId[] = [];
@@ -413,6 +523,20 @@ class FakeGateway implements CalculationGateway {
         error: this.creationError.error
       });
     }
+    return Promise.resolve({
+      type: "created",
+      sessionId,
+      workerHandleId: createWorkerHandleId(`handle-${sessionId}`)
+    });
+  }
+
+  createStructured(
+    sessionId: CalculationSessionId,
+    expression: readonly CalculationExpressionSegmentDto[],
+    references: readonly CalculationReferenceSnapshotDto[],
+    settings: CalculationSettingsDto
+  ): Promise<CreateCalculationResponse> {
+    this.structuredCreates.push({ sessionId, expression, references, settings });
     return Promise.resolve({
       type: "created",
       sessionId,
@@ -466,10 +590,12 @@ function createDeferred<T>(): Deferred<T> {
 
 function createController(
   gateway: CalculationGateway,
-  onChange: (state: LiveCalculatorViewState) => void = () => undefined
+  onChange: (state: LiveCalculatorViewState) => void = () => undefined,
+  onExplicitSuccess?: (state: LiveCalculatorViewState) => void
 ): LiveCalculatorController {
   return new LiveCalculatorController(gateway, onChange, {
-    initialSignificantDigits: 24
+    initialSignificantDigits: 24,
+    ...(onExplicitSuccess === undefined ? {} : { onExplicitSuccess })
   });
 }
 

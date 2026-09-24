@@ -24,6 +24,45 @@ const sessionId = createCalculationSessionId("client-session");
 const requestId = createCalculationRequestId("client-request");
 
 describe("CalculationClient", () => {
+  it("sends structural reference snapshots without flattening their source", async () => {
+    const worker = new FakeCalculationWorker();
+    const client = new CalculationClient(worker);
+    const workerHandleId = createWorkerHandleId("structured-handle");
+    const expression = [{ kind: "reference" as const, id: "history-1" }];
+    const references = [
+      { id: "history-1", expression: [{ kind: "source" as const, source: "1/3" }], settings }
+    ];
+    const created = client.createStructured(sessionId, expression, references, settings);
+    expect(worker.messages).toEqual([
+      { type: "create-structured", sessionId, expression, references, settings }
+    ]);
+    worker.emit({ type: "created", sessionId, workerHandleId });
+    await expect(created).resolves.toMatchObject({ type: "created", workerHandleId });
+  });
+
+  it("classifies a structured-create rejection as transport failure", async () => {
+    const worker = new FakeCalculationWorker();
+    const client = new CalculationClient(worker);
+    const created = client.createStructured(
+      sessionId,
+      [{ kind: "reference", id: "missing" }],
+      [],
+      settings
+    );
+    worker.emit({
+      type: "worker-error",
+      code: "CoreBoundaryFailure",
+      message: "Missing calculation reference: missing",
+      commandType: "create-structured",
+      sessionId
+    });
+    await expect(created).rejects.toMatchObject({
+      name: "CalculationTransportError",
+      code: "WorkerRejectedCommand",
+      workerCode: "CoreBoundaryFailure"
+    });
+  });
+
   it("correlates create and refine responses", async () => {
     const worker = new FakeCalculationWorker();
     const client = new CalculationClient(worker);

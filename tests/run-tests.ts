@@ -1,5 +1,6 @@
 import "./core-import.test.js";
 import "./public-api.test.js";
+import "./structured-references.test.js";
 import "./contracts.test.js";
 import "./rational.test.js";
 import "./registry-tokenizer.test.js";

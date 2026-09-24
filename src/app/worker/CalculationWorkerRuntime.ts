@@ -1,13 +1,18 @@
+import { createCalculationHandleFromSegments } from "@bigcalc/core";
 import type {
   CalcError,
   CalculationHandle,
   CalculationHandleCreationResult,
+  CalculationExpressionSegment,
   CalculationOptions,
+  CalculationReferenceSnapshot,
   RefinementResult,
   VerifiedNumber
 } from "@bigcalc/core";
 import type {
   CalcErrorDto,
+  CalculationExpressionSegmentDto,
+  CalculationReferenceSnapshotDto,
   CalculationSettingsDto,
   RefinementResultDto,
   VerifiedNumberDto,
@@ -31,6 +36,12 @@ export type CalculationHandleFactory = (
   options: CalculationOptions
 ) => CalculationHandleCreationResult;
 
+export type StructuredCalculationHandleFactory = (
+  expression: readonly CalculationExpressionSegment[],
+  references: readonly CalculationReferenceSnapshot[],
+  options: CalculationOptions
+) => CalculationHandleCreationResult;
+
 interface HandleRecord {
   readonly handle: CalculationHandle;
   readonly workerHandleId: WorkerHandleId;
@@ -51,14 +62,17 @@ interface InvalidCommand {
 export class CalculationWorkerRuntime {
   readonly #handles = new Map<CalculationSessionId, HandleRecord>();
   readonly #createHandle: CalculationHandleFactory;
+  readonly #createStructuredHandle: StructuredCalculationHandleFactory;
   readonly #createHandleId: () => WorkerHandleId;
 
   constructor(
     createHandle: CalculationHandleFactory,
-    createHandleId = createDefaultHandleIdFactory()
+    createHandleId = createDefaultHandleIdFactory(),
+    createStructuredHandle: StructuredCalculationHandleFactory = createCalculationHandleFromSegments
   ) {
     this.#createHandle = createHandle;
     this.#createHandleId = createHandleId;
+    this.#createStructuredHandle = createStructuredHandle;
   }
 
   get sessionCount(): number {
@@ -72,6 +86,7 @@ export class CalculationWorkerRuntime {
     const command = decoded.command;
     switch (command.type) {
       case "create":
+      case "create-structured":
         return this.#create(command);
       case "refine":
         return this.#refine(command);
@@ -84,14 +99,21 @@ export class CalculationWorkerRuntime {
     }
   }
 
-  #create(command: Extract<WorkerCommand, { readonly type: "create" }>): WorkerResponse {
+  #create(
+    command: Extract<WorkerCommand, { readonly type: "create" | "create-structured" }>
+  ): WorkerResponse {
     if (this.#handles.has(command.sessionId)) {
       return workerError("DuplicateSession", "Calculation session already exists", command);
     }
 
     let created: CalculationHandleCreationResult;
     try {
-      created = this.#createHandle(command.source, { settings: command.settings });
+      created =
+        command.type === "create"
+          ? this.#createHandle(command.source, { settings: command.settings })
+          : this.#createStructuredHandle(command.expression, command.references, {
+              settings: command.settings
+            });
     } catch (error: unknown) {
       return workerError("CoreBoundaryFailure", errorMessage(error), command);
     }
@@ -251,6 +273,25 @@ function decodeWorkerCommand(value: unknown): DecodedCommand | InvalidCommand {
         ok: true,
         command: { type: "create", sessionId, source: value.source, settings: value.settings }
       };
+    case "create-structured":
+      if (
+        !isCalculationExpression(value.expression) ||
+        !Array.isArray(value.references) ||
+        !value.references.every(isCalculationReferenceSnapshot) ||
+        !isCalculationSettings(value.settings)
+      ) {
+        return invalidCommand();
+      }
+      return {
+        ok: true,
+        command: {
+          type: "create-structured",
+          sessionId,
+          expression: value.expression,
+          references: value.references,
+          settings: value.settings
+        }
+      };
     case "refine": {
       const requestId = decodeId(value.requestId, createCalculationRequestId);
       if (
@@ -315,6 +356,33 @@ function isCalculationSettings(value: unknown): value is CalculationSettingsDto 
     Number.isFinite(value.maxCalculationTimeMs) &&
     value.maxCalculationTimeMs >= 0
   );
+}
+
+function isCalculationExpression(
+  value: unknown
+): value is readonly CalculationExpressionSegmentDto[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (segment: unknown) =>
+        isRecord(segment) &&
+        ((segment.kind === "source" && typeof segment.source === "string") ||
+          (segment.kind === "reference" && isId(segment.id)))
+    )
+  );
+}
+
+function isCalculationReferenceSnapshot(value: unknown): value is CalculationReferenceSnapshotDto {
+  return (
+    isRecord(value) &&
+    isId(value.id) &&
+    isCalculationExpression(value.expression) &&
+    isCalculationSettings(value.settings)
+  );
+}
+
+function isId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

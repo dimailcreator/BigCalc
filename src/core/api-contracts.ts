@@ -10,6 +10,18 @@ export interface CalculationOptions {
   readonly settings?: Partial<CalculationSettings>;
 }
 
+/** Plain source text is parsed by Core; references remain separate identity-bearing segments. */
+export type CalculationExpressionSegment =
+  | { readonly kind: "source"; readonly source: string }
+  | { readonly kind: "reference"; readonly id: string };
+
+/** A persisted mathematical snapshot, independent of its displayed decimal prefix. */
+export interface CalculationReferenceSnapshot {
+  readonly id: string;
+  readonly expression: readonly CalculationExpressionSegment[];
+  readonly settings: CalculationSettings;
+}
+
 export interface PrecisionRequest {
   readonly significantDigits: number;
 }

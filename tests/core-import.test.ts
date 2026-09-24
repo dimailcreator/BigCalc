@@ -7,7 +7,7 @@ void describe("core public entrypoint", () => {
   void it("can be imported without browser APIs", () => {
     const probe = createCoreSmokeProbe();
 
-    assert.equal(CORE_PUBLIC_API_VERSION, "1.0.0");
+    assert.equal(CORE_PUBLIC_API_VERSION, "1.1.0");
     assert.equal(CORE_STAGE, "stage-38");
     assert.deepEqual(probe, {
       apiVersion: CORE_PUBLIC_API_VERSION,

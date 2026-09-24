@@ -1,10 +1,13 @@
 import { createCalculationHandleFromSource as createInternalCalculationHandle } from "./evaluation/lifecycle.js";
 import { DEFAULT_EVALUATION_SETTINGS } from "./evaluation/context.js";
 import { formatVerifiedNumber } from "./formatting/display.js";
+import { createCalculationHandleFromSegments as createInternalStructuredCalculationHandle } from "./history/structured-references.js";
 import { CORE_PUBLIC_API_VERSION, CORE_STAGE, createCoreSmokeProbe } from "./public.js";
 import type {
   CalculationHandleCreationResult,
   CalculationOptions,
+  CalculationExpressionSegment,
+  CalculationReferenceSnapshot,
   CalculationSettings
 } from "./api-contracts.js";
 
@@ -17,6 +20,8 @@ export type {
   CalculationHandle,
   CalculationHandleCreationResult,
   CalculationOptions,
+  CalculationExpressionSegment,
+  CalculationReferenceSnapshot,
   CalculationSettings,
   CancelledError,
   CancelledResult,
@@ -63,6 +68,18 @@ export function createCalculationHandle(
   return created.ok
     ? Object.freeze({ ok: true, handle: created.handle })
     : Object.freeze({ ok: false, error: created.error });
+}
+
+/** Core API 1.1: every reference resolves its own saved expression and settings. */
+export function createCalculationHandleFromSegments(
+  expression: readonly CalculationExpressionSegment[],
+  references: readonly CalculationReferenceSnapshot[],
+  options: CalculationOptions = {}
+): CalculationHandleCreationResult {
+  validateCalculationSettings(options.settings);
+  return createInternalStructuredCalculationHandle(expression, references, {
+    ...(options.settings === undefined ? {} : { settings: options.settings })
+  });
 }
 
 function validateCalculationSettings(settings: unknown): void {

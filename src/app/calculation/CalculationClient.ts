@@ -2,6 +2,8 @@ import type {
   CalculationCreateFailedResponse,
   CalculationCreatedResponse,
   CalculationSettingsDto,
+  CalculationExpressionSegmentDto,
+  CalculationReferenceSnapshotDto,
   CreateCalculationResponse,
   RefinementResultDto,
   WorkerCommand,
@@ -104,6 +106,35 @@ export class CalculationClient {
     this.#post({ type: "create", sessionId, source, settings }, deferred, () => {
       this.#pendingCreates.delete(sessionId);
     });
+    return deferred.promise;
+  }
+
+  createStructured(
+    sessionId: CalculationSessionId,
+    expression: readonly CalculationExpressionSegmentDto[],
+    references: readonly CalculationReferenceSnapshotDto[],
+    settings: CalculationSettingsDto
+  ): Promise<CreateCalculationResponse> {
+    const terminal = this.#rejectIfTerminal<CreateCalculationResponse>();
+    if (terminal !== null) return terminal;
+    if (this.#pendingCreates.has(sessionId)) {
+      return Promise.reject(
+        new CalculationTransportError(
+          "DuplicatePendingOperation",
+          "A create operation is already pending for this session"
+        )
+      );
+    }
+
+    const deferred = createDeferred<CreateCalculationResponse>();
+    this.#pendingCreates.set(sessionId, deferred);
+    this.#post(
+      { type: "create-structured", sessionId, expression, references, settings },
+      deferred,
+      () => {
+        this.#pendingCreates.delete(sessionId);
+      }
+    );
     return deferred.promise;
   }
 
@@ -277,7 +308,10 @@ export class CalculationClient {
       return;
     }
 
-    if (response.sessionId !== undefined && response.commandType === "create") {
+    if (
+      response.sessionId !== undefined &&
+      (response.commandType === "create" || response.commandType === "create-structured")
+    ) {
       const pending = this.#pendingCreates.get(response.sessionId);
       if (pending !== undefined) {
         this.#pendingCreates.delete(response.sessionId);
@@ -503,6 +537,7 @@ function isWorkerErrorCode(value: unknown): value is WorkerErrorCode {
 function isWorkerCommandType(value: unknown): value is WorkerCommand["type"] {
   return (
     value === "create" ||
+    value === "create-structured" ||
     value === "refine" ||
     value === "continue" ||
     value === "cancel" ||

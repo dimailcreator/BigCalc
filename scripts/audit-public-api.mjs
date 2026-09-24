@@ -16,6 +16,7 @@ assert.deepEqual(Object.keys(api).sort(), [
   "CORE_STAGE",
   "DEFAULT_CALCULATION_SETTINGS",
   "createCalculationHandle",
+  "createCalculationHandleFromSegments",
   "createCoreSmokeProbe",
   "formatVerifiedNumber"
 ]);
@@ -26,6 +27,8 @@ await assert.rejects(() => import(`${packageJson.name}/core/index.js`), {
 const declarations = await collectDeclarationClosure(path.join(workspace, "dist/core/api.d.ts"));
 for (const requiredType of [
   "CalculationHandle",
+  "CalculationExpressionSegment",
+  "CalculationReferenceSnapshot",
   "CalculationSettings",
   "PrecisionRequest",
   "RefinementResult",

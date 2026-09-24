@@ -21,6 +21,7 @@ export class ExpressionEditor {
   readonly input: HTMLInputElement;
   readonly #visual: HTMLDivElement;
   readonly #track: HTMLSpanElement;
+  #ansViewport: HTMLOutputElement | null = null;
   readonly #onChange: ExpressionEditorOptions["onChange"];
   readonly #onEnter: ExpressionEditorOptions["onEnter"];
   readonly #backspaceRepeater: BackspaceRepeater;
@@ -65,6 +66,18 @@ export class ExpressionEditor {
     this.input.focus();
   }
 
+  attachAnsViewport(viewport: HTMLOutputElement): void {
+    this.#ansViewport = viewport;
+    this.root.append(viewport);
+    this.#render();
+  }
+
+  setCursor(position: number): void {
+    this.#model = this.#model.setCursor(position);
+    this.#render();
+    this.focus();
+  }
+
   clear(): void {
     this.#backspaceRepeater.stop();
     this.#update(new ExpressionModel());
@@ -86,6 +99,14 @@ export class ExpressionEditor {
 
   insertAns(token: AnsToken): void {
     this.insertHistoryTokens([token]);
+  }
+
+  /** Part of the coordinated successful-equals transaction; the calculator keeps its handle. */
+  replaceWithResultAns(token: AnsToken): void {
+    this.#backspaceRepeater.stop();
+    this.#model = new ExpressionModel([token]);
+    this.#render();
+    this.focus();
   }
 
   insertSmartBracket(pair: SmartBracketPair): void {
@@ -267,7 +288,7 @@ export class ExpressionEditor {
     if (this.#historyOpen) return;
     this.#onNativeSelection();
     const tokens = parseEditorText(event.clipboardData?.getData("text/plain") ?? "");
-    if (tokens.length > 0) this.#update(this.#model.insertTokens(tokens));
+    if (tokens.length > 0) this.#insertUserTokens(tokens);
   }
 
   #insertText(text: string): void {
@@ -276,8 +297,22 @@ export class ExpressionEditor {
       return;
     }
     const tokens = parseEditorText(text);
-    if (tokens.length > 0) this.#update(this.#model.insertTokens(tokens));
+    if (tokens.length > 0) this.#insertUserTokens(tokens);
     else this.#render();
+  }
+
+  #insertUserTokens(tokens: readonly ExpressionToken[]): void {
+    const first = tokens[0];
+    if (
+      this.#model.tokens.length === 1 &&
+      this.#model.tokens[0]?.kind === "ans" &&
+      first?.kind === "character" &&
+      /^[0-9,]$/u.test(first.value)
+    ) {
+      this.#update(new ExpressionModel(tokens));
+      return;
+    }
+    this.#update(this.#model.insertTokens(tokens));
   }
 
   #onPointerDown(event: PointerEvent): void {
@@ -318,6 +353,10 @@ export class ExpressionEditor {
 
   #render(): void {
     const text = this.#model.serializeDisplay();
+    const loneAns = this.#model.tokens.length === 1 && this.#model.tokens[0]?.kind === "ans";
+    this.root.dataset.loneAns = String(loneAns);
+    this.#visual.hidden = loneAns;
+    if (this.#ansViewport !== null) this.#ansViewport.hidden = !loneAns;
     if (this.input.value !== text) this.input.value = text;
     const children: HTMLElement[] = [];
     const { start, end } = this.#model.selection;

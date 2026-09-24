@@ -22,6 +22,71 @@ const settings = Object.freeze({
 });
 
 describe("CalculationWorkerRuntime", () => {
+  it("evaluates two structured references through the public Core boundary", async () => {
+    const sessionId = createCalculationSessionId("structured-two-references");
+    const requestId = createCalculationRequestId("structured-refinement");
+    const runtime = new CalculationWorkerRuntime(createCalculationHandle);
+    const created = await runtime.handleCommand({
+      type: "create-structured",
+      sessionId,
+      expression: [
+        { kind: "reference", id: "third" },
+        { kind: "source", source: "+" },
+        { kind: "reference", id: "sixth" }
+      ],
+      references: [
+        { id: "third", expression: [{ kind: "source", source: "1/3" }], settings },
+        { id: "sixth", expression: [{ kind: "source", source: "1/6" }], settings }
+      ],
+      settings
+    });
+    expect(structuredClone(created)).toMatchObject({ type: "created", sessionId });
+
+    const response = await runtime.handleCommand({
+      type: "refine",
+      sessionId,
+      requestId,
+      significantDigits: 20
+    });
+    expect(structuredClone(response)).toMatchObject({
+      type: "refinement-result",
+      result: {
+        status: "complete",
+        value: { digits: "5", exponent10: -1n, valueExact: true }
+      }
+    });
+  });
+
+  it("rejects malformed structured create commands as protocol failures", async () => {
+    const runtime = new CalculationWorkerRuntime(createCalculationHandle);
+    const response = await runtime.handleCommand({
+      type: "create-structured",
+      sessionId: createCalculationSessionId("bad-structured"),
+      expression: [{ kind: "reference", id: "" }],
+      references: [],
+      settings
+    });
+    expect(response).toMatchObject({ type: "worker-error", code: "InvalidCommand" });
+  });
+
+  it("keeps a missing reference as a Worker boundary failure", async () => {
+    const runtime = new CalculationWorkerRuntime(createCalculationHandle);
+    const sessionId = createCalculationSessionId("missing-history-reference");
+    const response = await runtime.handleCommand({
+      type: "create-structured",
+      sessionId,
+      expression: [{ kind: "reference", id: "missing" }],
+      references: [],
+      settings
+    });
+    expect(response).toMatchObject({
+      type: "worker-error",
+      code: "CoreBoundaryFailure",
+      commandType: "create-structured",
+      sessionId
+    });
+  });
+
   it("creates and refines a public Core handle without exposing it", async () => {
     const sessionId = createCalculationSessionId("exact-five");
     const requestId = createCalculationRequestId("refine-five");

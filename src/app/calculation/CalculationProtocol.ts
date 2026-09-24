@@ -10,10 +10,28 @@ export interface CalculationSettingsDto {
   readonly maxCalculationTimeMs: number;
 }
 
+export type CalculationExpressionSegmentDto =
+  | { readonly kind: "source"; readonly source: string }
+  | { readonly kind: "reference"; readonly id: string };
+
+export interface CalculationReferenceSnapshotDto {
+  readonly id: string;
+  readonly expression: readonly CalculationExpressionSegmentDto[];
+  readonly settings: CalculationSettingsDto;
+}
+
 export interface CreateCalculationCommand {
   readonly type: "create";
   readonly sessionId: CalculationSessionId;
   readonly source: string;
+  readonly settings: CalculationSettingsDto;
+}
+
+export interface CreateStructuredCalculationCommand {
+  readonly type: "create-structured";
+  readonly sessionId: CalculationSessionId;
+  readonly expression: readonly CalculationExpressionSegmentDto[];
+  readonly references: readonly CalculationReferenceSnapshotDto[];
   readonly settings: CalculationSettingsDto;
 }
 
@@ -42,6 +60,7 @@ export interface DisposeCalculationCommand {
 
 export type WorkerCommand =
   | CreateCalculationCommand
+  | CreateStructuredCalculationCommand
   | RefineCalculationCommand
   | ContinueCalculationCommand
   | CancelCalculationCommand
