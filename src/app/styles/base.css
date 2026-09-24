@@ -178,6 +178,59 @@ button {
   font-size: clamp(18px, 5vw, 25px);
 }
 
+.number-viewport {
+  position: relative;
+  text-overflow: clip;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.number-viewport:focus-visible {
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px rgba(185, 209, 255, 0.22);
+  outline: none;
+}
+
+.number-viewport-content {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  white-space: pre;
+}
+
+.number-slot {
+  display: inline-block;
+  flex: 0 0 1ch;
+  width: 1ch;
+  text-align: center;
+  white-space: pre;
+}
+
+.number-slot-placeholder,
+.number-slot-padding {
+  color: transparent;
+}
+
+.number-slot-ellipsis {
+  letter-spacing: -0.12ch;
+  text-indent: -0.06ch;
+}
+
+.number-viewport-probe {
+  position: absolute;
+  width: 1ch;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.number-viewport[data-kind="error"] .number-viewport-content,
+.number-viewport[data-representation="displayError"] .number-viewport-content {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .calculator-keyboard {
   min-height: 0;
   padding: 4px clamp(8px, 2.4vw, 16px) max(8px, env(safe-area-inset-bottom));

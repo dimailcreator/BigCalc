@@ -1,7 +1,8 @@
 import type {
   CalculationSettingsDto,
   CreateCalculationResponse,
-  RefinementResultDto
+  RefinementResultDto,
+  VerifiedNumberDto
 } from "../calculation/CalculationProtocol.js";
 import {
   createCalculationRequestId,
@@ -38,6 +39,7 @@ export type LiveCalculationPhase =
 export interface LiveCalculatorViewState {
   readonly source: string;
   readonly resultText: string;
+  readonly resultValue: VerifiedNumberDto | null;
   readonly resultKind: "empty" | "value" | "error";
   readonly phase: LiveCalculationPhase;
   readonly settings: CalculationSettingsDto;
@@ -52,6 +54,8 @@ interface CurrentSession {
   readonly sessionId: CalculationSessionId;
   readonly generation: number;
   requestId: CalculationRequestId;
+  refiningAdditional: boolean;
+  pendingDigitDemand: number;
 }
 
 export class LiveCalculatorController {
@@ -67,6 +71,7 @@ export class LiveCalculatorController {
   });
   #phase: LiveCalculationPhase = "idle";
   #resultText = "";
+  #resultValue: VerifiedNumberDto | null = null;
   #resultKind: LiveCalculatorViewState["resultKind"] = "empty";
   #currentSession: CurrentSession | null = null;
   #debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -165,6 +170,17 @@ export class LiveCalculatorController {
     }
   }
 
+  requestMoreDigits(significantDigits: number): void {
+    if (!Number.isSafeInteger(significantDigits) || significantDigits <= 0) {
+      throw new RangeError("Digit demand must be a positive safe integer");
+    }
+    const session = this.#currentSession;
+    if (session === null || this.#resultValue === null || this.#phase === "failed") return;
+    if (significantDigits <= this.#resultValue.verifiedDigits) return;
+    session.pendingDigitDemand = Math.max(session.pendingDigitDemand, significantDigits);
+    this.#pumpAdditionalRefinement(session);
+  }
+
   clear(): void {
     this.#source = "";
     this.#explicitRequested = false;
@@ -206,7 +222,13 @@ export class LiveCalculatorController {
 
     const sessionId = this.#nextSessionId();
     const requestId = this.#nextRequestId();
-    const session: CurrentSession = { sessionId, generation, requestId };
+    const session: CurrentSession = {
+      sessionId,
+      generation,
+      requestId,
+      refiningAdditional: false,
+      pendingDigitDemand: 0
+    };
     this.#currentSession = session;
     this.#phase = "running";
     this.#emit();
@@ -260,13 +282,16 @@ export class LiveCalculatorController {
       case "complete":
         this.#phase = "completed";
         this.#resultText = formatTemporaryResult(result.value);
+        this.#resultValue = result.value;
         this.#resultKind = "value";
         this.#emit();
+        this.#pumpAdditionalRefinement(session);
         return;
       case "paused":
         this.#phase = "pausedByTimeout";
         if (result.partial !== null && result.partial.verifiedDigits > 0) {
           this.#resultText = formatTemporaryResult(result.partial);
+          this.#resultValue = result.partial;
           this.#resultKind = "value";
         }
         this.#emit();
@@ -278,6 +303,48 @@ export class LiveCalculatorController {
       case "failed":
         this.#phase = "failed";
         this.#handleMathematicalError(formatCalculationError(result.error));
+    }
+  }
+
+  #pumpAdditionalRefinement(session: CurrentSession): void {
+    if (
+      !this.#isCurrent(session) ||
+      session.refiningAdditional ||
+      this.#phase !== "completed" ||
+      this.#resultValue === null
+    ) {
+      return;
+    }
+    const target = session.pendingDigitDemand;
+    if (target <= this.#resultValue.verifiedDigits) return;
+    session.pendingDigitDemand = 0;
+    session.refiningAdditional = true;
+    session.requestId = this.#nextRequestId();
+    this.#phase = "running";
+    this.#emit();
+    void this.#runAdditionalRefinement(session, target);
+  }
+
+  async #runAdditionalRefinement(session: CurrentSession, target: number): Promise<void> {
+    try {
+      let result = await this.#gateway.refine(session.sessionId, session.requestId, target);
+      while (this.#isCurrent(session) && result.status === "paused") {
+        if (result.partial !== null && result.partial.verifiedDigits > 0) {
+          this.#resultValue = result.partial;
+          this.#resultText = formatTemporaryResult(result.partial);
+          this.#resultKind = "value";
+          this.#emit();
+        }
+        session.requestId = this.#nextRequestId();
+        result = await this.#gateway.continue(session.sessionId, session.requestId);
+      }
+      if (!this.#isCurrent(session)) return;
+      session.refiningAdditional = false;
+      this.#applyRefinement(session, result);
+    } catch {
+      if (!this.#isCurrent(session)) return;
+      session.refiningAdditional = false;
+      this.#handleTransportFailure(session);
     }
   }
 
@@ -323,11 +390,13 @@ export class LiveCalculatorController {
 
   #clearResult(): void {
     this.#resultText = "";
+    this.#resultValue = null;
     this.#resultKind = "empty";
   }
 
   #showError(message: string): void {
     this.#resultText = message;
+    this.#resultValue = null;
     this.#resultKind = "error";
   }
 
@@ -349,6 +418,7 @@ export class LiveCalculatorController {
     return Object.freeze({
       source: this.#source,
       resultText: this.#resultText,
+      resultValue: this.#resultValue,
       resultKind: this.#resultKind,
       phase: this.#phase,
       settings: this.#settings

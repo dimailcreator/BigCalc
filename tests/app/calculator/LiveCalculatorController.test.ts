@@ -140,12 +140,79 @@ describe("LiveCalculatorController", () => {
       settings: { angleMode: "radians", factorialMode: "gamma" }
     });
   });
+
+  it("queues viewport digit demands on the same session and ignores a stale additional result", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    const initial = gateway.refinements[0];
+    if (initial === undefined) throw new Error("Expected initial refinement");
+    initial.deferred.resolve(complete("314159", 0n));
+    await Promise.resolve();
+    expect(controller.state.resultValue?.digits).toBe("314159");
+
+    controller.requestMoreDigits(56);
+    controller.requestMoreDigits(106);
+    expect(gateway.refinements).toHaveLength(2);
+    expect(gateway.refinements[1]?.significantDigits).toBe(56);
+    expect(gateway.refinements[1]?.sessionId).toBe(initial.sessionId);
+    gateway.refinements[1]?.deferred.resolve(complete("314159" + "2".repeat(50), 0n));
+    await Promise.resolve();
+    expect(gateway.refinements).toHaveLength(3);
+    expect(gateway.refinements[2]?.significantDigits).toBe(106);
+
+    controller.setExpression("2+3");
+    gateway.refinements[2]?.deferred.resolve(complete("3".repeat(106), 0n));
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(150);
+    gateway.refinements[3]?.deferred.resolve(complete("5", 0n, true));
+    await Promise.resolve();
+    expect(controller.state).toMatchObject({ source: "2+3", resultText: "5" });
+    expect(controller.state.resultValue?.digits).toBe("5");
+  });
+
+  it("auto-continues a soft timeout during additional digit loading", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    gateway.refinements[0]?.deferred.resolve(complete("314159", 0n));
+    await Promise.resolve();
+
+    controller.requestMoreDigits(56);
+    gateway.refinements[1]?.deferred.resolve({
+      status: "paused",
+      reason: "time-limit",
+      requestedDigits: 56,
+      verifiedDigits: 10,
+      partial: {
+        sign: 1,
+        digits: "3141592653",
+        exponent10: 0n,
+        verifiedDigits: 10,
+        valueExact: false,
+        decimalTerminating: false,
+        rounded: false
+      }
+    });
+    await Promise.resolve();
+    expect(controller.state.resultValue?.digits).toBe("3141592653");
+    expect(gateway.continuations).toHaveLength(1);
+    gateway.continuations[0]?.deferred.resolve(complete("314159" + "2".repeat(50), 0n));
+    await Promise.resolve();
+    expect(controller.state.phase).toBe("completed");
+    expect(controller.state.resultValue?.verifiedDigits).toBe(56);
+  });
 });
 
 interface PendingRefinement {
   readonly sessionId: CalculationSessionId;
   readonly requestId: CalculationRequestId;
   readonly deferred: Deferred<RefinementResultDto>;
+  readonly significantDigits?: number;
 }
 
 class FakeGateway implements CalculationGateway {
@@ -185,10 +252,11 @@ class FakeGateway implements CalculationGateway {
 
   refine(
     sessionId: CalculationSessionId,
-    requestId: CalculationRequestId
+    requestId: CalculationRequestId,
+    significantDigits: number
   ): Promise<RefinementResultDto> {
     const deferred = createDeferred<RefinementResultDto>();
-    this.refinements.push({ sessionId, requestId, deferred });
+    this.refinements.push({ sessionId, requestId, deferred, significantDigits });
     return deferred.promise;
   }
 

@@ -4,6 +4,9 @@ import type { LiveCalculatorViewState } from "./calculator/LiveCalculatorControl
 import { ExpressionEditor } from "./editor/ExpressionEditor.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
 import { MathModeStore } from "./settings/MathModeStore.js";
+import { NumberScrollInertiaStore } from "./settings/NumberScrollInertiaStore.js";
+import { NumberViewport } from "./viewport/NumberViewport.js";
+import { initialViewportPrecisionDemand } from "./viewport/NumberViewportModel.js";
 import "./styles/base.css";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
@@ -16,20 +19,22 @@ const shell = document.createElement("main");
 const header = document.createElement("header");
 const heading = document.createElement("h1");
 const display = document.createElement("section");
-const resultOutput = document.createElement("output");
 const calculationClient = createBrowserCalculationClient();
 const modeStore = new MathModeStore(window.localStorage);
 const initialModes = modeStore.load();
+const inertiaStore = new NumberScrollInertiaStore(window.localStorage);
+const resultOutput = new NumberViewport({
+  inertia: inertiaStore.load(),
+  onPrecisionDemand(significantDigits) {
+    controller.requestMoreDigits(significantDigits);
+  }
+});
 
 shell.className = "calculator-shell";
 header.className = "top-bar";
 heading.textContent = "BigCalc";
 display.className = "main-display";
 display.setAttribute("aria-label", "Калькулятор");
-
-resultOutput.className = "result-output";
-resultOutput.setAttribute("aria-label", "Результат");
-resultOutput.setAttribute("aria-live", "polite");
 
 header.append(heading);
 const editor = new ExpressionEditor({
@@ -42,7 +47,7 @@ const editor = new ExpressionEditor({
     if (editor.model.serializeForEvaluation().kind === "source") controller.evaluateExplicitly();
   }
 });
-display.append(editor.root, resultOutput);
+display.append(editor.root, resultOutput.root);
 const keyboard = new CalculatorKeyboard(
   editor,
   {
@@ -73,7 +78,7 @@ appRoot.dataset.calculationWorker = "started";
 appRoot.replaceChildren(shell);
 
 const controller = new LiveCalculatorController(calculationClient, render, {
-  initialSignificantDigits: initialDigitDemand(window.innerWidth)
+  initialSignificantDigits: initialViewportPrecisionDemand(resultOutput.availableSlots)
 });
 if (initialModes.angleMode === "radians") controller.toggleAngleMode();
 if (initialModes.factorialMode === "gamma") controller.toggleFactorialMode();
@@ -82,6 +87,7 @@ window.addEventListener(
   "pagehide",
   () => {
     editor.dispose();
+    resultOutput.dispose();
     controller.dispose();
     calculationClient.terminate();
   },
@@ -89,8 +95,14 @@ window.addEventListener(
 );
 
 function render(state: LiveCalculatorViewState): void {
-  resultOutput.textContent = state.resultText;
-  resultOutput.dataset.kind = state.resultKind;
+  resultOutput.root.dataset.kind = state.resultKind;
+  if (state.resultKind === "value" && state.resultValue !== null) {
+    resultOutput.setValue(state.resultValue);
+  } else if (state.resultKind === "error") {
+    resultOutput.showError(state.resultText);
+  } else {
+    resultOutput.setValue(null);
+  }
   display.dataset.phase = state.phase;
   display.setAttribute("aria-busy", state.phase === "running" ? "true" : "false");
 
@@ -99,8 +111,4 @@ function render(state: LiveCalculatorViewState): void {
     angleMode: degrees ? "degrees" : "radians",
     factorialMode: state.settings.factorialMode
   });
-}
-
-function initialDigitDemand(viewportWidth: number): number {
-  return Math.max(12, Math.min(40, Math.floor(viewportWidth / 14)));
 }
