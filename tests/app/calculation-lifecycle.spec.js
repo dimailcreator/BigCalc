@@ -112,3 +112,24 @@ test("timeout cancellation freezes without cancelling and equals unfreezes", asy
   expect(commands.filter((command) => command.type === "create")).toHaveLength(1);
   expect(commands.filter((command) => command.type === "continue")).toHaveLength(2);
 });
+
+test("browser Back freezes a timed-out calculation and keeps its Worker handle", async ({
+  page
+}) => {
+  await openTimedOutCalculation(page, 2);
+  await page.goBack({ waitUntil: "networkidle" });
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.locator(".main-display")).toHaveAttribute("data-phase", "frozenByUser");
+  const commands = await page.evaluate(() => globalThis.__calculationCommands);
+  expect(
+    commands.filter((command) => command.type === "cancel" || command.type === "dispose")
+  ).toHaveLength(0);
+});
+
+test("a second timeout after Continue remains a live dialog", async ({ page }) => {
+  await openTimedOutCalculation(page, 3);
+  await page.getByRole("dialog").getByRole("button", { name: "Продолжить" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.locator(".main-display")).toHaveAttribute("data-phase", "pausedByTimeout");
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Продолжить" })).toBeFocused();
+});

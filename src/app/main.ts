@@ -1,3 +1,5 @@
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { createBrowserCalculationClient } from "./calculation/CalculationClient.js";
 import { LiveCalculatorController } from "./calculator/LiveCalculatorController.js";
 import type { LiveCalculatorViewState } from "./calculator/LiveCalculatorController.js";
@@ -7,6 +9,9 @@ import { createAnsToken } from "./editor/ExpressionModel.js";
 import { CalculationHistory, expressionSegmentsFromModel } from "./history/CalculationHistory.js";
 import { HistoryPanel } from "./history/HistoryPanel.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
+import { NavigationController } from "./navigation/NavigationController.js";
+import type { NavigationEntry } from "./navigation/NavigationController.js";
+import { AboutScreen, CalculatorDrawer, OverflowMenu } from "./navigation/NavigationSurfaces.js";
 import { createBrowserRepositories } from "./persistence/ApplicationRepositories.js";
 import { SettingsScreen } from "./settings/SettingsScreen.js";
 import { NumberViewport } from "./viewport/NumberViewport.js";
@@ -56,12 +61,19 @@ historyButton.className = "history-toggle";
 historyButton.textContent = "≡";
 historyButton.setAttribute("aria-label", "История");
 historyButton.setAttribute("aria-expanded", "false");
-const settingsButton = document.createElement("button");
-settingsButton.type = "button";
-settingsButton.className = "settings-toggle";
-settingsButton.textContent = "⚙";
-settingsButton.setAttribute("aria-label", "Настройки");
-header.append(historyButton, heading, settingsButton);
+const drawerButton = document.createElement("button");
+drawerButton.type = "button";
+drawerButton.className = "drawer-toggle";
+drawerButton.textContent = "☰";
+drawerButton.setAttribute("aria-label", "Калькуляторы");
+drawerButton.setAttribute("aria-expanded", "false");
+const overflowButton = document.createElement("button");
+overflowButton.type = "button";
+overflowButton.className = "overflow-toggle";
+overflowButton.textContent = "⋮";
+overflowButton.setAttribute("aria-label", "Меню");
+overflowButton.setAttribute("aria-expanded", "false");
+header.append(drawerButton, historyButton, heading, overflowButton);
 const editor = new ExpressionEditor({
   onChange(model) {
     const representation = model.serializeForEvaluation();
@@ -134,7 +146,7 @@ const historyPanel = new HistoryPanel({
 const settingsScreen = new SettingsScreen({
   settings: initialSettings,
   onBack() {
-    closeSettings();
+    navigation.back();
   },
   onAngleMode(mode) {
     if (controller.state.settings.angleMode === mode) return;
@@ -159,31 +171,63 @@ const settingsScreen = new SettingsScreen({
     settingsScreen.sync({ ...controller.state.settings, numberScrollInertia: value });
   }
 });
-shell.append(header, historyPanel.root, display, keyboard.root);
-settingsButton.addEventListener("click", openSettings);
-historyButton.addEventListener("click", () => {
-  if (historyPanel.open) closeHistory();
-  else openHistory();
+const aboutScreen = new AboutScreen(() => {
+  navigation.back();
 });
-window.addEventListener("popstate", () => {
-  if (settingsScreen.open) {
-    closeSettings(true);
-    return;
+const modules = [{ id: "bigcalc", title: "BigCalc" }] as const;
+const drawer = new CalculatorDrawer(
+  modules,
+  "bigcalc",
+  (id) => {
+    navigation.selectModule(id);
+  },
+  () => {
+    navigation.back();
   }
-  const navigationState: unknown = window.history.state;
-  const returnedToHistory =
-    navigationState !== null &&
-    typeof navigationState === "object" &&
-    "bigcalcHistoryPanel" in navigationState &&
-    navigationState.bigcalcHistoryPanel === true;
-  if (historyPanel.open && !returnedToHistory) closeHistory(true);
+);
+const overflow = new OverflowMenu(
+  () => {
+    navigation.replaceTopLayer("settings");
+  },
+  () => {
+    navigation.replaceTopLayer("about");
+  },
+  () => {
+    navigation.back();
+  }
+);
+shell.append(header, historyPanel.root, display, keyboard.root);
+drawerButton.addEventListener("click", () => {
+  if (navigation.topLayer === "drawer") navigation.back();
+  else navigation.openLayer("drawer");
 });
+overflowButton.addEventListener("click", () => {
+  if (navigation.topLayer === "overflow") navigation.back();
+  else navigation.openLayer("overflow");
+});
+historyButton.addEventListener("click", () => {
+  if (navigation.topLayer === "history") navigation.back();
+  else navigation.openLayer("history");
+});
+window.addEventListener("popstate", (event) => {
+  navigation.handlePopState(event.state);
+});
+window.addEventListener(
+  "keydown",
+  (event) => {
+    if (event.key !== "Escape" || navigation.topLayer === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    navigation.back();
+  },
+  { capture: true }
+);
 let swipeStart: { x: number; y: number; time: number } | null = null;
 shell.addEventListener(
   "pointerdown",
   (event) => {
     if (
-      historyPanel.open ||
+      navigation.topLayer !== null ||
       (event.target instanceof Element && event.target.closest("button, .number-viewport"))
     )
       return;
@@ -195,13 +239,13 @@ shell.addEventListener(
 shell.addEventListener(
   "pointerup",
   (event) => {
-    if (swipeStart === null || historyPanel.open) return;
+    if (swipeStart === null || navigation.topLayer !== null) return;
     const dx = event.clientX - swipeStart.x;
     const dy = event.clientY - swipeStart.y;
     const elapsed = Math.max(1, event.timeStamp - swipeStart.time);
     swipeStart = null;
     if (dy > 0 && dy > Math.abs(dx) * 1.35 && (dy > 54 || (dy > 25 && dy / elapsed > 0.65))) {
-      openHistory();
+      navigation.openLayer("history");
     }
   },
   { capture: true }
@@ -222,7 +266,26 @@ const timeoutDialog = new TimeoutDialog(shell, {
   }
 });
 appRoot.dataset.calculationWorker = "started";
-appRoot.replaceChildren(shell, timeoutDialog.root, settingsScreen.root);
+appRoot.replaceChildren(
+  shell,
+  timeoutDialog.root,
+  settingsScreen.root,
+  aboutScreen.root,
+  drawer.root,
+  overflow.root
+);
+
+const navigation = new NavigationController({
+  history: window.history,
+  modules,
+  canRestoreLayer(layer) {
+    return layer !== "timeout" || controller.state.timeoutDialogOpen;
+  },
+  onChange(entries, previous) {
+    renderNavigation(entries, previous);
+  }
+});
+let timeoutNavigationDismissedByCalculation = false;
 
 const controller = new LiveCalculatorController(calculationClient, render, {
   initialSignificantDigits: initialViewportPrecisionDemand(resultOutput.availableSlots),
@@ -247,6 +310,12 @@ const controller = new LiveCalculatorController(calculationClient, render, {
 if (initialSettings.angleMode === "radians") controller.toggleAngleMode();
 if (initialSettings.factorialMode === "gamma") controller.toggleFactorialMode();
 controller.setMaxCalculationTimeMs(initialSettings.maxCalculationTimeMs);
+
+if (Capacitor.isNativePlatform()) {
+  void App.addListener("backButton", () => {
+    if (!navigation.back()) void App.exitApp();
+  });
+}
 
 window.addEventListener(
   "pagehide",
@@ -281,6 +350,11 @@ function render(state: LiveCalculatorViewState): void {
   display.dataset.phase = state.phase;
   display.setAttribute("aria-busy", state.phase === "running" ? "true" : "false");
   timeoutDialog.setOpen(state.timeoutDialogOpen);
+  if (state.timeoutDialogOpen && !navigation.hasLayer("timeout")) navigation.openLayer("timeout");
+  if (!state.timeoutDialogOpen && navigation.topLayer === "timeout") {
+    timeoutNavigationDismissedByCalculation = true;
+    navigation.back();
+  }
 
   const degrees = state.settings.angleMode === "degrees";
   keyboard.setMathModes({
@@ -290,53 +364,47 @@ function render(state: LiveCalculatorViewState): void {
   settingsScreen.sync({ ...state.settings, numberScrollInertia: currentInertia });
 }
 
-function openSettings(): void {
-  if (settingsScreen.open) return;
-  window.history.pushState({ bigcalcSettings: true }, "", window.location.href);
-  shell.inert = true;
-  settingsScreen.setOpen(true);
-}
-
-function closeSettings(fromPopstate = false): void {
-  if (!settingsScreen.open) return;
-  settingsScreen.setOpen(false);
-  shell.inert = false;
-  settingsButton.focus();
-  const navigationState: unknown = window.history.state;
-  if (
-    !fromPopstate &&
-    navigationState !== null &&
-    typeof navigationState === "object" &&
-    "bigcalcSettings" in navigationState &&
-    navigationState.bigcalcSettings === true
-  )
-    window.history.back();
-}
-
-function openHistory(): void {
-  if (historyPanel.open) return;
-  window.history.pushState({ bigcalcHistoryPanel: true }, "", window.location.href);
-  historyPanel.setOpen(true);
-  editor.setHistoryOpen(true);
-  shell.dataset.historyOpen = "true";
-  historyButton.setAttribute("aria-expanded", "true");
-}
-
-function closeHistory(fromPopstate = false): void {
-  if (!historyPanel.open) return;
-  historyPanel.setOpen(false);
-  editor.setHistoryOpen(false);
-  shell.dataset.historyOpen = "false";
-  historyButton.setAttribute("aria-expanded", "false");
-  const navigationState: unknown = window.history.state;
-  if (
-    !fromPopstate &&
-    navigationState !== null &&
-    typeof navigationState === "object" &&
-    "bigcalcHistoryPanel" in navigationState &&
-    navigationState.bigcalcHistoryPanel === true
-  )
-    window.history.back();
+function renderNavigation(
+  entries: readonly NavigationEntry[],
+  previous: readonly NavigationEntry[]
+): void {
+  const top = navigation.topLayer;
+  const historyOpen = navigation.hasLayer("history");
+  if (previous.at(-1)?.kind === "layer" && previous.at(-1)?.id === "timeout" && top !== "timeout") {
+    const dismissedByCalculation = timeoutNavigationDismissedByCalculation;
+    timeoutNavigationDismissedByCalculation = false;
+    if (controller.state.timeoutDialogOpen) {
+      if (dismissedByCalculation) {
+        navigation.openLayer("timeout");
+        return;
+      }
+      controller.freezeAfterTimeout();
+    }
+  }
+  historyPanel.setOpen(historyOpen);
+  editor.setHistoryOpen(historyOpen);
+  shell.dataset.historyOpen = String(historyOpen);
+  historyButton.setAttribute("aria-expanded", String(historyOpen));
+  drawer.setActiveModule(navigation.activeModuleId);
+  drawer.setOpen(top === "drawer");
+  drawerButton.setAttribute("aria-expanded", String(top === "drawer"));
+  overflow.setOpen(top === "overflow");
+  overflowButton.setAttribute("aria-expanded", String(top === "overflow"));
+  settingsScreen.setOpen(top === "settings");
+  aboutScreen.setOpen(top === "about");
+  timeoutDialog.setOpen(top === "timeout" && controller.state.timeoutDialogOpen);
+  shell.inert = top !== null && top !== "history";
+  settingsScreen.root.inert = top !== "settings";
+  aboutScreen.root.inert = top !== "about";
+  if (entries.length < previous.length && (top === null || top === "history")) {
+    const last = previous.at(-1);
+    if (last?.kind === "layer") {
+      if (last.id === "history") historyButton.focus();
+      else if (last.id === "drawer") drawerButton.focus();
+      else if (last.id === "overflow" || last.id === "settings" || last.id === "about")
+        overflowButton.focus();
+    }
+  }
 }
 
 function saveSettings(): void {

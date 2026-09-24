@@ -19,14 +19,15 @@ if (!existsSync(adb)) throw new Error(`adb was not found at ${adb}`);
 if (workerAsset === undefined) throw new Error("Production Worker asset was not found");
 
 const sockets = adbOutput(["shell", "cat", "/proc/net/unix"]);
-const socket = /@(webview_devtools_remote_\d+)/u.exec(sockets)?.[1];
-if (socket === undefined) throw new Error("A debuggable Android WebView target was not found");
-
-adbOutput(["forward", "tcp:9222", `localabstract:${socket}`]);
-const targets = await CDP.List({ host: "127.0.0.1", port: 9222 });
-const target = targets.find(
-  (candidate) => candidate.type === "page" && candidate.url.startsWith("https://localhost/")
-);
+let target;
+for (const match of sockets.matchAll(/@(webview_devtools_remote_\d+)/gu)) {
+  adbOutput(["forward", "tcp:9222", `localabstract:${match[1]}`]);
+  const targets = await CDP.List({ host: "127.0.0.1", port: 9222 });
+  target = targets.find(
+    (candidate) => candidate.type === "page" && candidate.url.startsWith("https://localhost/")
+  );
+  if (target !== undefined) break;
+}
 if (target === undefined) throw new Error("BigCalc WebView page was not found");
 
 const client = await CDP({ target, host: "127.0.0.1", port: 9222, local: true });
@@ -123,6 +124,62 @@ try {
   assertEqual(await evaluate("globalThis.document.title"), "BigCalc", "foreground restore");
   const afterForeground = await calculate("2+3", (value) => value === "5");
 
+  await evaluate('globalThis.document.querySelector(".overflow-toggle")?.click()');
+  await waitFor(
+    () => evaluate('globalThis.document.querySelector(".overflow-layer")?.hidden === false'),
+    5_000
+  );
+  adbOutput(["shell", "input", "keyevent", "4"]);
+  await waitFor(
+    () => evaluate('globalThis.document.querySelector(".overflow-layer")?.hidden === true'),
+    5_000
+  );
+
+  await evaluate('globalThis.document.querySelector(".drawer-toggle")?.click()');
+  await waitFor(
+    () =>
+      evaluate('globalThis.document.querySelector(".calculator-drawer-layer")?.hidden === false'),
+    5_000
+  );
+  adbOutput(["shell", "input", "keyevent", "4"]);
+  await waitFor(
+    () =>
+      evaluate('globalThis.document.querySelector(".calculator-drawer-layer")?.hidden === true'),
+    5_000
+  );
+
+  await evaluate('globalThis.document.querySelector(".overflow-toggle")?.click()');
+  await evaluate('globalThis.document.querySelector(".overflow-menu button")?.click()');
+  await waitFor(
+    () =>
+      evaluate('globalThis.document.querySelector(".settings-screen")?.dataset.open === "true"'),
+    5_000
+  );
+  adbOutput(["shell", "input", "keyevent", "4"]);
+  await waitFor(
+    () =>
+      evaluate('globalThis.document.querySelector(".settings-screen")?.dataset.open === "false"'),
+    5_000
+  );
+
+  await evaluate('globalThis.document.querySelector(".history-toggle")?.click()');
+  await waitFor(
+    () =>
+      evaluate(
+        'globalThis.document.querySelector(".calculator-shell")?.dataset.historyOpen === "true"'
+      ),
+    5_000
+  );
+  adbOutput(["shell", "input", "keyevent", "4"]);
+  await waitFor(
+    () =>
+      evaluate(
+        'globalThis.document.querySelector(".calculator-shell")?.dataset.historyOpen === "false"'
+      ),
+    5_000
+  );
+  assertEqual(await evaluate("globalThis.document.title"), "BigCalc", "Android Back app retention");
+
   const memory = adbOutput(["shell", "dumpsys", "meminfo", "com.bigcalc.app"]);
   const totalPssKb = /TOTAL PSS:\s+(\d+)/u.exec(memory)?.[1] ?? null;
 
@@ -135,6 +192,7 @@ try {
         responsivenessMs,
         longCalculation,
         afterForeground,
+        androidBackLayers: ["overflow", "drawer", "settings", "history"],
         totalPssKb: totalPssKb === null ? null : Number(totalPssKb)
       },
       null,
@@ -154,7 +212,7 @@ async function calculate(source, accepts) {
       () =>
         evaluate(`(() => {
         const input = globalThis.document.querySelector(".expression-input");
-        const result = globalThis.document.querySelector(".result-output");
+        const result = globalThis.document.querySelector(".main-display > .result-output");
         return input?.value === ${JSON.stringify(source)} && result?.dataset.kind === "value";
       })()`),
       10_000
@@ -163,18 +221,19 @@ async function calculate(source, accepts) {
     const state = await evaluate(`(() => ({
       source: globalThis.document.querySelector(".expression-input")?.value,
       phase: globalThis.document.querySelector(".main-display")?.dataset.phase,
-      result: globalThis.document.querySelector(".result-output")?.textContent,
-      kind: globalThis.document.querySelector(".result-output")?.dataset.kind
+      result: globalThis.document.querySelector(".main-display > .result-output")?.textContent,
+      kind: globalThis.document.querySelector(".main-display > .result-output")?.dataset.kind
     }))()`);
     throw new Error(`Calculation ${source} did not complete: ${JSON.stringify(state)}`, {
       cause: error
     });
   }
   const value = await evaluate(
-    'globalThis.document.querySelector(".result-output")?.textContent ?? ""'
+    'globalThis.document.querySelector(".main-display > .result-output")?.textContent ?? ""'
   );
-  if (!accepts(value)) throw new Error(`Unexpected result for ${source}: ${value}`);
-  return { source, value, elapsedMs: Math.round(performance.now() - startedAt) };
+  const visibleValue = value.trim();
+  if (!accepts(visibleValue)) throw new Error(`Unexpected result for ${source}: ${visibleValue}`);
+  return { source, value: visibleValue, elapsedMs: Math.round(performance.now() - startedAt) };
 }
 
 async function probeWorkerLifecycle(assetName) {

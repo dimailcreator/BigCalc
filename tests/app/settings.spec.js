@@ -4,6 +4,11 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/", { waitUntil: "networkidle" });
 });
 
+async function openSettings(page) {
+  await page.getByRole("button", { name: "Меню" }).click();
+  await page.getByRole("menuitem", { name: "Настройки" }).click();
+}
+
 test("settings modes recalculate immediately, sync with keyboard, and survive restart", async ({
   page
 }) => {
@@ -11,7 +16,7 @@ test("settings modes recalculate immediately, sync with keyboard, and survive re
   const result = page.getByRole("status", { name: "Результат" });
   await input.fill("sin(30)");
   await expect(result).toHaveText("0,5");
-  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  await openSettings(page);
   const screen = page.getByRole("region", { name: "Настройки калькулятора" });
   await expect(screen).toBeVisible();
   const angles = screen.getByRole("group", { name: "Углы" });
@@ -26,7 +31,7 @@ test("settings modes recalculate immediately, sync with keyboard, and survive re
   await expect(page.getByRole("button", { name: "Режим факториала: гамма-функция" })).toBeVisible();
   await page.reload({ waitUntil: "networkidle" });
   await expect(page.getByRole("button", { name: "Режим углов: радианы" })).toBeVisible();
-  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  await openSettings(page);
   await expect(
     screen.getByRole("group", { name: "Углы" }).getByRole("button", { name: "rad" })
   ).toHaveAttribute("aria-pressed", "true");
@@ -39,7 +44,7 @@ test("numeric settings apply valid values and reject invalid text before persist
 }) => {
   await page.getByRole("textbox", { name: "Выражение" }).fill("1/3");
   await expect(page.getByRole("status", { name: "Результат" })).toHaveText(/^0,333/);
-  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  await openSettings(page);
   const screen = page.getByRole("region", { name: "Настройки калькулятора" });
   const timeout = screen.getByRole("textbox", { name: "Лимит непрерывного вычисления, секунды" });
   const inertia = screen.getByRole("textbox", { name: "Инерция прокрутки чисел" });
@@ -70,7 +75,7 @@ test("numeric settings apply valid values and reject invalid text before persist
   ).toBe(250);
   await screen.getByRole("button", { name: "Назад к калькулятору" }).click();
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  await openSettings(page);
   await expect(timeout).toHaveValue("0,25");
   await expect(inertia).toHaveValue("2,4");
 });
@@ -94,7 +99,7 @@ test("inertia keeps the calculation session while timeout replaces it", async ({
       type
     );
   const createdBefore = await count("create");
-  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  await openSettings(page);
   const screen = page.getByRole("region", { name: "Настройки калькулятора" });
   await screen.getByRole("textbox", { name: "Инерция прокрутки чисел" }).fill("2");
   await page.waitForTimeout(250);
@@ -115,7 +120,7 @@ test("settings remain usable across portrait and tablet viewport sizes", async (
     { width: 768, height: 1024 }
   ]) {
     await page.setViewportSize(size);
-    await page.getByRole("button", { name: "Настройки", exact: true }).click();
+    await openSettings(page);
     const screen = page.getByRole("region", { name: "Настройки калькулятора" });
     await expect(screen).toBeVisible();
     const box = await screen.boundingBox();
