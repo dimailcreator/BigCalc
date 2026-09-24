@@ -6,10 +6,8 @@ import { ExpressionEditor } from "./editor/ExpressionEditor.js";
 import { createAnsToken } from "./editor/ExpressionModel.js";
 import { CalculationHistory, expressionSegmentsFromModel } from "./history/CalculationHistory.js";
 import { HistoryPanel } from "./history/HistoryPanel.js";
-import { HistoryStorage } from "./history/HistoryStorage.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
-import { MathModeStore } from "./settings/MathModeStore.js";
-import { NumberScrollInertiaStore } from "./settings/NumberScrollInertiaStore.js";
+import { createBrowserRepositories } from "./persistence/ApplicationRepositories.js";
 import { NumberViewport } from "./viewport/NumberViewport.js";
 import { initialViewportPrecisionDemand } from "./viewport/NumberViewportModel.js";
 import "./styles/base.css";
@@ -25,20 +23,18 @@ const header = document.createElement("header");
 const heading = document.createElement("h1");
 const display = document.createElement("section");
 const calculationClient = createBrowserCalculationClient();
-const modeStore = new MathModeStore(window.localStorage);
-const initialModes = modeStore.load();
-const inertiaStore = new NumberScrollInertiaStore(window.localStorage);
+const repositories = createBrowserRepositories();
+const initialSettings = repositories.settings.load();
 const history = new CalculationHistory();
-const historyStorage = new HistoryStorage(window.localStorage);
-history.restore(historyStorage.load());
+history.restore(repositories.history.load());
 const resultOutput = new NumberViewport({
-  inertia: inertiaStore.load(),
+  inertia: initialSettings.numberScrollInertia,
   onPrecisionDemand(significantDigits) {
     controller.requestMoreDigits(significantDigits);
   }
 });
 const expressionOutput = new NumberViewport({
-  inertia: inertiaStore.load(),
+  inertia: initialSettings.numberScrollInertia,
   onPrecisionDemand(significantDigits) {
     controller.requestMoreDigits(significantDigits);
   }
@@ -105,27 +101,27 @@ const keyboard = new CalculatorKeyboard(
     },
     toggleAngleMode() {
       controller.toggleAngleMode();
-      modeStore.save(controller.state.settings);
+      saveSettings();
     },
     toggleFactorialMode() {
       controller.toggleFactorialMode();
-      modeStore.save(controller.state.settings);
+      saveSettings();
     },
     squareRoot() {
       editor.insertSquareRoot();
     }
   },
-  initialModes
+  initialSettings
 );
 const historyPanel = new HistoryPanel({
   history,
   client: calculationClient,
-  inertia: inertiaStore.load(),
+  inertia: initialSettings.numberScrollInertia,
   onInsert(tokens) {
     editor.insertHistoryTokens(tokens);
   },
   onResultRefined() {
-    historyStorage.save(history.entries);
+    repositories.history.save(history.entries);
   }
 });
 shell.append(header, historyPanel.root, display, keyboard.root);
@@ -193,7 +189,7 @@ const controller = new LiveCalculatorController(calculationClient, render, {
       settings: state.settings,
       resultValue: state.resultValue
     });
-    historyStorage.save(history.entries);
+    repositories.history.save(history.entries);
     editor.replaceWithResultAns(createAnsToken(entry.id, state.resultText));
     controller.adoptResultReference(
       entry.id,
@@ -202,8 +198,9 @@ const controller = new LiveCalculatorController(calculationClient, render, {
     );
   }
 });
-if (initialModes.angleMode === "radians") controller.toggleAngleMode();
-if (initialModes.factorialMode === "gamma") controller.toggleFactorialMode();
+if (initialSettings.angleMode === "radians") controller.toggleAngleMode();
+if (initialSettings.factorialMode === "gamma") controller.toggleFactorialMode();
+controller.setMaxCalculationTimeMs(initialSettings.maxCalculationTimeMs);
 
 window.addEventListener(
   "pagehide",
@@ -270,4 +267,11 @@ function closeHistory(fromPopstate = false): void {
     navigationState.bigcalcHistoryPanel === true
   )
     window.history.back();
+}
+
+function saveSettings(): void {
+  repositories.settings.save({
+    ...repositories.settings.load(),
+    ...controller.state.settings
+  });
 }

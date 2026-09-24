@@ -1,4 +1,4 @@
-import { isValidInertia } from "../settings/NumberScrollInertiaStore.js";
+import { isValidInertia } from "../settings/NumberScrollInertia.js";
 
 const MOMENTUM_THRESHOLD_PX_PER_MS = 0.35;
 const MOMENTUM_HORIZON_MS = 150;

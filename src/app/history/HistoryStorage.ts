@@ -4,14 +4,16 @@ import type {
   CalculationSettingsDto,
   VerifiedNumberDto
 } from "../calculation/CalculationProtocol.js";
+import { APPLICATION_SCHEMA_VERSION } from "../persistence/contracts.js";
+import type { HistoryRepository, StoragePort } from "../persistence/contracts.js";
 
 const STORAGE_KEY = "bigcalc.history.v1";
 
-/** Versioned Stage 15 storage; Stage 16 will place this behind HistoryRepository. */
-export class HistoryStorage {
-  readonly #storage: Pick<Storage, "getItem" | "setItem">;
+/** History DTO codec and storage adapter behind the application repository contract. */
+export class HistoryStorage implements HistoryRepository {
+  readonly #storage: StoragePort;
 
-  constructor(storage: Pick<Storage, "getItem" | "setItem">) {
+  constructor(storage: StoragePort) {
     this.#storage = storage;
   }
 
@@ -20,7 +22,11 @@ export class HistoryStorage {
       const raw = this.#storage.getItem(STORAGE_KEY);
       if (raw === null) return [];
       const document: unknown = JSON.parse(raw);
-      if (!isRecord(document) || document.version !== 1 || !Array.isArray(document.entries)) {
+      if (
+        !isRecord(document) ||
+        document.version !== APPLICATION_SCHEMA_VERSION ||
+        !Array.isArray(document.entries)
+      ) {
         return [];
       }
       const entries: CalculationHistoryEntry[] = [];
@@ -42,10 +48,24 @@ export class HistoryStorage {
 
   save(entries: readonly CalculationHistoryEntry[]): boolean {
     try {
+      const existing = this.#storage.getItem(STORAGE_KEY);
+      if (existing !== null) {
+        try {
+          const document: unknown = JSON.parse(existing);
+          if (
+            isRecord(document) &&
+            "version" in document &&
+            document.version !== APPLICATION_SCHEMA_VERSION
+          )
+            return false;
+        } catch {
+          // A corrupt document can be replaced after valid entries are reconstructed in memory.
+        }
+      }
       this.#storage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          version: 1,
+          version: APPLICATION_SCHEMA_VERSION,
           entries: entries.map((entry) => ({
             ...entry,
             resultValue: {

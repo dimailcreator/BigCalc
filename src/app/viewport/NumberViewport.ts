@@ -1,5 +1,5 @@
 import type { VerifiedNumberDto } from "../calculation/CalculationProtocol.js";
-import { isValidInertia } from "../settings/NumberScrollInertiaStore.js";
+import { isValidInertia } from "../settings/NumberScrollInertia.js";
 import { createNumberViewportModel } from "./NumberViewportModel.js";
 import type { NumberViewportView } from "./NumberViewportModel.js";
 import { dragDigitSteps, momentumDigitSteps } from "./NumberViewportMotion.js";

@@ -1,11 +1,8 @@
 import { DEFAULT_APP_SETTINGS } from "../state/AppState.js";
+import type { MathModes } from "./MathModes.js";
+export type { MathModes } from "./MathModes.js";
 
-export interface MathModes {
-  readonly angleMode: "degrees" | "radians";
-  readonly factorialMode: "integer" | "gamma";
-}
-
-const STORAGE_KEY = "bigcalc.math-modes.v1";
+export const LEGACY_MATH_MODES_KEY = "bigcalc.math-modes.v1";
 
 /** Small settings adapter used until the Stage 16 persistence repository is installed. */
 export class MathModeStore {
@@ -17,7 +14,7 @@ export class MathModeStore {
 
   load(): MathModes {
     try {
-      const raw = this.#storage.getItem(STORAGE_KEY);
+      const raw = this.#storage.getItem(LEGACY_MATH_MODES_KEY);
       if (raw === null) return defaultModes();
       const value: unknown = JSON.parse(raw);
       if (value === null || typeof value !== "object") return defaultModes();
@@ -38,7 +35,7 @@ export class MathModeStore {
   save(modes: MathModes): boolean {
     try {
       this.#storage.setItem(
-        STORAGE_KEY,
+        LEGACY_MATH_MODES_KEY,
         JSON.stringify({
           version: 1,
           angleMode: modes.angleMode,

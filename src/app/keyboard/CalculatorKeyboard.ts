@@ -1,5 +1,5 @@
 import type { ExpressionEditor } from "../editor/ExpressionEditor.js";
-import type { MathModes } from "../settings/MathModeStore.js";
+import type { MathModes } from "../settings/MathModes.js";
 import { EXPANDED_ROWS, KEY_LABELS } from "./KeyboardLayout.js";
 import type { KeyboardKeyId } from "./KeyboardLayout.js";
 

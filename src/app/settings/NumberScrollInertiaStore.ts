@@ -1,6 +1,8 @@
 import { DEFAULT_APP_SETTINGS } from "../state/AppState.js";
+import { isValidInertia } from "./NumberScrollInertia.js";
+export { isValidInertia } from "./NumberScrollInertia.js";
 
-const STORAGE_KEY = "bigcalc.number-scroll-inertia.v1";
+export const LEGACY_NUMBER_SCROLL_INERTIA_KEY = "bigcalc.number-scroll-inertia.v1";
 
 /** Persistent interface setting; the Settings screen can use the same adapter later. */
 export class NumberScrollInertiaStore {
@@ -12,7 +14,7 @@ export class NumberScrollInertiaStore {
 
   load(): number {
     try {
-      const raw = this.#storage.getItem(STORAGE_KEY);
+      const raw = this.#storage.getItem(LEGACY_NUMBER_SCROLL_INERTIA_KEY);
       if (raw === null) return DEFAULT_APP_SETTINGS.numberScrollInertia;
       const parsed: unknown = JSON.parse(raw);
       if (parsed === null || typeof parsed !== "object") {
@@ -30,14 +32,13 @@ export class NumberScrollInertiaStore {
   save(value: number): boolean {
     if (!isValidInertia(value)) return false;
     try {
-      this.#storage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, value }));
+      this.#storage.setItem(
+        LEGACY_NUMBER_SCROLL_INERTIA_KEY,
+        JSON.stringify({ version: 1, value })
+      );
       return true;
     } catch {
       return false;
     }
   }
-}
-
-export function isValidInertia(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
