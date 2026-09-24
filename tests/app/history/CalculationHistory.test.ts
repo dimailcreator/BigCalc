@@ -88,4 +88,45 @@ describe("CalculationHistory", () => {
     expect(() => history.record(input)).toThrow(TypeError);
     expect(() => history.snapshotsFor([{ kind: "reference", id: "missing" }])).toThrow(TypeError);
   });
+
+  it("restores nested references as editable tokens and updates only displayed data", () => {
+    let nextId = 1;
+    const original = new CalculationHistory(() => `entry-${String(nextId++)}`);
+    const first = original.record({
+      expression: [{ kind: "source", source: "1/3" }],
+      originalExpressionText: "1/3",
+      displayedResultText: "0,333",
+      settings,
+      resultValue: { ...value, digits: "333", exponent10: -1n, decimalTerminating: false }
+    });
+    const second = original.record({
+      expression: [
+        { kind: "reference", id: first.id },
+        { kind: "source", source: "+1" }
+      ],
+      originalExpressionText: "0,333+1",
+      displayedResultText: "1,333",
+      settings,
+      resultValue: { ...value, digits: "1333", decimalTerminating: false }
+    });
+    const restored = new CalculationHistory();
+    restored.restore(
+      original.entries.map((entry, index) => ({ ...entry, order: index === 0 ? 3 : 9 }))
+    );
+    const model = new ExpressionModel(restored.editableTokensFor(second.id));
+    expect(expressionSegmentsFromModel(model)).toEqual(second.expression);
+    expect(model.tokens[0]).toMatchObject({ kind: "ans", historyEntryId: first.id });
+    restored.updateResult(first.id, { ...first.resultValue, verifiedDigits: 8 }, "0,33333333");
+    expect(restored.get(first.id)?.expression).toEqual(first.expression);
+    expect(restored.get(first.id)?.displayedResultText).toBe("0,33333333");
+    expect(
+      restored.record({
+        expression: [{ kind: "source", source: "2" }],
+        originalExpressionText: "2",
+        displayedResultText: "2",
+        settings,
+        resultValue: { ...value, digits: "2" }
+      }).order
+    ).toBe(10);
+  });
 });

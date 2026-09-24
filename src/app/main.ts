@@ -5,6 +5,8 @@ import { TimeoutDialog } from "./calculator/TimeoutDialog.js";
 import { ExpressionEditor } from "./editor/ExpressionEditor.js";
 import { createAnsToken } from "./editor/ExpressionModel.js";
 import { CalculationHistory, expressionSegmentsFromModel } from "./history/CalculationHistory.js";
+import { HistoryPanel } from "./history/HistoryPanel.js";
+import { HistoryStorage } from "./history/HistoryStorage.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
 import { MathModeStore } from "./settings/MathModeStore.js";
 import { NumberScrollInertiaStore } from "./settings/NumberScrollInertiaStore.js";
@@ -27,6 +29,8 @@ const modeStore = new MathModeStore(window.localStorage);
 const initialModes = modeStore.load();
 const inertiaStore = new NumberScrollInertiaStore(window.localStorage);
 const history = new CalculationHistory();
+const historyStorage = new HistoryStorage(window.localStorage);
+history.restore(historyStorage.load());
 const resultOutput = new NumberViewport({
   inertia: inertiaStore.load(),
   onPrecisionDemand(significantDigits) {
@@ -48,7 +52,13 @@ heading.textContent = "BigCalc";
 display.className = "main-display";
 display.setAttribute("aria-label", "Калькулятор");
 
-header.append(heading);
+const historyButton = document.createElement("button");
+historyButton.type = "button";
+historyButton.className = "history-toggle";
+historyButton.textContent = "≡";
+historyButton.setAttribute("aria-label", "История");
+historyButton.setAttribute("aria-expanded", "false");
+header.append(historyButton, heading);
 const editor = new ExpressionEditor({
   onChange(model) {
     const representation = model.serializeForEvaluation();
@@ -107,7 +117,60 @@ const keyboard = new CalculatorKeyboard(
   },
   initialModes
 );
-shell.append(header, display, keyboard.root);
+const historyPanel = new HistoryPanel({
+  history,
+  client: calculationClient,
+  inertia: inertiaStore.load(),
+  onInsert(tokens) {
+    editor.insertHistoryTokens(tokens);
+  },
+  onResultRefined() {
+    historyStorage.save(history.entries);
+  }
+});
+shell.append(header, historyPanel.root, display, keyboard.root);
+historyButton.addEventListener("click", () => {
+  if (historyPanel.open) closeHistory();
+  else openHistory();
+});
+window.addEventListener("popstate", () => {
+  if (historyPanel.open) closeHistory(true);
+});
+let swipeStart: { x: number; y: number; time: number } | null = null;
+shell.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (
+      historyPanel.open ||
+      (event.target instanceof Element && event.target.closest("button, .number-viewport"))
+    )
+      return;
+    if (event.clientY > header.getBoundingClientRect().bottom + 24) return;
+    swipeStart = { x: event.clientX, y: event.clientY, time: event.timeStamp };
+  },
+  { capture: true }
+);
+shell.addEventListener(
+  "pointerup",
+  (event) => {
+    if (swipeStart === null || historyPanel.open) return;
+    const dx = event.clientX - swipeStart.x;
+    const dy = event.clientY - swipeStart.y;
+    const elapsed = Math.max(1, event.timeStamp - swipeStart.time);
+    swipeStart = null;
+    if (dy > 0 && dy > Math.abs(dx) * 1.35 && (dy > 54 || (dy > 25 && dy / elapsed > 0.65))) {
+      openHistory();
+    }
+  },
+  { capture: true }
+);
+shell.addEventListener(
+  "pointercancel",
+  () => {
+    swipeStart = null;
+  },
+  { capture: true }
+);
 const timeoutDialog = new TimeoutDialog(shell, {
   onContinue() {
     controller.continueAfterTimeout();
@@ -130,6 +193,7 @@ const controller = new LiveCalculatorController(calculationClient, render, {
       settings: state.settings,
       resultValue: state.resultValue
     });
+    historyStorage.save(history.entries);
     editor.replaceWithResultAns(createAnsToken(entry.id, state.resultText));
     controller.adoptResultReference(
       entry.id,
@@ -147,6 +211,7 @@ window.addEventListener(
     editor.dispose();
     resultOutput.dispose();
     expressionOutput.dispose();
+    historyPanel.dispose();
     controller.dispose();
     calculationClient.terminate();
   },
@@ -179,4 +244,30 @@ function render(state: LiveCalculatorViewState): void {
     angleMode: degrees ? "degrees" : "radians",
     factorialMode: state.settings.factorialMode
   });
+}
+
+function openHistory(): void {
+  if (historyPanel.open) return;
+  window.history.pushState({ bigcalcHistoryPanel: true }, "", window.location.href);
+  historyPanel.setOpen(true);
+  editor.setHistoryOpen(true);
+  shell.dataset.historyOpen = "true";
+  historyButton.setAttribute("aria-expanded", "true");
+}
+
+function closeHistory(fromPopstate = false): void {
+  if (!historyPanel.open) return;
+  historyPanel.setOpen(false);
+  editor.setHistoryOpen(false);
+  shell.dataset.historyOpen = "false";
+  historyButton.setAttribute("aria-expanded", "false");
+  const navigationState: unknown = window.history.state;
+  if (
+    !fromPopstate &&
+    navigationState !== null &&
+    typeof navigationState === "object" &&
+    "bigcalcHistoryPanel" in navigationState &&
+    navigationState.bigcalcHistoryPanel === true
+  )
+    window.history.back();
 }

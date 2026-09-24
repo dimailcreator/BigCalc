@@ -111,7 +111,7 @@ void describe("Core API 1.1 structured history references", () => {
     if (!created.ok) assert.fail(created.error.message);
     const result = await created.handle.refine({ significantDigits: 10 });
     assert.equal(result.status, "failed");
-    if (result.status === "failed") assert.equal(result.error.code, "DomainError");
+    assert.equal(result.error.code, "DomainError");
   });
 
   void it("distinguishes two stable references in one expression", async () => {
