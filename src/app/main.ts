@@ -1,6 +1,7 @@
 import { createBrowserCalculationClient } from "./calculation/CalculationClient.js";
 import { LiveCalculatorController } from "./calculator/LiveCalculatorController.js";
 import type { LiveCalculatorViewState } from "./calculator/LiveCalculatorController.js";
+import { TimeoutDialog } from "./calculator/TimeoutDialog.js";
 import { ExpressionEditor } from "./editor/ExpressionEditor.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
 import { MathModeStore } from "./settings/MathModeStore.js";
@@ -74,8 +75,16 @@ const keyboard = new CalculatorKeyboard(
   initialModes
 );
 shell.append(header, display, keyboard.root);
+const timeoutDialog = new TimeoutDialog(shell, {
+  onContinue() {
+    controller.continueAfterTimeout();
+  },
+  onFreeze() {
+    controller.freezeAfterTimeout();
+  }
+});
 appRoot.dataset.calculationWorker = "started";
-appRoot.replaceChildren(shell);
+appRoot.replaceChildren(shell, timeoutDialog.root);
 
 const controller = new LiveCalculatorController(calculationClient, render, {
   initialSignificantDigits: initialViewportPrecisionDemand(resultOutput.availableSlots)
@@ -105,6 +114,7 @@ function render(state: LiveCalculatorViewState): void {
   }
   display.dataset.phase = state.phase;
   display.setAttribute("aria-busy", state.phase === "running" ? "true" : "false");
+  timeoutDialog.setOpen(state.timeoutDialogOpen);
 
   const degrees = state.settings.angleMode === "degrees";
   keyboard.setMathModes({

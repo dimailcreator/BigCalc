@@ -30,11 +30,12 @@ export interface CalculationGateway {
     sessionId: CalculationSessionId,
     requestId: CalculationRequestId
   ): Promise<RefinementResultDto>;
+  cancel(sessionId: CalculationSessionId): Promise<void>;
   dispose(sessionId: CalculationSessionId): Promise<void>;
 }
 
 export type LiveCalculationPhase =
-  "idle" | "debouncing" | "running" | "pausedByTimeout" | "completed" | "failed";
+  "idle" | "debouncing" | "running" | "pausedByTimeout" | "frozenByUser" | "completed" | "failed";
 
 export interface LiveCalculatorViewState {
   readonly source: string;
@@ -42,6 +43,7 @@ export interface LiveCalculatorViewState {
   readonly resultValue: VerifiedNumberDto | null;
   readonly resultKind: "empty" | "value" | "error";
   readonly phase: LiveCalculationPhase;
+  readonly timeoutDialogOpen: boolean;
   readonly settings: CalculationSettingsDto;
 }
 
@@ -56,6 +58,8 @@ interface CurrentSession {
   requestId: CalculationRequestId;
   refiningAdditional: boolean;
   pendingDigitDemand: number;
+  initialResultReady: boolean;
+  promptOnPause: boolean;
 }
 
 export class LiveCalculatorController {
@@ -78,6 +82,7 @@ export class LiveCalculatorController {
   #generation = 0;
   #identitySequence = 0;
   #explicitRequested = false;
+  #timeoutDialogOpen = false;
   #hiddenMathematicalError = "";
 
   constructor(
@@ -149,8 +154,18 @@ export class LiveCalculatorController {
     this.#restartForSettingsChange();
   }
 
+  setMaxCalculationTimeMs(maxCalculationTimeMs: number): void {
+    if (!Number.isFinite(maxCalculationTimeMs) || maxCalculationTimeMs < 0) {
+      throw new RangeError("Calculation time limit must be a non-negative finite number");
+    }
+    if (maxCalculationTimeMs === this.#settings.maxCalculationTimeMs) return;
+    this.#settings = Object.freeze({ ...this.#settings, maxCalculationTimeMs });
+    this.#restartForSettingsChange();
+  }
+
   evaluateExplicitly(): void {
     if (this.#source.trim().length === 0) return;
+    if (this.#timeoutDialogOpen) return;
 
     this.#explicitRequested = true;
     if (this.#hiddenMathematicalError.length > 0) {
@@ -165,9 +180,27 @@ export class LiveCalculatorController {
       return;
     }
 
-    if (this.#phase === "pausedByTimeout" && this.#currentSession !== null) {
+    if (
+      (this.#phase === "pausedByTimeout" || this.#phase === "frozenByUser") &&
+      this.#currentSession !== null
+    ) {
       void this.#continueCalculation(this.#currentSession);
     }
+  }
+
+  continueAfterTimeout(): void {
+    if (!this.#timeoutDialogOpen || this.#phase !== "pausedByTimeout") return;
+    const session = this.#currentSession;
+    if (session === null) return;
+    this.#timeoutDialogOpen = false;
+    void this.#continueCalculation(session);
+  }
+
+  freezeAfterTimeout(): void {
+    if (!this.#timeoutDialogOpen || this.#phase !== "pausedByTimeout") return;
+    this.#timeoutDialogOpen = false;
+    this.#phase = "frozenByUser";
+    this.#emit();
   }
 
   requestMoreDigits(significantDigits: number): void {
@@ -227,7 +260,9 @@ export class LiveCalculatorController {
       generation,
       requestId,
       refiningAdditional: false,
-      pendingDigitDemand: 0
+      pendingDigitDemand: 0,
+      initialResultReady: false,
+      promptOnPause: false
     };
     this.#currentSession = session;
     this.#phase = "running";
@@ -264,6 +299,7 @@ export class LiveCalculatorController {
     if (!this.#isCurrent(session)) return;
     const requestId = this.#nextRequestId();
     session.requestId = requestId;
+    session.promptOnPause = !session.initialResultReady;
     this.#phase = "running";
     this.#emit();
 
@@ -280,6 +316,9 @@ export class LiveCalculatorController {
 
     switch (result.status) {
       case "complete":
+        session.initialResultReady = true;
+        session.promptOnPause = false;
+        this.#timeoutDialogOpen = false;
         this.#phase = "completed";
         this.#resultText = formatTemporaryResult(result.value);
         this.#resultValue = result.value;
@@ -289,7 +328,13 @@ export class LiveCalculatorController {
         return;
       case "paused":
         this.#phase = "pausedByTimeout";
-        if (result.partial !== null && result.partial.verifiedDigits > 0) {
+        this.#timeoutDialogOpen = session.promptOnPause && !session.initialResultReady;
+        session.promptOnPause = false;
+        if (
+          session.initialResultReady &&
+          result.partial !== null &&
+          result.partial.verifiedDigits > 0
+        ) {
           this.#resultText = formatTemporaryResult(result.partial);
           this.#resultValue = result.partial;
           this.#resultKind = "value";
@@ -350,6 +395,7 @@ export class LiveCalculatorController {
 
   #handleMathematicalError(message: string): void {
     this.#phase = "failed";
+    this.#timeoutDialogOpen = false;
     this.#hiddenMathematicalError = message;
     if (this.#explicitRequested) this.#showError(message);
     else this.#clearResult();
@@ -360,6 +406,7 @@ export class LiveCalculatorController {
     if (!this.#isCurrent(session)) return;
     this.#currentSession = null;
     this.#phase = "failed";
+    this.#timeoutDialogOpen = false;
     this.#showError("Ошибка вычислительного процесса");
     this.#emit();
   }
@@ -367,10 +414,24 @@ export class LiveCalculatorController {
   #invalidateCurrentSession(): void {
     this.#clearDebounce();
     this.#generation += 1;
+    this.#timeoutDialogOpen = false;
     const current = this.#currentSession;
     this.#currentSession = null;
     if (current !== null) {
-      void this.#gateway.dispose(current.sessionId).catch(() => undefined);
+      void this.#cancelAndDispose(current.sessionId);
+    }
+  }
+
+  async #cancelAndDispose(sessionId: CalculationSessionId): Promise<void> {
+    try {
+      await this.#gateway.cancel(sessionId);
+    } catch {
+      // Dispose still releases the application handle after a failed cancel.
+    }
+    try {
+      await this.#gateway.dispose(sessionId);
+    } catch {
+      // A stale session must never change the active result.
     }
   }
 
@@ -421,6 +482,7 @@ export class LiveCalculatorController {
       resultValue: this.#resultValue,
       resultKind: this.#resultKind,
       phase: this.#phase,
+      timeoutDialogOpen: this.#timeoutDialogOpen,
       settings: this.#settings
     });
   }

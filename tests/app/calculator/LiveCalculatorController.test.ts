@@ -109,6 +109,11 @@ describe("LiveCalculatorController", () => {
       partial: null
     });
     await Promise.resolve();
+    expect(controller.state).toMatchObject({
+      phase: "pausedByTimeout",
+      timeoutDialogOpen: false
+    });
+    expect(gateway.continuations).toHaveLength(0);
 
     controller.evaluateExplicitly();
     expect(gateway.continuations).toHaveLength(1);
@@ -116,6 +121,169 @@ describe("LiveCalculatorController", () => {
     gateway.continuations[0]?.deferred.resolve(complete("314159", 0n));
     await Promise.resolve();
     expect(controller.state.resultText).toBe("3,14159...");
+  });
+
+  it("keeps an incomplete initial partial result hidden until initial demand completes", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    gateway.refinements[0]?.deferred.resolve({
+      status: "paused",
+      reason: "time-limit",
+      requestedDigits: 24,
+      verifiedDigits: 6,
+      partial: {
+        sign: 1,
+        digits: "314159",
+        exponent10: 0n,
+        verifiedDigits: 6,
+        valueExact: false,
+        decimalTerminating: false,
+        rounded: false
+      }
+    });
+    await Promise.resolve();
+    expect(controller.state).toMatchObject({
+      phase: "pausedByTimeout",
+      resultKind: "empty",
+      resultValue: null,
+      timeoutDialogOpen: false
+    });
+
+    controller.evaluateExplicitly();
+    gateway.continuations[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+    expect(controller.state.timeoutDialogOpen).toBe(true);
+  });
+
+  it("keeps the first initial timeout silent when equals was pressed during the running slice", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    controller.evaluateExplicitly();
+    expect(gateway.continuations).toHaveLength(0);
+    gateway.refinements[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+    expect(controller.state).toMatchObject({
+      phase: "pausedByTimeout",
+      timeoutDialogOpen: false
+    });
+
+    controller.evaluateExplicitly();
+    gateway.continuations[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+    expect(controller.state.timeoutDialogOpen).toBe(true);
+  });
+
+  it("shows a dialog on repeated initial timeout and continues the existing handle", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    const initial = gateway.refinements[0];
+    if (initial === undefined) throw new Error("Expected initial refinement");
+    initial.deferred.resolve(paused(24));
+    await Promise.resolve();
+    controller.evaluateExplicitly();
+    gateway.continuations[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+
+    expect(controller.state).toMatchObject({
+      phase: "pausedByTimeout",
+      timeoutDialogOpen: true,
+      resultKind: "empty"
+    });
+    expect(gateway.creates).toHaveLength(1);
+    controller.evaluateExplicitly();
+    expect(gateway.continuations).toHaveLength(1);
+
+    controller.continueAfterTimeout();
+    expect(gateway.continuations).toHaveLength(2);
+    expect(gateway.continuations[1]?.sessionId).toBe(initial.sessionId);
+    expect(controller.state.timeoutDialogOpen).toBe(false);
+    gateway.continuations[1]?.deferred.resolve(complete("314159", 0n));
+    await Promise.resolve();
+    expect(controller.state.phase).toBe("completed");
+    expect(gateway.creates).toHaveLength(1);
+  });
+
+  it("freezes a timed out handle without cancelling it and equals unfreezes it", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    gateway.refinements[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+    controller.evaluateExplicitly();
+    gateway.continuations[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+
+    controller.freezeAfterTimeout();
+    expect(controller.state).toMatchObject({
+      phase: "frozenByUser",
+      timeoutDialogOpen: false
+    });
+    expect(gateway.cancellations).toHaveLength(0);
+    expect(gateway.disposals).toHaveLength(0);
+    controller.requestMoreDigits(56);
+    expect(gateway.continuations).toHaveLength(1);
+
+    controller.evaluateExplicitly();
+    expect(gateway.continuations).toHaveLength(2);
+    expect(gateway.continuations[1]?.sessionId).toBe(gateway.refinements[0]?.sessionId);
+    gateway.continuations[1]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+    expect(controller.state.timeoutDialogOpen).toBe(true);
+    expect(gateway.creates).toHaveLength(1);
+  });
+
+  it("cancels and disposes a frozen session on expression change", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    gateway.refinements[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+    controller.evaluateExplicitly();
+    gateway.continuations[0]?.deferred.resolve(paused(24));
+    await Promise.resolve();
+    controller.freezeAfterTimeout();
+
+    const oldSessionId = gateway.refinements[0]?.sessionId;
+    controller.setExpression("2+3");
+    expect(gateway.cancellations).toEqual([oldSessionId]);
+    await Promise.resolve();
+    expect(gateway.disposals).toEqual([oldSessionId]);
+    await vi.advanceTimersByTimeAsync(150);
+    expect(gateway.creates).toHaveLength(2);
+    expect(controller.state).toMatchObject({
+      source: "2+3",
+      phase: "running",
+      timeoutDialogOpen: false
+    });
+  });
+
+  it("restarts with a changed soft time limit and rejects invalid limits", async () => {
+    vi.useFakeTimers();
+    const gateway = new FakeGateway();
+    const controller = createController(gateway);
+    controller.setExpression("π");
+    await vi.advanceTimersByTimeAsync(150);
+    expect(() => {
+      controller.setMaxCalculationTimeMs(Number.NaN);
+    }).toThrow(RangeError);
+    controller.setMaxCalculationTimeMs(1000);
+    await vi.advanceTimersByTimeAsync(150);
+    expect(gateway.creates).toHaveLength(2);
+    expect(gateway.creates[1]?.settings.maxCalculationTimeMs).toBe(1000);
+    expect(gateway.cancellations).toEqual([gateway.creates[0]?.sessionId]);
   });
 
   it("recalculates for settings and AC preserves the selected modes", async () => {
@@ -200,6 +368,7 @@ describe("LiveCalculatorController", () => {
     });
     await Promise.resolve();
     expect(controller.state.resultValue?.digits).toBe("3141592653");
+    expect(controller.state.timeoutDialogOpen).toBe(false);
     expect(gateway.continuations).toHaveLength(1);
     gateway.continuations[0]?.deferred.resolve(complete("314159" + "2".repeat(50), 0n));
     await Promise.resolve();
@@ -224,6 +393,7 @@ class FakeGateway implements CalculationGateway {
   readonly refinements: PendingRefinement[] = [];
   readonly continuations: PendingRefinement[] = [];
   readonly disposals: CalculationSessionId[] = [];
+  readonly cancellations: CalculationSessionId[] = [];
   creationError: {
     readonly type: "create-failed";
     readonly sessionId: null;
@@ -269,6 +439,11 @@ class FakeGateway implements CalculationGateway {
     return deferred.promise;
   }
 
+  cancel(sessionId: CalculationSessionId): Promise<void> {
+    this.cancellations.push(sessionId);
+    return Promise.resolve();
+  }
+
   dispose(sessionId: CalculationSessionId): Promise<void> {
     this.disposals.push(sessionId);
     return Promise.resolve();
@@ -311,5 +486,15 @@ function complete(digits: string, exponent10: bigint, exact = false): Refinement
       decimalTerminating: exact,
       rounded: false
     }
+  };
+}
+
+function paused(requestedDigits: number): RefinementResultDto {
+  return {
+    status: "paused",
+    reason: "time-limit",
+    requestedDigits,
+    verifiedDigits: 0,
+    partial: null
   };
 }
