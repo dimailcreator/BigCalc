@@ -18,15 +18,30 @@ const workerAsset = readdirSync(path.join(workspace, "dist-app", "assets")).find
 if (!existsSync(adb)) throw new Error(`adb was not found at ${adb}`);
 if (workerAsset === undefined) throw new Error("Production Worker asset was not found");
 
-const sockets = adbOutput(["shell", "cat", "/proc/net/unix"]);
 let target;
-for (const match of sockets.matchAll(/@(webview_devtools_remote_\d+)/gu)) {
-  adbOutput(["forward", "tcp:9222", `localabstract:${match[1]}`]);
-  const targets = await CDP.List({ host: "127.0.0.1", port: 9222 });
-  target = targets.find(
-    (candidate) => candidate.type === "page" && candidate.url.startsWith("https://localhost/")
-  );
-  if (target !== undefined) break;
+const discoveryDeadline = performance.now() + 20_000;
+while (target === undefined && performance.now() < discoveryDeadline) {
+  try {
+    const appPid = adbOutput(["shell", "pidof", "com.bigcalc.app"]);
+    const socketName = `webview_devtools_remote_${appPid}`;
+    if (!adbOutput(["shell", "cat", "/proc/net/unix"]).includes(`@${socketName}`)) {
+      await delay(200);
+      continue;
+    }
+    try {
+      adbOutput(["forward", "--remove", "tcp:9222"]);
+    } catch {
+      // No previous forwarding exists.
+    }
+    adbOutput(["forward", "tcp:9222", `localabstract:${socketName}`]);
+    const targets = await CDP.List({ host: "127.0.0.1", port: 9222 });
+    target = targets.find(
+      (candidate) => candidate.type === "page" && candidate.url.startsWith("https://localhost/")
+    );
+  } catch {
+    // The app may still be creating its WebView.
+  }
+  if (target === undefined) await delay(200);
 }
 if (target === undefined) throw new Error("BigCalc WebView page was not found");
 
@@ -202,6 +217,7 @@ try {
 } finally {
   await evaluate("globalThis.__stage5LongWorker?.terminate()").catch(() => undefined);
   await client.close();
+  adbOutput(["forward", "--remove", "tcp:9222"]);
 }
 
 async function calculate(source, accepts) {

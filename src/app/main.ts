@@ -9,6 +9,7 @@ import { createAnsToken } from "./editor/ExpressionModel.js";
 import { CalculationHistory, expressionSegmentsFromModel } from "./history/CalculationHistory.js";
 import { HistoryPanel } from "./history/HistoryPanel.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
+import { ApplicationLifecycle } from "./lifecycle/ApplicationLifecycle.js";
 import { defineCalculatorModule } from "./modules/CalculatorModule.js";
 import { CalculatorModuleHost } from "./modules/CalculatorModuleHost.js";
 import { CalculatorModuleSurface } from "./modules/CalculatorModuleSurface.js";
@@ -334,14 +335,12 @@ if (initialSettings.angleMode === "radians") controller.toggleAngleMode();
 if (initialSettings.factorialMode === "gamma") controller.toggleFactorialMode();
 controller.setMaxCalculationTimeMs(initialSettings.maxCalculationTimeMs);
 
-if (Capacitor.isNativePlatform()) {
-  void App.addListener("backButton", () => {
-    if (!navigation.back()) void App.exitApp();
-  });
-}
-
-window.addEventListener(
-  "pagehide",
+const lifecycle = new ApplicationLifecycle(
+  () => {
+    saveSettings();
+    repositories.history.save(history.entries);
+    moduleHost.flush();
+  },
   () => {
     editor.dispose();
     moduleHost.dispose();
@@ -350,6 +349,25 @@ window.addEventListener(
     historyPanel.dispose();
     controller.dispose();
     calculationClient.terminate();
+  }
+);
+
+if (Capacitor.isNativePlatform()) {
+  void App.addListener("backButton", () => {
+    if (!navigation.back()) void App.exitApp();
+  });
+  void App.addListener("appStateChange", ({ isActive }) => {
+    if (!isActive) lifecycle.background();
+  });
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") lifecycle.background();
+});
+window.addEventListener(
+  "pagehide",
+  () => {
+    lifecycle.pageHide();
   },
   { once: true }
 );

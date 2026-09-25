@@ -4,7 +4,7 @@ test("boots the browser shell with the calculation Worker boundary", async ({ pa
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  const response = await page.goto("/", { waitUntil: "networkidle" });
+  const response = await page.goto("/", { waitUntil: "domcontentloaded" });
 
   expect(response?.ok()).toBe(true);
   await expect(page).toHaveTitle("BigCalc");
@@ -15,7 +15,7 @@ test("boots the browser shell with the calculation Worker boundary", async ({ pa
 });
 
 test("target browser structured-clones bigint exponents", async ({ page }) => {
-  await page.goto("/", { waitUntil: "networkidle" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
 
   const exponent = await page.evaluate(() => {
     const cloned = globalThis.structuredClone({ exponent10: 12345678901234567890n });

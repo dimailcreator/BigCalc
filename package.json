@@ -23,6 +23,7 @@
     "android:sync": "npm run build:app && cap sync android",
     "android:build:debug": "npm run android:sync && node scripts/build-android-debug.mjs",
     "test:android:smoke": "node scripts/android-webview-smoke.mjs",
+    "test:android:lifecycle": "node scripts/android-lifecycle-smoke.mjs",
     "typecheck": "tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "tsc -p tsconfig.test.json && node dist-test/tests/run-tests.js && npm run test:benchmarks",
     "test:benchmarks": "npm run build && node --test benchmarks/algorithm-harness.test.mjs",
