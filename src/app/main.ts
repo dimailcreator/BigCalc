@@ -16,6 +16,7 @@ import { CalculatorModuleSurface } from "./modules/CalculatorModuleSurface.js";
 import { installedModules } from "./modules/installedModules.js";
 import { createNavigationIcon } from "./navigation/NavigationIcon.js";
 import { NavigationController } from "./navigation/NavigationController.js";
+import { HistorySwipeGesture } from "./navigation/HistorySwipeGesture.js";
 import type { NavigationEntry } from "./navigation/NavigationController.js";
 import { AboutScreen, CalculatorDrawer, OverflowMenu } from "./navigation/NavigationSurfaces.js";
 import { createBrowserRepositories } from "./persistence/ApplicationRepositories.js";
@@ -246,34 +247,57 @@ window.addEventListener(
   },
   { capture: true }
 );
-let swipeStart: { x: number; y: number; time: number } | null = null;
+const historySwipe = new HistorySwipeGesture();
+let suppressSwipeClick = false;
+let swipeStartedOnTopBarButton = false;
 shell.addEventListener(
   "pointerdown",
   (event) => {
+    suppressSwipeClick = false;
+    swipeStartedOnTopBarButton =
+      event.target instanceof Element && event.target.closest(".top-bar button") !== null;
+    historySwipe.reset();
     if (
+      !event.isPrimary ||
       navigation.topLayer !== null ||
-      moduleHost.activeId !== moduleHost.primaryId ||
-      (event.target instanceof Element && event.target.closest("button"))
+      moduleHost.activeId !== moduleHost.primaryId
     )
       return;
-    if (
-      event.target instanceof Element &&
-      !event.target.closest(".top-bar, .expression-editor, .main-display > .result-output")
-    )
-      return;
-    swipeStart = { x: event.clientX, y: event.clientY, time: event.timeStamp };
+    if (event.target instanceof Element && !event.target.closest(".top-bar, .main-display")) return;
+    historySwipe.begin({
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      time: event.timeStamp
+    });
+  },
+  { capture: true }
+);
+shell.addEventListener(
+  "pointermove",
+  (event) => {
+    historySwipe.move({
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      time: event.timeStamp
+    });
   },
   { capture: true }
 );
 shell.addEventListener(
   "pointerup",
   (event) => {
-    if (swipeStart === null || navigation.topLayer !== null) return;
-    const dx = event.clientX - swipeStart.x;
-    const dy = event.clientY - swipeStart.y;
-    const elapsed = Math.max(1, event.timeStamp - swipeStart.time);
-    swipeStart = null;
-    if (dy > 0 && dy > Math.abs(dx) * 1.35 && (dy > 54 || (dy > 25 && dy / elapsed > 0.65))) {
+    const startedOnButton = swipeStartedOnTopBarButton;
+    swipeStartedOnTopBarButton = false;
+    const open = historySwipe.finish({
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      time: event.timeStamp
+    });
+    if (open && navigation.topLayer === null) {
+      suppressSwipeClick = startedOnButton;
       navigation.openLayer("history");
     }
   },
@@ -281,8 +305,25 @@ shell.addEventListener(
 );
 shell.addEventListener(
   "pointercancel",
-  () => {
-    swipeStart = null;
+  (event) => {
+    const startedOnButton = swipeStartedOnTopBarButton;
+    swipeStartedOnTopBarButton = false;
+    const open = historySwipe.cancel(event.pointerId);
+    if (open && navigation.topLayer === null) {
+      suppressSwipeClick = startedOnButton;
+      navigation.openLayer("history");
+    }
+  },
+  { capture: true }
+);
+shell.addEventListener(
+  "click",
+  (event) => {
+    if (!suppressSwipeClick || !(event.target instanceof Element)) return;
+    suppressSwipeClick = false;
+    if (!event.target.closest(".top-bar button")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
   },
   { capture: true }
 );
@@ -420,6 +461,7 @@ function renderNavigation(
   entries: readonly NavigationEntry[],
   previous: readonly NavigationEntry[]
 ): void {
+  historySwipe.reset();
   const top = navigation.topLayer;
   const activeId = navigation.activeModuleId;
   const primaryActive = activeId === moduleHost.primaryId;

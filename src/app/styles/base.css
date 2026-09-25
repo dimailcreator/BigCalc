@@ -27,6 +27,7 @@ button {
 
 .calculator-shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: clamp(58px, 8.5dvh, 76px) 0 clamp(180px, 28dvh, 260px) minmax(0, 1fr);
   width: min(100%, 720px);
   height: 100dvh;
@@ -756,6 +757,7 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: end;
+  min-width: 0;
   min-height: 0;
   padding: clamp(8px, 2dvh, 18px) clamp(4px, 1.5vw, 6px) clamp(12px, 2dvh, 20px);
   gap: clamp(6px, 1.6dvh, 14px);
@@ -881,6 +883,9 @@ button {
 
 .result-output {
   display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 1.16em;
   overflow: hidden;
   color: var(--bc-text-secondary);
@@ -914,6 +919,7 @@ button {
   display: flex;
   justify-content: flex-end;
   width: 100%;
+  min-width: 0;
   white-space: pre;
 }
 

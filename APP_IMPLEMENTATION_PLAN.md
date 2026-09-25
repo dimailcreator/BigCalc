@@ -1995,6 +1995,38 @@ Portrait lock.
 
 Этот этап является обязательным regression gate между Android hardening и Stage 22.
 
+## Кто выполняет physical-device проверку
+
+Codex **не обязан иметь физическое Android-устройство, подключённое к своей машине**, и отсутствие устройства в `adb devices` не блокирует выполнение Stage 21R.
+
+В рамках Stage 21R Codex обязан:
+
+1. реализовать исправления всех перечисленных дефектов;
+2. добавить/обновить доступные unit/browser/emulator/ADB tests;
+3. собрать debug APK;
+4. подготовить точный repeatable physical-device checklist;
+5. явно перечислить, какие пункты требуют внешней проверки на реальном устройстве.
+
+После этого пользователь устанавливает APK на физический Android-телефон и сообщает результаты проверки.
+
+Если физическое устройство недоступно Codex:
+
+```text
+не спрашивать пользователя подключить телефон к машине Codex;
+не останавливать реализацию;
+не считать отсутствие ADB device ошибкой кода;
+```
+
+Непроверенные на физическом устройстве пункты помечаются:
+
+```text
+PENDING PHYSICAL DEVICE VALIDATION
+```
+
+и передаются пользователю вместе с APK/checklist.
+
+Stage 22 нельзя считать начатым до получения результатов этой внешней physical-device проверки, но сам implementation task Stage 21R должен быть завершён без подключённого телефона.
+
 ## 21R.1. Запрет Android software keyboard для главного expression editor
 
 Главный экран BigCalc использует собственную calculator keyboard.
@@ -2225,18 +2257,182 @@ physical keyboard input снова работает сразу
 
 ## Definition of Done
 
-Этап завершён только если на физическом Android-устройстве подтверждено одновременно:
+### Implementation DoD — выполняет Codex без обязательного физического устройства
+
+Stage 21R implementation считается завершённым, когда:
+
+1. исправлены все шесть перечисленных дефектов;
+2. добавлены regression tests на уровнях, доступных без физического устройства;
+3. Android lifecycle/smoke tests больше не требуют появления IME у главного expression editor;
+4. Core/App regression suites проходят;
+5. debug APK успешно собирается;
+6. создан repeatable physical-device checklist;
+7. все проверки, которые невозможно достоверно выполнить без реального touch/IME/device environment, явно помечены `PENDING PHYSICAL DEVICE VALIDATION`.
+
+Отсутствие устройства в `adb devices` **не является причиной останавливать Stage 21R или просить пользователя подключить устройство к машине Codex**.
+
+### External physical-device validation — выполняет пользователь после реализации
+
+Перед переходом к Stage 22 на физическом Android-устройстве нужно подтвердить:
 
 1. экранная calculator keyboard не вызывает Android IME на главном expression editor;
-2. hardware keyboard продолжает вводить поддерживаемые calculator symbols;
+2. hardware keyboard продолжает вводить поддерживаемые calculator symbols, если физическая клавиатура доступна для проверки;
 3. Settings inputs по-прежнему могут открывать Android IME;
 4. `sin[2,5](0)` не отображается как общий syntax error;
 5. после быстрого touch-swipe NumberViewport продолжает движение после отпускания пальца;
 6. exact finite numbers останавливаются на последнем полном допустимом viewport;
 7. swipe-down History стабильно работает и не конфликтует с горизонтальной прокруткой числа;
-8. после закрытия History обычный input state восстанавливается, и physical keyboard снова вводит выражение;
-9. Core/App regression suites проходят;
-10. debug APK собирается и повторный physical-device smoke не воспроизводит шесть исходных дефектов.
+8. после закрытия History обычный input state восстанавливается;
+9. повторный physical-device smoke не воспроизводит шесть исходных дефектов.
+
+Если какой-либо пункт физически нельзя проверить на конкретном устройстве, это отдельно отмечается в отчёте; это не заменяется предположением или desktop simulation.
+
+---
+
+# ЭТАП 21R-F. Остаточные regression fixes после повторного physical-device smoke
+
+## Статус Stage 21R
+
+Повторная проверка на физическом Android-устройстве выявила два оставшихся дефекта.
+
+До их исправления:
+
+```text
+Stage 21R = NOT ACCEPTED
+Stage 22 = BLOCKED
+```
+
+Этот follow-up не расширяет product scope. Он закрывает дефекты уже реализованных Stage 19/21R interaction/layout semantics.
+
+## 21R-F.1. Длинный error text не должен расширять viewport
+
+Regression case:
+
+```text
+sin[2,5](0)
+→ Недопустимое число итераций функции
+```
+
+Длинный текст ошибки не должен:
+
+- увеличивать layout width приложения;
+- увеличивать ширину `calculator-shell`;
+- создавать horizontal page/body scrollbar;
+- сдвигать или растягивать main display.
+
+Основной calculator screen остаётся ограничен шириной viewport.
+
+Допустимое представление ошибки при недостатке места:
+
+```text
+single-line clipped/ellipsis
+```
+
+или другая уже предусмотренная DESIGN/UI semantics, но без изменения ширины layout.
+
+Исправление должно быть общим для длинных calculator error messages, а не special case для iteration error.
+
+Проверить CSS/layout invariants минимум для:
+
+- `main-display`;
+- `result-output`;
+- error content container;
+- grid/flex `min-width`;
+- narrow Android viewport.
+
+Regression tests должны измерять как минимум:
+
+```text
+document.documentElement.scrollWidth <= document.documentElement.clientWidth
+document.body.scrollWidth <= document.body.clientWidth
+calculator shell width <= viewport width
+```
+
+после показа длинной ошибки.
+
+## 21R-F.2. History swipe должен быть многократно повторяемым
+
+Жест:
+
+```text
+swipe-down
+→ History open
+```
+
+не считается рабочим, если он срабатывает только один раз за runtime/session.
+
+Обязательный repeated flow:
+
+```text
+swipe-down → open
+close
+swipe-down → open
+close
+swipe-down → open
+```
+
+Проверить закрытие минимум через:
+
+- History button;
+- Android Back;
+- browser Back/popstate в browser harness.
+
+После каждого закрытия gesture recognizer должен возвращаться в полностью idle/ready state.
+
+Нужно проверить отдельно:
+
+- stale gesture state;
+- pointer capture/cancel state;
+- `navigation.topLayer`;
+- navigation `backPending`;
+- History open/close transition;
+- hit testing после закрытия;
+- возможность нового `pointerdown` начать gesture.
+
+Не исправлять дефект добавлением одноразового listener recreation или reload страницы.
+
+Рекомендуется, если inline gesture logic становится stateful, вынести History swipe в отдельный небольшой controller с явными состояниями:
+
+```text
+idle
+tracking
+resolved/cancelled
+```
+
+и обязательным reset после `pointerup`, `pointercancel`, History open и History close.
+
+## Тесты
+
+Добавить обязательные regression tests:
+
+1. длинная iteration error на narrow viewport не создаёт horizontal document overflow;
+2. то же правило работает для искусственно длинного calculator error text;
+3. History swipe открывает History минимум три раза подряд в одной и той же browser page/session;
+4. repeated swipe проходит после закрытия кнопкой;
+5. repeated swipe проходит после browser Back;
+6. Android/device checklist требует минимум три полных open/close цикла, а не одиночное открытие.
+
+Одиночный test вида:
+
+```text
+fresh page → one swipe → History open
+```
+
+не является достаточным coverage.
+
+## Definition of Done
+
+Stage 21R-F завершён, когда:
+
+1. длинные error messages не меняют горизонтальный размер app/document;
+2. нет horizontal scrollbar на physical-device regression case `sin[2,5](0)`;
+3. History swipe работает многократно без reload;
+4. browser regression выполняет минимум три `swipe → open → close` цикла в одной page session;
+5. Core/App tests проходят;
+6. debug APK собирается;
+7. оба пункта помечаются `PENDING PHYSICAL DEVICE VALIDATION` до повторной проверки пользователем.
+
+После успешной external physical-device validation Stage 21R принимается, и только тогда разрешён Stage 22.
 
 ---
 
@@ -2560,6 +2756,8 @@ CalculatorModule boundary
 21 Android hardening
     ↓
 21R Real-device stabilization
+    ↓
+21R-F Residual regression fixes
     ↓
 22 Performance/resource tests
     ↓
