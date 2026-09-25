@@ -84,6 +84,39 @@ test("physical keys edit the model and Enter evaluates the expression", async ({
   await expect(page.getByRole("status", { name: "Результат" })).toHaveText("5");
 });
 
+test("background focus suspension restores selection and hardware key routing", async ({
+  page
+}) => {
+  await page.evaluate(async () => {
+    const { ExpressionEditor } = await import("/src/app/editor/ExpressionEditor.ts");
+    const editor = new ExpressionEditor({
+      onChange() {},
+      onEnter() {},
+      suppressSoftwareKeyboard: true
+    });
+    editor.input.setAttribute("aria-label", "Lifecycle editor");
+    globalThis.document.body.append(editor.root);
+    globalThis.lifecycleEditor = editor;
+  });
+  const input = page.getByRole("textbox", { name: "Lifecycle editor" });
+  await input.fill("2+3");
+  await input.evaluate((element) => {
+    element.setSelectionRange(1, 2);
+    element.dispatchEvent(new globalThis.Event("select"));
+  });
+  await page.evaluate(() => globalThis.lifecycleEditor.suspendNativeFocus());
+  expect(await input.evaluate((element) => globalThis.document.activeElement === element)).toBe(
+    false
+  );
+  await page.evaluate(() => globalThis.lifecycleEditor.restoreNativeFocus());
+  await expect(input).toBeFocused();
+  expect(await input.evaluate((element) => [element.selectionStart, element.selectionEnd])).toEqual(
+    [1, 2]
+  );
+  await input.press("9");
+  await expect(input).toHaveValue("293");
+});
+
 test("rendered DOM changes never become expression state", async ({ page }) => {
   const input = page.getByRole("textbox", { name: "Выражение" });
   await input.fill("2+3");
@@ -164,8 +197,8 @@ test("history lock permits cursor movement and referenced Ans insertion only", a
     globalThis.testEditor.setHistoryOpen(true);
     globalThis.testEditor.insertAns(globalThis.testAns);
   });
-  await expect(input).toHaveValue("20,5");
-  await expect(page.locator(".expression-token-ans")).toHaveText("0,5");
+  await expect(input).toHaveValue("2Ans");
+  await expect(page.locator(".expression-token-ans")).toHaveText("Ans");
   expect(await page.evaluate(() => globalThis.testEditor.model.serializeForEvaluation().kind)).toBe(
     "requires-ans-resolution"
   );
@@ -185,7 +218,7 @@ test("history lock permits cursor movement and referenced Ans insertion only", a
       })
     );
   });
-  await expect(input).toHaveValue("20,5");
+  await expect(input).toHaveValue("2Ans");
   expect(await page.evaluate(() => globalThis.testEnterCount)).toBe(0);
   expect(await page.evaluate(() => globalThis.testEditor.model.tokens[1].historyEntryId)).toBe(
     "history-17"

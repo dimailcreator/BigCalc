@@ -86,6 +86,7 @@ class DefaultCalculationHandle implements CalculationHandle {
   private state: CalculationHandleState = "idle";
   private lastRequest: PrecisionRequest | null = null;
   private lastCompleted: CompletedResult | null = null;
+  private pendingCompleted: CompletedResult | null = null;
   private lastFailure: CalcError | null = null;
 
   constructor(
@@ -111,6 +112,7 @@ class DefaultCalculationHandle implements CalculationHandle {
     }
 
     this.lastRequest = request;
+    this.pendingCompleted = null;
 
     return this.run(request);
   }
@@ -143,6 +145,7 @@ class DefaultCalculationHandle implements CalculationHandle {
     }
 
     this.state = "cancelled";
+    this.pendingCompleted = null;
     this.runtime.cancel();
   }
 
@@ -153,28 +156,32 @@ class DefaultCalculationHandle implements CalculationHandle {
       this.runtime.guardRequest(request.significantDigits);
       this.runtime.start(this.graph.context.settings.maxCalculationTimeMs);
 
-      const realValue = this.graph.evaluate();
-      const value = await verifiedNumberFromRealValue(realValue, request, this.graph.context);
-      if (
-        !(value.valueExact && value.decimalTerminating) &&
-        value.verifiedDigits < request.significantDigits
-      ) {
-        throw new InternalCalculationException(
-          `Refinement completed without enough verified digits: ${String(value.verifiedDigits)} < ${String(request.significantDigits)}`
-        );
+      let completed = this.pendingCompleted;
+      if (completed === null) {
+        const realValue = this.graph.evaluate();
+        const value = await verifiedNumberFromRealValue(realValue, request, this.graph.context);
+        if (
+          !(value.valueExact && value.decimalTerminating) &&
+          value.verifiedDigits < request.significantDigits
+        ) {
+          throw new InternalCalculationException(
+            `Refinement completed without enough verified digits: ${String(value.verifiedDigits)} < ${String(request.significantDigits)}`
+          );
+        }
+        completed = Object.freeze({
+          status: "complete",
+          requestedDigits: request.significantDigits,
+          value
+        });
+        this.pendingCompleted = completed;
       }
 
       // The final conversion/verification step can itself be expensive. Re-check
       // the cooperative lifecycle before publishing a successful result so a
       // deadline crossed by that last step cannot escape as "complete".
       this.graph.context.checkpoint();
-      const completed: CompletedResult = Object.freeze({
-        status: "complete",
-        requestedDigits: request.significantDigits,
-        value
-      });
-
       this.lastCompleted = completed;
+      this.pendingCompleted = null;
       this.lastFailure = null;
       this.state = "completed";
 
@@ -186,11 +193,13 @@ class DefaultCalculationHandle implements CalculationHandle {
       }
 
       if (error instanceof CancelledSignal) {
+        this.pendingCompleted = null;
         this.state = "cancelled";
         return this.cancelledResult(request);
       }
 
       this.state = "failed";
+      this.pendingCompleted = null;
 
       if (isCalcError(error)) {
         this.lastFailure = error;

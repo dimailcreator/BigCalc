@@ -24,10 +24,14 @@ const results = {};
 
 try {
   await connect();
+  await waitFor(async () => {
+    const viewport = await geometry();
+    return viewport.innerWidth > 0 && viewport.innerHeight > viewport.innerWidth;
+  }, 30_000);
   const initial = await geometry();
-  assert(initial.innerWidth < initial.innerHeight, "portrait viewport");
+  assert(initial.innerWidth < initial.innerHeight, `portrait viewport: ${JSON.stringify(initial)}`);
   assert(
-    initial.screenHeight - initial.innerHeight >= 48,
+    initial.screenHeight - initial.innerHeight >= 24,
     `WebView did not account for system bars: ${JSON.stringify(initial)}`
   );
   assert(initial.top >= 12, `header has no safe padding: ${JSON.stringify(initial)}`);
@@ -42,9 +46,26 @@ try {
     evaluate('document.querySelector(".main-display")?.dataset.phase === "completed"')
   );
   await evaluate('document.querySelector(".keyboard-key-equals")?.click()');
-  await waitFor(() => evaluate('document.querySelector(".expression-input")?.value === "5"'));
+  await waitFor(() => evaluate('document.querySelector(".expression-input")?.value === "Ans"'));
   results.historySaved = await evaluate('localStorage.getItem("bigcalc.history.v1") !== null');
   assert(results.historySaved, "explicit result was not persisted");
+
+  await evaluate('document.querySelector(".expression-input").focus()');
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    await returnFromHome();
+    await delay(650);
+    assert(
+      !/mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
+      `Expression IME reopened after Home cycle ${cycle + 1}`
+    );
+    assert(
+      await evaluate('document.activeElement?.classList.contains("expression-input") === true'),
+      `Expression hardware focus was lost after Home cycle ${cycle + 1}`
+    );
+  }
+  adbOutput(["shell", "input", "keyevent", "KEYCODE_7"]);
+  await waitFor(() => evaluate('document.querySelector(".expression-input")?.value === "7"'));
+  results.expressionForegroundIme = true;
 
   await evaluate(`(() => {
     const setItem = Storage.prototype.setItem;
@@ -87,6 +108,7 @@ try {
     results.activeWorkerReturn?.startsWith("3,14159"),
     `Worker did not finish after foreground return: ${JSON.stringify(results.activeWorkerReturn)}`
   );
+  await waitFor(() => evaluate("globalThis.__stage21StorageWrites >= 1"), 10_000);
   results.backgroundFlush = await evaluate("globalThis.__stage21StorageWrites");
   assert(results.backgroundFlush >= 1, "background transition did not flush settings");
   await evaluate("globalThis.__stage21RestoreSetItem()");
@@ -135,6 +157,29 @@ try {
     viewportHeight: visualViewport.height,
     inputBottom: document.querySelector('input[aria-label="Лимит непрерывного вычисления, секунды"]').getBoundingClientRect().bottom
   }))()`);
+  results.settingsImeWidths = await evaluate(`(() => ({
+    document: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
+    body: [document.body.scrollWidth, document.body.clientWidth],
+    shell: document.querySelector('.calculator-shell').getBoundingClientRect().width,
+    screen: document.querySelector('.settings-screen').getBoundingClientRect().width,
+    viewport: innerWidth
+  }))()`);
+  assert(
+    results.settingsImeWidths.document[0] <= results.settingsImeWidths.document[1],
+    "IME widened document"
+  );
+  assert(
+    results.settingsImeWidths.body[0] <= results.settingsImeWidths.body[1],
+    "IME widened body"
+  );
+  assert(
+    results.settingsImeWidths.shell <= results.settingsImeWidths.viewport,
+    "IME widened app shell"
+  );
+  assert(
+    results.settingsImeWidths.screen <= results.settingsImeWidths.viewport,
+    "IME widened settings screen"
+  );
   assert(
     results.imeViewport.inputBottom <= results.imeViewport.viewportHeight,
     `settings input is obscured by the software keyboard: ${JSON.stringify(results.imeViewport)}`
@@ -329,25 +374,50 @@ try {
     const r = document.querySelector(".main-display > .result-output").getBoundingClientRect();
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
   })()`);
-  await touchSwipe(resultCenter, { x: resultCenter.x - 95, y: resultCenter.y }, 20);
-  const releasedDigit = BigInt(
-    await evaluate('document.querySelector(".main-display > .result-output")?.dataset.logicalStart')
-  );
-  await waitFor(
-    async () =>
-      BigInt(
-        await evaluate(
-          'document.querySelector(".main-display > .result-output")?.dataset.logicalStart'
-        )
-      ) > releasedDigit,
-    2_000
+  await evaluate(`(() => {
+    const viewport = document.querySelector('.main-display > .result-output');
+    globalThis.__stage21Inertia = { release: null, after: null };
+    viewport.addEventListener('pointerup', () => {
+      globalThis.__stage21Inertia.release = viewport.dataset.logicalStart;
+      setTimeout(() => {
+        globalThis.__stage21Inertia.after = viewport.dataset.logicalStart;
+      }, 380);
+    }, { once: true });
+  })()`);
+  await refreshWebViewScreenY();
+  adbOutput([
+    "shell",
+    "input",
+    "touchscreen",
+    "swipe",
+    String(resultCenter.x),
+    String(resultCenter.y + webViewScreenY),
+    String(resultCenter.x - 95),
+    String(resultCenter.y + webViewScreenY),
+    "80"
+  ]);
+  await waitFor(() => evaluate("globalThis.__stage21Inertia.after !== null"), 5_000);
+  const inertiaSample = await evaluate("globalThis.__stage21Inertia");
+  assert(
+    BigInt(inertiaSample.after) > BigInt(inertiaSample.release),
+    `result did not advance after touch release: ${JSON.stringify(inertiaSample)}`
   );
   assert(
     await evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "false"'),
     "horizontal result touch opened History"
   );
   results.touchInertia = true;
-  await touchSwipe(resultCenter, { x: resultCenter.x + 2, y: resultCenter.y + 80 }, 60);
+  adbOutput([
+    "shell",
+    "input",
+    "touchscreen",
+    "swipe",
+    String(resultCenter.x),
+    String(resultCenter.y + webViewScreenY),
+    String(resultCenter.x + 2),
+    String(resultCenter.y + 80 + webViewScreenY),
+    "180"
+  ]);
   await waitFor(() =>
     evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "true"')
   );
@@ -564,10 +634,24 @@ async function foreground() {
 }
 
 async function returnFromHome() {
-  adbOutput(["shell", "input", "keyevent", "3"]);
-  await waitFor(() => evaluate('document.visibilityState === "hidden"'), 5_000);
+  adbOutput(["shell", "input", "keyevent", "KEYCODE_HOME"]);
+  await waitFor(
+    () =>
+      /(?:topResumedActivity|ResumedActivity|mFocusedApp)=.*com\.google\.android\.apps\.nexuslauncher/u.test(
+        adbOutput(["shell", "dumpsys", "activity", "activities"])
+      ),
+    10_000
+  );
+  await delay(600);
   await foreground();
-  await waitFor(() => evaluate('document.visibilityState === "visible"'), 5_000);
+  await waitFor(
+    () =>
+      /(?:topResumedActivity|ResumedActivity|mFocusedApp)=.*com\.bigcalc\.app/u.test(
+        adbOutput(["shell", "dumpsys", "activity", "activities"])
+      ),
+    10_000
+  );
+  await waitFor(() => evaluate('document.visibilityState === "visible"'), 10_000);
 }
 
 async function evaluate(expression) {

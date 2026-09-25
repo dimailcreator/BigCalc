@@ -150,24 +150,14 @@ export class HistoryPanel {
       (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          this.#options.onInsert([
-            createAnsToken(
-              entry.id,
-              this.#options.history.get(entry.id)?.displayedResultText ?? entry.displayedResultText
-            )
-          ]);
+          this.#options.onInsert([createAnsToken(entry.id)]);
         } else armed = true;
       },
       { capture: true }
     );
     viewport.root.addEventListener("click", () => {
       if (dragged) return;
-      this.#options.onInsert([
-        createAnsToken(
-          entry.id,
-          this.#options.history.get(entry.id)?.displayedResultText ?? entry.displayedResultText
-        )
-      ]);
+      this.#options.onInsert([createAnsToken(entry.id)]);
     });
     const refiner = new HistoryResultRefiner(
       this.#options.client,

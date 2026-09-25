@@ -135,7 +135,7 @@ export class CalculationHistory {
       else {
         const referenced = this.get(segment.id);
         if (referenced === null) throw new TypeError(`Missing history entry: ${segment.id}`);
-        tokens.push(createAnsToken(referenced.id, referenced.displayedResultText));
+        tokens.push(createAnsToken(referenced.id));
       }
     }
     return Object.freeze(tokens);

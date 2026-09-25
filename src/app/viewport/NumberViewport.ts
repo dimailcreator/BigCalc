@@ -130,6 +130,8 @@ export class NumberViewport {
   showError(message: string): void {
     this.setValue(null);
     this.#content.textContent = message;
+    this.#content.scrollLeft = 0;
+    this.#content.tabIndex = 0;
   }
 
   dispose(): void {
@@ -154,6 +156,7 @@ export class NumberViewport {
 
   #render(): void {
     if (this.#value === null) return;
+    this.#content.removeAttribute("tabindex");
     const view = createNumberViewportModel({
       value: this.#value,
       availableSlots: this.#availableSlots,

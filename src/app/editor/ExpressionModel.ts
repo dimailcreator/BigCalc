@@ -51,7 +51,9 @@ export function createAnsToken(historyEntryId: string, displayText = "Ans"): Ans
   if (typeof displayText !== "string" || displayText.length === 0) {
     throw new TypeError("An Ans token needs nonempty display text");
   }
-  return Object.freeze({ kind: "ans", historyEntryId, displayText });
+  // The numeric result belongs to history/NumberViewport. Keeping it in an
+  // editor token would materialize arbitrarily large values in the DOM/input.
+  return Object.freeze({ kind: "ans", historyEntryId, displayText: "Ans" });
 }
 
 function validateToken(token: unknown): ExpressionToken {

@@ -2,7 +2,7 @@
 
 Status: **PENDING PHYSICAL DEVICE VALIDATION**. The APK and emulator checks are prepared; complete this checklist on a real Android phone before marking the Stage 21R Definition of Done complete. Stage 22 has not started.
 
-Prepared APK SHA-256: `C17B03D934374DDB9C204BB2F165D5E3F423B30ED349CF15FE9F013481122BCD`.
+Prepared APK SHA-256: `99BB5EBDDF9697BD0D0783C067055471E2D10CABF3B822BF86147BD8F0D17F42`.
 
 ## Preparation
 
@@ -22,7 +22,18 @@ Prepared APK SHA-256: `C17B03D934374DDB9C204BB2F165D5E3F423B30ED349CF15FE9F01348
 | P6  | PENDING PHYSICAL DEVICE VALIDATION | Enter `10^1000`; repeatedly drag result to the right boundary. It ends in a full window of trailing zeroes, never `..0`. Repeat with a long exact integer, a terminating decimal, and a negative exact value. No swipe passes either boundary.                                                                                                                                                                                                                                                                                |
 | P7  | PENDING PHYSICAL DEVICE VALIDATION | In one uninterrupted app session, perform at least three complete `swipe down → History open → History close` cycles without reload: close once with the History button, once with Android Back, and once with the button again. Repeat from the same result area. Verify starts from TopBar (including a button), expression, result, and blank space in `main-display`. Horizontal result drag and a diagonal drag with stronger horizontal movement keep History closed. A cancelled gesture leaves the next swipe usable. |
 | P8  | PENDING PHYSICAL DEVICE VALIDATION | Type `2` on a physical keyboard, open History, type `9` (expression stays `2`), close History using its button, then type `3` (expression becomes `23`). Repeat close via Android Back and browser Back/popstate if running as web app. Navigation buttons remain reachable with keyboard focus.                                                                                                                                                                                                                              |
-| P9  | PENDING PHYSICAL DEVICE VALIDATION | On the narrowest available portrait width enter `sin[2,5](0)` and press `=`. The long error is clipped within the result field; the app and document do not grow horizontally and no horizontal page scrollbar appears. Repeat with another long calculator error if available.                                                                                                                                                                                                                                               |
+| P9  | PENDING PHYSICAL DEVICE VALIDATION | On the narrowest available portrait width enter `sin[2,5](0)` and press `=`. Drag the result field horizontally until the end of `Недопустимое число итераций функции` is readable. The page stays fixed width.                                                                                                                                                                                                                                                                                                               |
+
+## Stage 21R-G follow-up — PENDING PHYSICAL DEVICE VALIDATION
+
+| ID  | Status                             | Action and expected result                                                                                                                                                                                           |
+| --- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | PENDING PHYSICAL DEVICE VALIDATION | Focus the calculator expression, press Home and return three times. The Android software keyboard remains closed each time; cursor and hardware keyboard input still work. Settings inputs still open the IME.       |
+| G2  | PENDING PHYSICAL DEVICE VALIDATION | Calculate `10^5000`, press `=`, then `+1`. The lone Ans number viewport changes to a short `Ans+1` expression. Repeat with `2000!`; the UI stays responsive and the full result is not inserted into the expression. |
+| G3  | PENDING PHYSICAL DEVICE VALIDATION | Start a calculation that runs beyond the chosen soft limit and press `=` while it is still running. Its next initial timeout opens the continuation dialog without a second `=`.                                     |
+| G4  | PENDING PHYSICAL DEVICE VALIDATION | Calculate `60000!` with a 5 s soft limit, using `Продолжить` until completion. Repeat at 10 s. Record continuation count and elapsed time; completed final formatting must not repeat indefinitely.                  |
+| G5  | PENDING PHYSICAL DEVICE VALIDATION | In Settings, focus timeout and inertia inputs. Open and dismiss the IME using Back at least three times each; return to the calculator. No screen or document gains horizontal page scroll.                          |
+| G6  | PENDING PHYSICAL DEVICE VALIDATION | In a narrow portrait viewport show `Недопустимое число итераций функции`. Drag horizontally inside the result until its end is readable. History swipe still opens on a vertical drag.                               |
 
 ## Repeatable automated baseline
 

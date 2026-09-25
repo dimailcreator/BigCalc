@@ -6,6 +6,7 @@ import {
   addBall,
   applyPrecisionCutoff,
   ballToOutwardInterval,
+  createCalculationHandleFromSource,
   createAddNode,
   createEvaluationContext,
   createEvaluationGraph,
@@ -137,6 +138,27 @@ void describe("precision cutoff", () => {
     assert.equal(ball.precisionCutoff, undefined);
     assert.equal(verified.sign, 0);
     assert.notEqual(verified.zeroKind, "rounded");
+  });
+
+  void it("keeps huge exact add/sub results and downstream exact arithmetic outside cutoff", async () => {
+    const cases = [
+      ["10^5000-1", "9".repeat(5000), 4999n],
+      ["10^5000+1", `1${"0".repeat(4999)}1`, 5000n],
+      ["(10^5000-1)+1", "1", 5000n],
+      ["1/3+1/6", "5", -1n],
+      ["1/2-1/2", "0", 0n]
+    ] as const;
+    for (const [source, digits, exponent10] of cases) {
+      const created = createCalculationHandleFromSource(source);
+      assert.equal(created.ok, true, source);
+      const result = await created.handle.refine({ significantDigits: 12 });
+      assert.equal(result.status, "complete", source);
+      assert.equal(result.value.digits, digits, source);
+      assert.equal(result.value.exponent10, exponent10, source);
+      assert.equal(result.value.valueExact, true, source);
+      assert.equal(result.value.rounded, false, source);
+      if (source === "1/2-1/2") assert.equal(result.value.zeroKind, "exact");
+    }
   });
 
   void it("keeps production 3000/3001 cutoff parameters", () => {

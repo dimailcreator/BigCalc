@@ -1,5 +1,63 @@
 import { expect, test } from "@playwright/test";
 
+test("equals during an in-flight live slice opens the next initial timeout prompt", async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    class HeldWorker {
+      listeners = new Map();
+      pending = null;
+      addEventListener(type, listener) {
+        const entries = this.listeners.get(type) ?? [];
+        entries.push(listener);
+        this.listeners.set(type, entries);
+      }
+      postMessage(command) {
+        const send = (response) => {
+          for (const listener of this.listeners.get("message") ?? []) listener({ data: response });
+        };
+        if (command.type === "create") {
+          globalThis.queueMicrotask(() =>
+            send({
+              type: "created",
+              sessionId: command.sessionId,
+              workerHandleId: `handle-${command.sessionId}`
+            })
+          );
+        } else if (command.type === "refine") {
+          this.pending = () =>
+            send({
+              type: "refinement-result",
+              sessionId: command.sessionId,
+              requestId: command.requestId,
+              result: {
+                status: "paused",
+                reason: "time-limit",
+                requestedDigits: command.significantDigits,
+                verifiedDigits: 0,
+                partial: null
+              }
+            });
+        }
+      }
+      terminate() {}
+    }
+    const worker = new HeldWorker();
+    globalThis.Worker = class {
+      constructor() {
+        return worker;
+      }
+    };
+    globalThis.releaseInitialPause = () => worker.pending?.();
+  });
+  await page.goto("/", { waitUntil: "networkidle" });
+  await page.getByRole("textbox", { name: "Выражение" }).fill("π");
+  await expect(page.locator(".main-display")).toHaveAttribute("data-phase", "running");
+  await page.getByRole("button", { name: "Равно" }).click();
+  await page.evaluate(() => globalThis.releaseInitialPause());
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
 async function openTimedOutCalculation(page, completeOnContinuation) {
   await page.addInitScript((completeAt) => {
     const commands = [];

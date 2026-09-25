@@ -85,11 +85,61 @@ test("long calculator errors stay inside a narrow viewport", async ({ page }) =>
   await page.getByRole("button", { name: "Равно" }).evaluate((button) => button.click());
   await expect(result).toHaveText("Недопустимое число итераций функции");
   await expectViewportWidthContained(page);
+  const content = result.locator(".number-viewport-content");
+  expect(await content.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  const errorBox = await content.boundingBox();
+  const errorCenter = center(errorBox);
+  await touchSwipe(
+    page,
+    { x: errorBox.x + errorBox.width * 0.75, y: errorCenter.y },
+    { x: errorBox.x + errorBox.width * 0.75 - 110, y: errorCenter.y }
+  );
+  await expect.poll(() => content.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await content.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  expect(await content.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
   await result.evaluate((element) => {
     element.dataset.kind = "error";
     element.querySelector(".number-viewport-content").textContent = "Ошибка вычисления ".repeat(30);
   });
   await expectViewportWidthContained(page);
+  await content.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  expect(await content.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await touchSwipe(page, errorCenter, { x: errorCenter.x + 2, y: errorCenter.y + 85 });
+  await expect(page.locator(".calculator-shell")).toHaveAttribute("data-history-open", "true");
+});
+
+test("Settings fields stay within the viewport through repeated IME-sized resizes", async ({
+  page
+}) => {
+  await page.getByRole("button", { name: "Меню" }).click();
+  await page.getByRole("menuitem", { name: "Настройки" }).click();
+  const settings = page.locator(".settings-screen");
+  for (const field of ["Лимит непрерывного вычисления, секунды", "Инерция прокрутки чисел"]) {
+    await page.getByRole("textbox", { name: field }).focus();
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      await page.setViewportSize({ width: 320, height: 390 });
+      const widths = await page.evaluate(() => ({
+        document: [
+          globalThis.document.documentElement.scrollWidth,
+          globalThis.document.documentElement.clientWidth
+        ],
+        body: [globalThis.document.body.scrollWidth, globalThis.document.body.clientWidth],
+        shell: globalThis.document.querySelector(".calculator-shell").getBoundingClientRect().width,
+        screen: globalThis.document.querySelector(".settings-screen").getBoundingClientRect().width,
+        viewport: globalThis.innerWidth
+      }));
+      expect(widths.document[0], JSON.stringify(widths)).toBeLessThanOrEqual(widths.document[1]);
+      expect(widths.body[0], JSON.stringify(widths)).toBeLessThanOrEqual(widths.body[1]);
+      expect(widths.shell, JSON.stringify(widths)).toBeLessThanOrEqual(widths.viewport);
+      expect(widths.screen, JSON.stringify(widths)).toBeLessThanOrEqual(widths.viewport);
+      await page.setViewportSize({ width: 320, height: 640 });
+    }
+  }
+  await expect(settings).toHaveAttribute("data-open", "true");
 });
 
 test("History touch swipe remains ready through three open and close cycles", async ({ page }) => {

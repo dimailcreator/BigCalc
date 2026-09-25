@@ -50,7 +50,7 @@ describe("ExpressionModel logical editing", () => {
             ? token.value
             : token.kind === "identifier"
               ? token.name
-              : token.displayText
+              : "Ans"
         )
         .join("")
     );
@@ -87,12 +87,12 @@ describe("ExpressionModel logical editing", () => {
     const original = model(ans());
     const before = original.setCursor(0).insert(character("-"));
     const after = original.insert(character("+"));
-    expect(before.serializeDisplay()).toBe("-0,333…");
-    expect(after.serializeDisplay()).toBe("0,333…+");
+    expect(before.serializeDisplay()).toBe("-Ans");
+    expect(after.serializeDisplay()).toBe("Ans+");
     expect(before.tokens[1]).toEqual({
       kind: "ans",
       historyEntryId: "history-42",
-      displayText: "0,333…"
+      displayText: "Ans"
     });
     expect(after.tokens[0]).toEqual(before.tokens[1]);
   });
@@ -151,7 +151,7 @@ describe("ExpressionModel logical editing", () => {
     );
     expect(plain.serializeForEvaluation()).toEqual({ kind: "source", source: "2sin(3)" });
     const withAns = model(character("2"), character("+"), ans());
-    expect(withAns.serializeDisplay()).toBe("2+0,333…");
+    expect(withAns.serializeDisplay()).toBe("2+Ans");
     expect(withAns.serializeForEvaluation()).toEqual({
       kind: "requires-ans-resolution",
       tokens: withAns.tokens

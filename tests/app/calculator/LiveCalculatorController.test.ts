@@ -262,7 +262,7 @@ describe("LiveCalculatorController", () => {
     expect(controller.state.timeoutDialogOpen).toBe(true);
   });
 
-  it("keeps the first initial timeout silent when equals was pressed during the running slice", async () => {
+  it("prompts on the next initial timeout when equals was pressed during the running slice", async () => {
     vi.useFakeTimers();
     const gateway = new FakeGateway();
     const controller = createController(gateway);
@@ -274,13 +274,9 @@ describe("LiveCalculatorController", () => {
     await Promise.resolve();
     expect(controller.state).toMatchObject({
       phase: "pausedByTimeout",
-      timeoutDialogOpen: false
+      timeoutDialogOpen: true
     });
-
-    controller.evaluateExplicitly();
-    gateway.continuations[0]?.deferred.resolve(paused(24));
-    await Promise.resolve();
-    expect(controller.state.timeoutDialogOpen).toBe(true);
+    expect(gateway.continuations).toHaveLength(0);
   });
 
   it("shows a dialog on repeated initial timeout and continues the existing handle", async () => {

@@ -225,6 +225,9 @@ export class LiveCalculatorController {
     if (this.#timeoutDialogOpen) return;
 
     this.#explicitRequested = true;
+    if (this.#currentSession !== null && !this.#currentSession.initialResultReady) {
+      this.#currentSession.promptOnPause = true;
+    }
     if (this.#currentSession?.initialResultReady && this.#resultValue !== null) {
       this.#finalizeExplicitSuccess();
       return;

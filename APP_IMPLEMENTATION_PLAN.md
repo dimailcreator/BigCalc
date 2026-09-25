@@ -2350,75 +2350,108 @@ calculator shell width <= viewport width
 
 после показа длинной ошибки.
 
-## 21R-F.2. History swipe должен быть многократно повторяемым
+## 21R-F.2. Зона начала swipe-down History слишком узкая
 
-Жест:
-
-```text
-swipe-down
-→ History open
-```
-
-не считается рабочим, если он срабатывает только один раз за runtime/session.
-
-Обязательный repeated flow:
+Повторная physical-device проверка уточнила дефект:
 
 ```text
-swipe-down → open
-close
-swipe-down → open
-close
-swipe-down → open
+сам gesture распознаётся стабильно,
+но практически срабатывает только если swipe начинается на TopBar.
 ```
 
-Проверить закрытие минимум через:
+Это не проблема одноразового состояния gesture recognizer.
 
-- History button;
-- Android Back;
-- browser Back/popstate в browser harness.
-
-После каждого закрытия gesture recognizer должен возвращаться в полностью idle/ready state.
-
-Нужно проверить отдельно:
-
-- stale gesture state;
-- pointer capture/cancel state;
-- `navigation.topLayer`;
-- navigation `backPending`;
-- History open/close transition;
-- hit testing после закрытия;
-- возможность нового `pointerdown` начать gesture.
-
-Не исправлять дефект добавлением одноразового listener recreation или reload страницы.
-
-Рекомендуется, если inline gesture logic становится stateful, вынести History swipe в отдельный небольшой controller с явными состояниями:
+Нормативное требование `UI_SPEC.md`:
 
 ```text
-idle
-tracking
-resolved/cancelled
+swipe-down из верхней части калькулятора → History
 ```
 
-и обязательным reset после `pointerup`, `pointercancel`, History open и History close.
+Поэтому gesture нельзя ограничивать только отдельными дочерними элементами вроде TopBar.
 
+### Gesture region
+
+При закрытой History и активном основном BigCalc gesture tracking должен разрешаться как минимум во всей области:
+
+```text
+TopBar
++
+Main display
+```
+
+то есть до начала calculator keyboard.
+
+Внутри `main-display` начальная точка может находиться:
+
+- на expression;
+- на result;
+- на свободном месте между/вокруг них.
+
+Не должно требоваться попадание в конкретный text/output element.
+
+### Gesture arbitration
+
+После `pointerdown` направление определяется по движению:
+
+```text
+явно вертикальный down-swipe
+→ открыть History
+
+явно горизонтальный drag на NumberViewport
+→ прокручивать NumberViewport
+
+tap / недостаточное движение
+→ обычное действие элемента
+```
+
+NumberViewport не должен блокировать вертикальный History gesture только потому, что он получил initial pointer event.
+
+Также нельзя открывать History:
+
+- при горизонтальном swipe;
+- при движении вверх;
+- при gesture, начинающемся на calculator keyboard;
+- при открытом другом navigation layer;
+- в другом calculator module.
+
+### Implementation
+
+Не использовать whitelist начальных target вида:
+
+```text
+.top-bar,
+.expression-editor,
+.main-display > .result-output
+```
+
+как единственный критерий допустимости gesture.
+
+Предпочтительно определить стабильный gesture region на уровне app shell:
+
+```text
+.top-bar, .main-display
+```
+
+а затем выполнять direction arbitration независимо от конкретного вложенного target.
+
+Если NumberViewport и History gesture используют разные controllers, они должны согласованно решать ownership после определения dominant axis.
+
+## Тесты
 ## Тесты
 
 Добавить обязательные regression tests:
 
 1. длинная iteration error на narrow viewport не создаёт horizontal document overflow;
 2. то же правило работает для искусственно длинного calculator error text;
-3. History swipe открывает History минимум три раза подряд в одной и той же browser page/session;
-4. repeated swipe проходит после закрытия кнопкой;
-5. repeated swipe проходит после browser Back;
-6. Android/device checklist требует минимум три полных open/close цикла, а не одиночное открытие.
+3. swipe-down с TopBar открывает History;
+4. swipe-down с expression area открывает History;
+5. swipe-down с result area открывает History;
+6. swipe-down со свободного места `main-display` открывает History;
+7. горизонтальный drag result прокручивает NumberViewport и не открывает History;
+8. swipe, начинающийся на calculator keyboard, не открывает History;
+9. Android/device checklist отдельно проверяет все четыре допустимые стартовые зоны.
 
-Одиночный test вида:
-
-```text
-fresh page → one swipe → History open
-```
-
-не является достаточным coverage.
+Тест только с началом swipe на TopBar не является достаточным coverage.
 
 ## Definition of Done
 
@@ -2426,13 +2459,364 @@ Stage 21R-F завершён, когда:
 
 1. длинные error messages не меняют горизонтальный размер app/document;
 2. нет horizontal scrollbar на physical-device regression case `sin[2,5](0)`;
-3. History swipe работает многократно без reload;
-4. browser regression выполняет минимум три `swipe → open → close` цикла в одной page session;
+3. History swipe открывается с любой допустимой точки верхней calculator area, а не только с TopBar;
+4. вертикальный History gesture и горизонтальный NumberViewport drag корректно разделяются по направлению;
 5. Core/App tests проходят;
 6. debug APK собирается;
 7. оба пункта помечаются `PENDING PHYSICAL DEVICE VALIDATION` до повторной проверки пользователем.
 
 После успешной external physical-device validation Stage 21R принимается, и только тогда разрешён Stage 22.
+
+---
+
+# ЭТАП 21R-G. Дополнительная стабилизация после второго physical-device smoke
+
+## Статус
+
+После Stage 21R-F повторное тестирование на физическом Android-устройстве выявило дополнительные дефекты.
+
+До их закрытия:
+
+```text
+Stage 21R = NOT ACCEPTED
+Stage 22 = BLOCKED
+```
+
+Исправления этого этапа не должны маскировать проблемы CSS clipping, сокращением математических данных или restart calculation вместо продолжения существующей session.
+
+## 21R-G.1. Android IME не должна появляться после background → foreground
+
+Regression:
+
+```text
+expression input focused
+→ app background
+→ app foreground
+→ Android software keyboard появляется
+```
+
+Для expression editor основного BigCalc Android IME запрещена независимо от lifecycle transition.
+
+`inputmode="none"` само по себе не считается достаточной гарантией.
+
+После foreground:
+
+- logical editor focus/cursor/selection могут быть сохранены;
+- physical keyboard routing должен остаться доступным;
+- Android software keyboard не должна быть показана или восстановлена системой.
+
+Settings inputs не подпадают под этот запрет.
+
+Обязательный physical-device regression:
+
+```text
+focus expression
+Home
+return
+IME remains closed
+```
+
+повторить минимум три раза.
+
+## 21R-G.2. Составной expression не материализует большой `Ans`
+
+`Ans` является atomic semantic reference.
+
+Когда `Ans` — единственный expression token, его числовое значение отображается через `NumberViewport`.
+
+Когда рядом появляется другой token:
+
+```text
+Ans + 1
+2 * Ans
+Ans + Ans
+```
+
+редактор не должен заменять `Ans` полной decimal/scientific строкой результата.
+
+Для composite expression использовать bounded atomic presentation, например:
+
+```text
+Ans
+```
+
+или другой короткий label, согласованный с UI design.
+
+Запрещено:
+
+- вставлять в DOM тысячи/сотни тысяч цифр result как `Ans.displayText`;
+- хранить полный numeric result в hidden native input только ради presentation;
+- превращать display text в mathematical source.
+
+Semantic identity остаётся:
+
+```text
+AnsToken.historyEntryId
+```
+
+и structured Core reference.
+
+Добавить regression с результатом минимум порядка `10^5000` и с большим exact factorial.
+
+Проверить DOM/text length: добавление `+1` к lone `Ans` не должно приводить к O(number of result digits) росту expression DOM/native input value.
+
+## 21R-G.3. Explicit `=` во время уже running live calculation должен активировать timeout prompt
+
+Текущий defect:
+
+```text
+live calculation already running
+→ пользователь нажимает =
+→ run позже достигает soft timeout
+→ timeout остаётся silent
+```
+
+После explicit `=` текущая session должна помнить, что следующий initial pause является explicit continuation/prompt path.
+
+Если `=` нажат во время `running` до initial result:
+
+```text
+explicitRequested = true
++
+current session must be marked to prompt on next pause
+```
+
+Нельзя ждать второго нажатия `=` только для перевода session в prompt mode.
+
+Regression case:
+
+```text
+long calculation
+live run starts
+press =
+next soft timeout
+→ timeout dialog opens
+```
+
+## 21R-G.4. Soft-timeout continuation не должна повторять дорогой завершённый formatting step
+
+Physical-device regression:
+
+```text
+60000!
+soft timeout = 5 s
+```
+
+после нескольких `Продолжить` не завершается, хотя при более длинном single slice результат может завершиться.
+
+Core factorial product-tree state уже resumable. Нужно отдельно проверить final exact-result conversion/verification.
+
+Текущая exact terminating rational formatting может материализовать полный decimal representation до финального lifecycle checkpoint. Если после этой дорогой операции deadline уже превышен, handle возвращает `paused`, но локально вычисленный `VerifiedNumber` теряется и на следующем `continue()` форматирование повторяется.
+
+Требование:
+
+```text
+work completed before a soft-timeout checkpoint
+must not be discarded
+```
+
+Допустимый internal approach:
+
+- сохранить pending completed/verified result внутри handle/session до final checkpoint;
+- после `continue()` опубликовать уже выполненную работу без повторной decimal conversion;
+
+или эквивалентный resumable formatting mechanism.
+
+Не ослаблять soft-timeout semantics простым удалением final checkpoint.
+
+Добавить deterministic Core lifecycle test, доказывающий, что pause после final conversion не заставляет следующий `continue()` повторять completed work.
+
+Отдельно повторить physical-device case `60000!` при 5 s и 10 s.
+
+## 21R-G.5. IME open/close не должен менять горизонтальную ширину приложения
+
+Regression:
+
+```text
+open Android software keyboard
+close Android software keyboard
+→ document/app становится шире viewport
+→ появляется horizontal scrollbar
+```
+
+Это правило относится к тем inputs, где Android IME разрешена, прежде всего Settings.
+
+После каждого IME open/close:
+
+```text
+documentElement.scrollWidth <= documentElement.clientWidth
+body.scrollWidth <= body.clientWidth
+app shell/screen width <= visual/layout viewport width
+```
+
+Не лечить только `overflow-x: hidden`, если реальный child layout продолжает иметь некорректную ширину.
+
+Root clipping может использоваться как последняя safety boundary, но regression tests должны также проверять widths ключевых containers.
+
+Physical-device checklist:
+
+- Settings timeout input;
+- Settings inertia input;
+- несколько open/close циклов;
+- Back dismissal;
+- возврат на calculator screen.
+
+## 21R-G.6. Длинный calculator error можно дочитать горизонтальным scroll
+
+Stage 21R-F уже запретил длинной error string расширять document width.
+
+Дополнительное требование:
+
+```text
+error longer than result field
+→ result field remains fixed-width
+→ text can be read by horizontal scroll
+```
+
+Ellipsis может использоваться как initial visual indication, но не должен делать скрытую часть ошибки недоступной.
+
+Error scrolling:
+
+- локален result/error container;
+- не прокручивает весь document;
+- не использует NumberViewport digit semantics;
+- не создаёт precision demand;
+- не конфликтует с vertical History swipe.
+
+Для error state нужно отдельное text-scroll behavior. Numeric result state продолжает использовать `NumberViewport`.
+
+Regression:
+
+```text
+Недопустимое число итераций функции
+```
+
+на narrow viewport:
+
+- no document horizontal overflow;
+- error container `scrollWidth > clientWidth`;
+- пользователь может horizontal-scroll до конца строки.
+
+## 21R-G.7. Exact Rational имеет приоритет над precision cutoff
+
+Предыдущее решение применять cutoff к exact rational `+/-` **отменено**.
+
+Принятое обязательное правило:
+
+```text
+если + или - вычисляется полностью через exact Rational path,
+математический результат остаётся exact Rational
+и precision cutoff 3000/3001 не применяется.
+```
+
+Precision cutoff применяется только после перехода операции к приближённой/ball-арифметике.
+
+Причина: cutoff не должен превращать точно известное математическое значение в другое значение только ради ограничения количества цифр. Иначе потеря exactness начинает распространяться на последующие операции и может менять поведение:
+
+```text
+sin(...)
+pow
+factorial/Gamma domain checks
+exact special cases
+zero/domain proofs
+другие операции, использующие exact Rational
+```
+
+### Нормативная семантика
+
+```text
+exact Rational +/- exact Rational
+→ exact Rational
+→ no cutoff
+```
+
+```text
+inexact/ball +/- ...
+→ ball arithmetic
+→ precision cutoff 3000/3001
+→ cutoff uncertainty propagates
+```
+
+`CORE_SPEC §13` нужно уточнить так, чтобы правило cutoff для `+/-` явно относилось к approximate/ball path и не противоречило `CORE_SPEC §5.1` и фундаментальному инварианту `Exact rationals stay exact`.
+
+### Regression case: `10^5000 - 1`
+
+Ожидаемый результат:
+
+```text
+10^5000 - 1
+→ exact Rational
+→ 5000 цифр `9`
+→ valueExact = true
+→ rounded = false
+```
+
+То, что результат длиннее 3000 цифр, само по себе не является причиной менять математическое значение.
+
+Если отображение/transport такого большого exact result создаёт проблемы производительности, это решается отдельно на уровне demand-driven representation/formatting/UI, а не математическим cutoff.
+
+### Изменения Core
+
+Математическую реализацию exact `+/-` менять не нужно, если она уже соответствует этому правилу.
+
+Нужно:
+
+1. уточнить `CORE_SPEC §13`, что exact Rational add/sub exempt from cutoff;
+2. сохранить test, проверяющий отсутствие cutoff на exact rational add/sub;
+3. добавить явный regression для huge exact result (`10^5000 - 1`);
+4. проверить, что downstream exact semantics сохраняются;
+5. не повышать public Core API version только из-за уточнения спецификации, если observable Core behavior не меняется.
+
+### Обязательные regression cases
+
+Минимум:
+
+```text
+1/3 + 1/6 → exact 1/2
+1/2 - 1/2 → ExactZero
+10^5000 - 1 → exact 5000-digit integer
+10^5000 + 1 → exact integer
+exact rational result passed into another exact-capable operation
+```
+
+Отдельно сохранить существующие tests, доказывающие применение cutoff на inexact/ball `+/-`.
+
+
+## Общее замечание: huge exact terminating result
+
+Текущий `verifiedNumberFromRational()` для terminating rational возвращает полный exact decimal digit string, даже если `PrecisionRequest` просил только небольшой visible prefix.
+
+Это связано как минимум с:
+
+- materialization большого `Ans`;
+- стоимостью `60000!` final formatting;
+- memory/transport cost больших exact integers.
+
+В Stage 21R-G допускается минимальный безопасный fix для UI (`Ans` bounded label) и lifecycle (кэширование completed formatting work).
+
+Более глубокая смена public `VerifiedNumber` semantics на partial exact prefix не выполняется без отдельного contract decision, потому что текущий `NumberViewport` использует полный exact digit range для exact-boundary semantics.
+
+## Тесты
+
+Минимум:
+
+1. foreground не поднимает IME для focused main expression;
+2. physical keyboard работает после foreground;
+3. composite `Ans` имеет bounded presentation независимо от размера referenced result;
+4. `=` во время running session делает следующий initial timeout видимым;
+5. continuation после final-formatting timeout использует сохранённую выполненную работу;
+6. `60000!` device regression для 5 s / 10 s;
+7. Settings IME open/close не создаёт horizontal document overflow;
+8. long error имеет local horizontal scroll и не расширяет document;
+9. exact Rational `+/-` явно освобождён от cutoff, а ball/inexact `+/-` по-прежнему покрыт cutoff regression tests.
+
+## Definition of Done
+
+Stage 21R-G implementation завершён, когда пункты 1–9 исправлены и автоматические tests проходят.
+
+Уточнение cutoff обязательно должно быть зафиксировано в `CORE_SPEC.md` и regression tests до перехода к Stage 22. Core implementation менять не требуется, если текущее exact-rational exemption уже соответствует этому правилу.
+
+Physical-device-only проверки помечаются `PENDING PHYSICAL DEVICE VALIDATION` и выполняются пользователем после сборки APK.
 
 ---
 
@@ -2758,6 +3142,8 @@ CalculatorModule boundary
 21R Real-device stabilization
     ↓
 21R-F Residual regression fixes
+    ↓
+21R-G Additional device regression fixes
     ↓
 22 Performance/resource tests
     ↓

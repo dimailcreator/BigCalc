@@ -34,7 +34,7 @@ describe("square root editor macro", () => {
     const result = insertSquareRootMacro(original);
     expect(result.tokens[1]).toEqual(original.tokens[0]);
     expect(result.tokens[2]).toEqual(original.tokens[1]);
-    expect(result.serializeDisplay()).toBe("(sin0,5)^(1/2)");
+    expect(result.serializeDisplay()).toBe("(sinAns)^(1/2)");
     expect(result.serializeForEvaluation().kind).toBe("requires-ans-resolution");
   });
 });

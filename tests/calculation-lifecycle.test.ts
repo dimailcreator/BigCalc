@@ -6,6 +6,7 @@ import {
   createCalculationHandleFromSource,
   createLazyRealNode,
   createRational,
+  createRationalNode,
   integerRational,
   precisionBitsForRequest,
   rationalToBall
@@ -80,6 +81,41 @@ void describe("calculation lifecycle and soft timeout", () => {
     assert.equal(result.reason, "time-limit");
     assert.equal(result.partial, null);
     assert.equal(lazy.calls, 1);
+
+    elapsedMs = 0;
+    const continued = await handle.continue();
+    assert.equal(continued.status, "complete");
+    assert.equal(lazy.calls, 1, "completed conversion/refinement must not run again");
+  });
+
+  void it("reuses a completed exact decimal conversion after its final checkpoint times out", async () => {
+    let elapsedMs = 0;
+    let numeratorReads = 0;
+    const exact = createRational(10n ** 1000n + 1n);
+    const counted = new Proxy(exact, {
+      get(target, property, receiver) {
+        if (property === "numerator") {
+          numeratorReads += 1;
+          elapsedMs = 5;
+        }
+        return Reflect.get(target, property, receiver) as unknown;
+      }
+    });
+    const handle = createCalculationHandle(createRationalNode(counted), {
+      settings: { maxCalculationTimeMs: 5 },
+      now: () => elapsedMs
+    });
+    const paused = await handle.refine({ significantDigits: 8 });
+    assert.equal(paused.status, "paused");
+    assert.equal(numeratorReads > 0, true);
+    const readsAfterConversion = numeratorReads;
+
+    elapsedMs = 0;
+    const completed = await handle.continue();
+    assert.equal(completed.status, "complete");
+    assert.equal(completed.value.valueExact, true);
+    assert.equal(completed.value.digits.length, 1001);
+    assert.equal(numeratorReads, readsAfterConversion);
   });
 
   void it("completes the large-exponent power-tower regression within its soft budget", async () => {

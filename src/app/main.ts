@@ -369,7 +369,7 @@ const controller = new LiveCalculatorController(calculationClient, render, {
       resultValue: state.resultValue
     });
     repositories.history.save(history.entries);
-    editor.replaceWithResultAns(createAnsToken(entry.id, state.resultText));
+    editor.replaceWithResultAns(createAnsToken(entry.id));
     controller.adoptResultReference(
       entry.id,
       history.snapshotsFor([{ kind: "reference", id: entry.id }]),
@@ -403,12 +403,22 @@ if (Capacitor.isNativePlatform()) {
     if (!navigation.back()) void App.exitApp();
   });
   void App.addListener("appStateChange", ({ isActive }) => {
-    if (!isActive) lifecycle.background();
+    if (!isActive) {
+      editor.suspendNativeFocus();
+      lifecycle.background();
+    } else {
+      editor.restoreNativeFocus();
+    }
   });
 }
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") lifecycle.background();
+  if (document.visibilityState === "hidden") {
+    editor.suspendNativeFocus();
+    lifecycle.background();
+  } else {
+    editor.restoreNativeFocus();
+  }
 });
 window.addEventListener(
   "pagehide",

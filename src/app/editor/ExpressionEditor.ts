@@ -31,6 +31,7 @@ export class ExpressionEditor {
   #composing = false;
   #suppressCompositionInput = false;
   #pointerAnchor: number | null = null;
+  #restoreFocusAfterForeground = false;
 
   constructor(options: ExpressionEditorOptions) {
     this.#onChange = options.onChange;
@@ -65,6 +66,18 @@ export class ExpressionEditor {
 
   focus(): void {
     this.input.focus();
+  }
+
+  suspendNativeFocus(): void {
+    if (document.activeElement !== this.input) return;
+    this.#restoreFocusAfterForeground = true;
+    this.input.blur();
+  }
+
+  restoreNativeFocus(): void {
+    if (!this.#restoreFocusAfterForeground || this.#historyOpen) return;
+    this.#restoreFocusAfterForeground = false;
+    this.input.focus({ preventScroll: true });
   }
 
   attachAnsViewport(viewport: HTMLOutputElement): void {

@@ -9,7 +9,7 @@
 }
 
 body {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100dvh;
   margin: 0;
   overflow: hidden;
@@ -214,7 +214,8 @@ button {
   inset: 0;
   display: flex;
   flex-direction: column;
-  min-width: 320px;
+  min-width: 0;
+  width: 100%;
   background: var(--bc-bg);
   opacity: 0;
   visibility: hidden;
@@ -303,6 +304,7 @@ button {
 }
 .settings-row {
   display: flex;
+  min-width: 0;
   align-items: center;
   min-height: 82px;
   padding: 13px 14px 13px 18px;
@@ -908,6 +910,10 @@ button {
   touch-action: none;
   user-select: none;
 }
+.number-viewport[data-kind="error"],
+.number-viewport[data-representation="displayError"] {
+  touch-action: pan-x;
+}
 
 .number-viewport:focus-visible {
   border-radius: 10px;
@@ -951,9 +957,17 @@ button {
 .number-viewport[data-kind="error"] .number-viewport-content,
 .number-viewport[data-representation="displayError"] .number-viewport-content {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: left;
+  text-overflow: clip;
   white-space: nowrap;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.number-viewport[data-kind="error"] .number-viewport-content::-webkit-scrollbar,
+.number-viewport[data-representation="displayError"] .number-viewport-content::-webkit-scrollbar {
+  display: none;
 }
 
 .calculator-keyboard {
