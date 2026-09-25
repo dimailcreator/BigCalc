@@ -31,6 +31,7 @@ export type {
   FailedResult,
   FormattedNumber,
   InternalCalculationError,
+  InvalidIterationError,
   NumberFormatOptions,
   PausedResult,
   PrecisionError,

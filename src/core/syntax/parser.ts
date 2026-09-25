@@ -1,4 +1,4 @@
-import { syntaxError } from "../errors/index.js";
+import { invalidIterationError, syntaxError } from "../errors/index.js";
 import type { CalcError } from "../errors/index.js";
 import { createCoreRegistry } from "../registry/index.js";
 import type { CoreRegistry } from "../registry/index.js";
@@ -442,10 +442,7 @@ class Parser {
     if (token.kind !== "number" || !token.integerLiteral) {
       return {
         ok: false,
-        error: syntaxError(
-          "Function iteration must be a non-negative integer literal",
-          this.spanOf(token)
-        )
+        error: invalidIterationError(this.spanOf(token))
       };
     }
 

@@ -22,6 +22,8 @@ npm run test:android:lifecycle
 
 The test covers active Worker return from Home, paused and frozen sessions, overlay and Back behavior, software and hardware keyboard input, IME resizing, history and settings after process recreation, a fresh Worker, portrait lock and cutout bounds. It restores the emulator's rotation settings and disables the cutout overlay after the optional cutout run.
 
+Stage 21R changes the IME assertion: tapping the main expression editor keeps Android IME closed while retaining input focus and hardware typing. Both Settings numeric fields still open IME. The lifecycle smoke also checks that Android Back closes History and physical key events edit the expression again afterward. Physical touch and IME confirmation is recorded separately in `STAGE21R_PHYSICAL_DEVICE_CHECKLIST.md`.
+
 On the 320 × 640 Android 15 emulator with gesture navigation enabled, the WebView measured 320 × 592 with system bars, 320 × 395 with the software keyboard, and 320 × 568 with the tall cutout. After process recreation the calculator phase was `idle` with an empty expression, while the saved history and settings were present.
 
 Physical device verification remains part of the later release gate; this stage's lifecycle smoke ran on the emulator.

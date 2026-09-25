@@ -7,6 +7,7 @@ export type {
   DivisionByZeroError,
   DomainError,
   InternalCalculationError,
+  InvalidIterationError,
   PrecisionError,
   ResourceLimitError,
   SourceRange,

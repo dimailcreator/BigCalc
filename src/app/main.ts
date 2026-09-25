@@ -82,6 +82,7 @@ overflowButton.setAttribute("aria-label", "Меню");
 overflowButton.setAttribute("aria-expanded", "false");
 header.append(drawerButton, historyButton, heading, overflowButton);
 const editor = new ExpressionEditor({
+  suppressSoftwareKeyboard: Capacitor.getPlatform() === "android",
   onChange(model) {
     const representation = model.serializeForEvaluation();
     if (representation.kind === "source") controller.setExpression(representation.source);
@@ -252,10 +253,14 @@ shell.addEventListener(
     if (
       navigation.topLayer !== null ||
       moduleHost.activeId !== moduleHost.primaryId ||
-      (event.target instanceof Element && event.target.closest("button, .number-viewport"))
+      (event.target instanceof Element && event.target.closest("button"))
     )
       return;
-    if (event.clientY > header.getBoundingClientRect().bottom + 24) return;
+    if (
+      event.target instanceof Element &&
+      !event.target.closest(".top-bar, .expression-editor, .main-display > .result-output")
+    )
+      return;
     swipeStart = { x: event.clientX, y: event.clientY, time: event.timeStamp };
   },
   { capture: true }
@@ -451,7 +456,7 @@ function renderNavigation(
   if (entries.length < previous.length && (top === null || top === "history")) {
     const last = previous.at(-1);
     if (last?.kind === "layer") {
-      if (last.id === "history") historyButton.focus();
+      if (last.id === "history") editor.focus();
       else if (last.id === "drawer") drawerButton.focus();
       else if (last.id === "overflow" || last.id === "settings" || last.id === "about")
         overflowButton.focus();

@@ -1973,7 +1973,8 @@ Portrait lock.
 ### Keyboard/input
 
 - hardware keyboard;
-- Android software keyboard там, где используется text input;
+- Android software keyboard только для тех text inputs, где она предусмотрена UI;
+- главный expression input BigCalc не должен зависеть от Android software keyboard;
 - Back semantics.
 
 ## Permissions
@@ -1983,6 +1984,259 @@ Portrait lock.
 ## Definition of Done
 
 Основные lifecycle transitions не приводят к зависшему/stale UI state.
+
+---
+
+# ЭТАП 21R. Стабилизация по результатам тестирования на реальном Android-устройстве
+
+## Цель
+
+До performance/accessibility этапов устранить interaction/runtime дефекты, которые проявились на физическом Android-устройстве после Stage 21.
+
+Этот этап является обязательным regression gate между Android hardening и Stage 22.
+
+## 21R.1. Запрет Android software keyboard для главного expression editor
+
+Главный экран BigCalc использует собственную calculator keyboard.
+
+Поэтому для expression input на основном экране:
+
+```text
+tap / cursor reposition / selection
+calculator keyboard button
+hardware keyboard input
+```
+
+не должны открывать Android software keyboard / IME.
+
+Важно:
+
+```text
+запрет относится только к expression input главного калькулятора
+```
+
+Он **не распространяется** на обычные текстовые/числовые поля других экранов приложения.
+
+В частности, поля Settings:
+
+```text
+soft timeout
+numberScrollInertia
+```
+
+могут и должны использовать системную Android keyboard.
+
+Production editor должен сохранять:
+
+- cursor reposition;
+- selection;
+- atomic-token semantics;
+- hardware keyboard input;
+- paste, где он доступен;
+- accessibility focus;
+
+не используя появление Android IME как часть основного calculator flow.
+
+Stage 21 Android tests, которые ожидали открытие IME для expression input, должны быть исправлены: теперь они обязаны проверять, что IME **не открывается** на главном expression editor.
+
+## 21R.2. Ошибка недопустимого function iteration
+
+Expression:
+
+```text
+sin[2,5](0)
+```
+
+структурно распознаётся как попытка function iteration, но значение iteration недопустимо.
+
+Это не должно отображаться пользователю как общий:
+
+```text
+Ошибка синтаксиса
+```
+
+Нужно различить:
+
+```text
+malformed syntax
+```
+
+и:
+
+```text
+распознанная iteration-конструкция с недопустимым значением
+```
+
+Минимальные regression cases:
+
+```text
+sin[2](0)    → valid
+sin[0](0)    → valid
+sin[2,5](0)  → invalid iteration value
+sin[-1](0)   → invalid iteration value
+```
+
+Если для корректной typed error classification требуется Core bugfix, изменение оформляется как контролируемое исправление public Core behavior с соответствующим version/audit update, а не как UI text heuristic по английскому `message`.
+
+## 21R.3. Реальная touch inertia NumberViewport
+
+Stage 12 считается недостаточно проверенным, если после отпускания пальца NumberViewport останавливается мгновенно.
+
+Touch interaction на физическом устройстве должен иметь observable kinetic continuation:
+
+```text
+pointer movement
+    ↓
+velocity estimate
+    ↓
+pointer release
+    ↓
+decelerating inertial movement
+    ↓
+integer logical digit positions
+```
+
+Ограничения:
+
+- математическое состояние остаётся дискретным;
+- DOM не превращается в giant scroll track;
+- движение не может выйти за logical boundaries;
+- `numberScrollInertia` остаётся persistent;
+- коэффициент влияет на gesture → logical displacement;
+- reduced-motion behavior сохраняется.
+
+Desktop mouse simulation не считается достаточным доказательством touch inertia.
+
+## 21R.4. Правая граница конечного NumberViewport
+
+Для exact finite decimal запрещено прокручивать viewport до состояния, в котором справа остаётся свободное место, хотя более ранние цифры могли бы заполнить его.
+
+Regression case:
+
+```text
+10^1000
+```
+
+не должен допускать конечное состояние:
+
+```text
+..0
+```
+
+Правая scroll boundary должна соответствовать **последнему максимально заполненному viewport**, заканчивающемуся последней цифрой числа.
+
+Правило должно быть общим для exact finite decimals, а не special case для степеней десяти.
+
+Добавить model-level tests минимум для:
+
+```text
+10^N
+exact integers длиннее viewport
+exact terminating decimals
+negative exact values
+разных availableSlots
+```
+
+## 21R.5. Swipe-down открытия History на реальном touch
+
+History должна открываться swipe-down из верхней области основного calculator screen согласно `UI_SPEC.md`.
+
+Gesture arbitration должна корректно различать:
+
+```text
+vertical down-swipe → History
+horizontal drag on NumberViewport → NumberViewport scroll
+```
+
+Не полагаться только на desktop mouse `pointerdown/pointerup` simulation.
+
+Проверить минимум:
+
+- медленный swipe-down;
+- быстрый swipe-down;
+- swipe, начинающийся в expression area;
+- swipe, начинающийся в result area;
+- horizontal result drag не открывает History;
+- diagonal gesture выбирает одно действие без двойного срабатывания;
+- `pointercancel`/native Android gesture arbitration не делает feature недоступной.
+
+## 21R.6. Восстановление input state после History
+
+При открытой History обычный ввод в expression editor блокируется, но после закрытия History этот запрет должен быть полностью снят.
+
+Нельзя считать восстановлением только:
+
+```text
+historyOpen = false
+```
+
+Нужно также восстановить корректный input/focus routing для основного calculator screen.
+
+Обязательное поведение:
+
+```text
+до History:
+physical keyboard input работает
+
+History open:
+обычный keyboard editing заблокирован
+
+History close:
+physical keyboard input снова работает сразу
+```
+
+После Stage 21R Android software keyboard для главного expression editor всё равно запрещена, поэтому проверка разблокировки не должна зависеть от повторного открытия IME.
+
+Текущая navigation focus restoration не должна оставлять calculator input недоступным только потому, что focus после закрытия History находится на history button.
+
+Допустимы два архитектурных подхода:
+
+1. вернуть logical focus/input ownership редактору после закрытия History без открытия Android IME;
+2. маршрутизировать поддерживаемые physical keyboard events на активный main calculator editor на уровне app shell, независимо от DOM focus на navigation button.
+
+Выбранный вариант должен сохранять:
+
+- доступность navigation buttons;
+- keyboard navigation;
+- cursor/selection state редактора;
+- отсутствие Android IME на главном expression input;
+- отсутствие ввода в editor, пока History открыта.
+
+Проверить также закрытие History через:
+
+- кнопку History;
+- Android Back;
+- browser Back/popstate.
+
+## Тесты
+
+Добавить/обновить:
+
+- unit tests для iteration error classification;
+- NumberViewport boundary tests;
+- NumberViewport touch-motion tests;
+- browser gesture tests;
+- history input-lock/unlock tests для physical keyboard;
+- Android lifecycle/smoke assertion, что главный expression editor не открывает IME;
+- Android/device regression: после History physical keyboard снова работает;
+- отдельный physical-device checklist для inertia и History swipe.
+
+Настройки и другие обычные text inputs отдельно проверить на сохранение Android software keyboard.
+
+## Definition of Done
+
+Этап завершён только если на физическом Android-устройстве подтверждено одновременно:
+
+1. экранная calculator keyboard не вызывает Android IME на главном expression editor;
+2. hardware keyboard продолжает вводить поддерживаемые calculator symbols;
+3. Settings inputs по-прежнему могут открывать Android IME;
+4. `sin[2,5](0)` не отображается как общий syntax error;
+5. после быстрого touch-swipe NumberViewport продолжает движение после отпускания пальца;
+6. exact finite numbers останавливаются на последнем полном допустимом viewport;
+7. swipe-down History стабильно работает и не конфликтует с горизонтальной прокруткой числа;
+8. после закрытия History обычный input state восстанавливается, и physical keyboard снова вводит выражение;
+9. Core/App regression suites проходят;
+10. debug APK собирается и повторный physical-device smoke не воспроизводит шесть исходных дефектов.
 
 ---
 
@@ -2305,6 +2559,8 @@ CalculatorModule boundary
     ↓
 21 Android hardening
     ↓
+21R Real-device stabilization
+    ↓
 22 Performance/resource tests
     ↓
 23 Accessibility
@@ -2393,7 +2649,9 @@ CalculatorModule boundary
 Этапы:
 
 ```text
-20–23
+20–21
+21R
+22–23
 ```
 
 Есть:
@@ -2669,6 +2927,7 @@ history open state
 48. Core regression suite проходит.
 49. App regression suite проходит.
 50. Нет известного нарушения `CORE_SPEC.md`, `UI_SPEC.md` или `DESIGN_SPEC.md`.
+51. Android software keyboard не открывается для expression input главного BigCalc screen, но остаётся доступной обычным text inputs, включая Settings.
 
 ---
 
@@ -2777,6 +3036,8 @@ design integration
 module framework
     ↓
 Android hardening
+    ↓
+real-device stabilization
     ↓
 release
 ```

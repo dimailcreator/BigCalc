@@ -17,6 +17,7 @@ export function isDivisionByZeroError(error: unknown): error is DivisionByZeroEr
 function isCalcErrorCode(code: unknown): code is CalcErrorCode {
   switch (code) {
     case "SyntaxError":
+    case "InvalidIterationError":
     case "UnknownIdentifierError":
     case "AmbiguousIdentifierError":
     case "DomainError":

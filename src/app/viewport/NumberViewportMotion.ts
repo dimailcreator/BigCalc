@@ -1,7 +1,14 @@
 import { isValidInertia } from "../settings/NumberScrollInertia.js";
 
-const MOMENTUM_THRESHOLD_PX_PER_MS = 0.35;
-const MOMENTUM_HORIZON_MS = 150;
+const MOMENTUM_THRESHOLD_PX_PER_MS = 0.12;
+const MOMENTUM_HORIZON_MS = 240;
+export const MOMENTUM_DURATION_MS = 320;
+
+/** A monotone slowdown; the viewport itself remains on integer digit positions. */
+export function momentumProgress(elapsedMs: number): number {
+  const progress = Math.max(0, Math.min(1, elapsedMs / MOMENTUM_DURATION_MS));
+  return 1 - (1 - progress) ** 3;
+}
 
 export function dragDigitSteps(distancePx: number, slotWidthPx: number, inertia: number): number {
   validateMotion(distancePx, slotWidthPx, inertia);

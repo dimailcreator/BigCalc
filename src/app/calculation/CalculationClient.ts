@@ -485,6 +485,7 @@ function isCalcError(value: unknown): boolean {
 
   switch (value.code) {
     case "SyntaxError":
+    case "InvalidIterationError":
     case "DivisionByZeroError":
     case "CancelledError":
     case "InternalCalculationError":

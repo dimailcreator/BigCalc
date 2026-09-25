@@ -80,6 +80,7 @@ interface CalcErrorDtoBase {
 
 export type CalcErrorDtoCode =
   | "SyntaxError"
+  | "InvalidIterationError"
   | "UnknownIdentifierError"
   | "AmbiguousIdentifierError"
   | "DomainError"
@@ -91,6 +92,10 @@ export type CalcErrorDtoCode =
 
 export interface SyntaxErrorDto extends CalcErrorDtoBase {
   readonly code: "SyntaxError";
+}
+
+export interface InvalidIterationErrorDto extends CalcErrorDtoBase {
+  readonly code: "InvalidIterationError";
 }
 
 export interface UnknownIdentifierErrorDto extends CalcErrorDtoBase {
@@ -133,6 +138,7 @@ export interface InternalCalculationErrorDto extends CalcErrorDtoBase {
 
 export type CalcErrorDto =
   | SyntaxErrorDto
+  | InvalidIterationErrorDto
   | UnknownIdentifierErrorDto
   | AmbiguousIdentifierErrorDto
   | DomainErrorDto

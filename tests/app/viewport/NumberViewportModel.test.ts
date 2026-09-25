@@ -93,7 +93,8 @@ describe("NumberViewport model", () => {
       logicalStart: 999_999n
     });
     expect(final.representation).toBe("decimal");
-    expect(final.text.trim()).toBe("..00");
+    expect(final.text.trim()).toBe(".." + "0".repeat(17));
+    expect(final.logicalStart).toBe(999_984n);
     expect(final.exactEndIndex).toBe(1_000_000n);
     expect(final.canScrollRight).toBe(false);
     expect(final.precisionDemand).toBeNull();
@@ -103,7 +104,38 @@ describe("NumberViewport model", () => {
         availableSlots: 18,
         logicalStart: 1_000_100n
       }).logicalStart
-    ).toBe(1_000_000n);
+    ).toBe(999_984n);
+  });
+
+  it("stops all finite values at their last maximally filled window", () => {
+    for (const slots of [8, 12, 18]) {
+      for (const value of [
+        exact("1", 1000n),
+        exact("123456789012345678901234567890", 29n),
+        exact("123456789012345678901234567890", 2n),
+        { ...exact("98765432109876543210", 19n), sign: -1 as const }
+      ]) {
+        const last = createNumberViewportModel({
+          value,
+          availableSlots: slots,
+          logicalStart: 2000n
+        });
+        expect(last.lastDigitIndex).toBe(last.exactEndIndex);
+        expect(last.canScrollRight).toBe(false);
+        const earlier = createNumberViewportModel({
+          value,
+          availableSlots: slots,
+          logicalStart: last.logicalStart - 1n
+        });
+        if (earlier.logicalStart < last.logicalStart) {
+          expect(
+            earlier.lastDigitIndex !== null &&
+              last.exactEndIndex !== null &&
+              earlier.lastDigitIndex < last.exactEndIndex
+          ).toBe(true);
+        }
+      }
+    }
   });
 
   it("handles small and negative values and rejects too-long exponents", () => {

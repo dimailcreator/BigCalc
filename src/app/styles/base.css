@@ -752,6 +752,7 @@ button {
 }
 
 .main-display {
+  touch-action: none;
   display: flex;
   flex-direction: column;
   justify-content: end;
@@ -899,7 +900,7 @@ button {
 .number-viewport {
   position: relative;
   text-overflow: clip;
-  touch-action: pan-y;
+  touch-action: none;
   user-select: none;
 }
 

@@ -469,6 +469,7 @@ function serializeCalcError(error: CalcError): CalcErrorDto {
 
   switch (error.code) {
     case "SyntaxError":
+    case "InvalidIterationError":
     case "DivisionByZeroError":
     case "CancelledError":
     case "InternalCalculationError":

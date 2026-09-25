@@ -58,6 +58,7 @@ export interface SourceRange {
 
 export type CalcError =
   | SyntaxError
+  | InvalidIterationError
   | UnknownIdentifierError
   | AmbiguousIdentifierError
   | DomainError
@@ -76,6 +77,7 @@ export interface CalcErrorBase {
 
 export type CalcErrorCode =
   | "SyntaxError"
+  | "InvalidIterationError"
   | "UnknownIdentifierError"
   | "AmbiguousIdentifierError"
   | "DomainError"
@@ -87,6 +89,10 @@ export type CalcErrorCode =
 
 export interface SyntaxError extends CalcErrorBase {
   readonly code: "SyntaxError";
+}
+
+export interface InvalidIterationError extends CalcErrorBase {
+  readonly code: "InvalidIterationError";
 }
 
 export interface UnknownIdentifierError extends CalcErrorBase {

@@ -181,14 +181,24 @@ void describe("parser malformed input", () => {
     "sin",
     "sin()",
     "sin(1;)",
-    "sin[1,5](2)",
-    "sin[-1](2)",
     "sin[2(1)",
     "log{2+}(8)",
     "log(1;2)",
     "1;",
     "2**3"
   ];
+
+  for (const source of ["sin[2,5](0)", "sin[-1](0)"]) {
+    void it(`classifies invalid iteration value in ${source}`, () => {
+      assert.equal(parseErrorCode(source), "InvalidIterationError");
+    });
+  }
+
+  for (const source of ["sin[2](0)", "sin[0](0)"]) {
+    void it(`accepts non-negative integer iteration in ${source}`, () => {
+      parseOk(source);
+    });
+  }
 
   for (const source of syntaxErrors) {
     void it(`rejects ${source.length === 0 ? "<empty>" : source}`, () => {

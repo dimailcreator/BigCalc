@@ -38,6 +38,8 @@ export function formatCalculationError(error: CalcErrorDto): string {
       return "Деление на ноль запрещено";
     case "SyntaxError":
       return "Ошибка синтаксиса";
+    case "InvalidIterationError":
+      return "Недопустимое число итераций функции";
     case "UnknownIdentifierError":
       return "Неизвестный идентификатор";
     case "AmbiguousIdentifierError":

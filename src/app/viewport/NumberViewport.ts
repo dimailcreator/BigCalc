@@ -2,7 +2,12 @@ import type { VerifiedNumberDto } from "../calculation/CalculationProtocol.js";
 import { isValidInertia } from "../settings/NumberScrollInertia.js";
 import { createNumberViewportModel } from "./NumberViewportModel.js";
 import type { NumberViewportView } from "./NumberViewportModel.js";
-import { dragDigitSteps, momentumDigitSteps } from "./NumberViewportMotion.js";
+import {
+  dragDigitSteps,
+  momentumDigitSteps,
+  momentumProgress,
+  MOMENTUM_DURATION_MS
+} from "./NumberViewportMotion.js";
 
 export interface NumberViewportOptions {
   readonly inertia: number;
@@ -240,8 +245,8 @@ export class NumberViewport {
     const start = this.#logicalStart;
     const startedAt = performance.now();
     const tick = (now: number): void => {
-      const progress = Math.min(1, (now - startedAt) / 180);
-      const eased = 1 - (1 - progress) ** 3;
+      const progress = Math.min(1, (now - startedAt) / MOMENTUM_DURATION_MS);
+      const eased = momentumProgress(now - startedAt);
       this.#moveTo(start + BigInt(Math.round(steps * eased)));
       if (progress < 1) this.#momentumFrame = requestAnimationFrame(tick);
       else this.#momentumFrame = null;

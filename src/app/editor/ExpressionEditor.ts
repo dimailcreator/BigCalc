@@ -13,6 +13,7 @@ const functionKeyNames = new Set<string>(FUNCTION_KEY_NAMES);
 export interface ExpressionEditorOptions {
   readonly onChange: (model: ExpressionModel) => void;
   readonly onEnter: () => void;
+  readonly suppressSoftwareKeyboard?: boolean;
 }
 
 /** Browser input is an event channel; ExpressionModel owns all content and selection. */
@@ -42,7 +43,7 @@ export class ExpressionEditor {
     this.input = document.createElement("input");
     this.input.className = "expression-input";
     this.input.type = "text";
-    this.input.inputMode = "text";
+    this.input.inputMode = options.suppressSoftwareKeyboard ? "none" : "text";
     this.input.autocomplete = "off";
     this.input.spellcheck = false;
     this.input.setAttribute("aria-label", "Выражение");

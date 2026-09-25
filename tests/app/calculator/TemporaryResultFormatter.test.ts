@@ -39,6 +39,13 @@ describe("temporary result formatting", () => {
 
     expect(formatCalculationError(divisionByZero)).toBe("Деление на ноль запрещено");
     expect(formatCalculationError(syntax)).toBe("Ошибка синтаксиса");
+    expect(
+      formatCalculationError({
+        kind: "calc-error",
+        code: "InvalidIterationError",
+        message: "arbitrary Core wording"
+      })
+    ).toBe("Недопустимое число итераций функции");
   });
 });
 

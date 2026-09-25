@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import * as api from "../src/core/api.js";
 import type { CalculationOptions, CalculationSettings, RefinementResult } from "../src/core/api.js";
 
-void describe("Core public API 1.1 with preserved source-only behavior", () => {
+void describe("Core public API 1.2 with preserved source-only behavior", () => {
   void it("exports only the documented runtime surface", () => {
     assert.deepEqual(Object.keys(api).sort(), [
       "CORE_PUBLIC_API_VERSION",
@@ -15,7 +15,7 @@ void describe("Core public API 1.1 with preserved source-only behavior", () => {
       "createCoreSmokeProbe",
       "formatVerifiedNumber"
     ]);
-    assert.equal(api.CORE_PUBLIC_API_VERSION, "1.1.0");
+    assert.equal(api.CORE_PUBLIC_API_VERSION, "1.2.0");
     assert.equal(api.CORE_STAGE, "stage-38");
   });
 
@@ -76,6 +76,22 @@ void describe("Core public API 1.1 with preserved source-only behavior", () => {
     const result = await created.handle.refine({ significantDigits: 10 });
     if (result.status !== "failed") assert.fail(`Expected failure, got ${result.status}`);
     assert.equal(result.error.code, "DivisionByZeroError");
+  });
+
+  void it("classifies recognized invalid iteration values through the public boundary", () => {
+    for (const source of ["sin[2,5](0)", "sin[-1](0)"]) {
+      const created = api.createCalculationHandle(source);
+      if (created.ok) assert.fail(`Expected invalid iteration: ${source}`);
+      assert.equal(created.error.code, "InvalidIterationError");
+    }
+    for (const source of ["sin[0](0)", "sin[2](0)"]) {
+      const created = api.createCalculationHandle(source);
+      if (!created.ok) assert.fail(created.error.message);
+      created.handle.cancel();
+    }
+    const malformed = api.createCalculationHandle("sin[2(0)");
+    if (malformed.ok) assert.fail("Expected malformed syntax");
+    assert.equal(malformed.error.code, "SyntaxError");
   });
 
   void it("supports pause and cancellation through the public handle", async () => {

@@ -4,6 +4,7 @@ import type {
   DivisionByZeroError,
   DomainError,
   InternalCalculationError,
+  InvalidIterationError,
   PrecisionError,
   RegistryConfigurationError,
   ResourceLimitError,
@@ -21,6 +22,17 @@ function withRange<T extends { readonly range?: SourceRange }>(
 
 export function syntaxError(message: string, range?: SourceRange): SyntaxError {
   return withRange({ kind: "calc-error", code: "SyntaxError", message }, range);
+}
+
+export function invalidIterationError(range?: SourceRange): InvalidIterationError {
+  return withRange(
+    {
+      kind: "calc-error",
+      code: "InvalidIterationError",
+      message: "Function iteration must be a non-negative integer literal"
+    },
+    range
+  );
 }
 
 export function unknownIdentifierError(

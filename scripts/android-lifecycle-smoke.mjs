@@ -151,6 +151,29 @@ try {
   );
   results.softwareKeyboardBack = true;
 
+  const inertiaCenter = await evaluate(`(() => {
+    const r = document.querySelector('input[aria-label="Инерция прокрутки чисел"]').getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  })()`);
+  await refreshWebViewScreenY();
+  adbOutput([
+    "shell",
+    "input",
+    "tap",
+    String(inertiaCenter.x),
+    String(inertiaCenter.y + webViewScreenY)
+  ]);
+  await waitFor(
+    () => /mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
+    10_000
+  );
+  results.inertiaSettingsIme = true;
+  adbOutput(["shell", "input", "keyevent", "4"]);
+  await waitFor(
+    () => !/mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
+    5_000
+  );
+
   await returnFromHome();
   assert(
     await evaluate('document.querySelector(".settings-screen")?.dataset.open === "true"'),
@@ -249,21 +272,20 @@ try {
     String(expressionCenter.x),
     String(expressionCenter.y + webViewScreenY)
   ]);
-  await waitFor(
-    () => /mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
-    10_000
-  );
-  await waitFor(() => evaluate(`innerHeight <= ${initial.innerHeight - 100}`), 5_000);
+  await delay(600);
   results.expressionIme = await evaluate(`(() => ({
-    inputBottom: document.querySelector(".expression-input").getBoundingClientRect().bottom,
+    focused: document.activeElement?.classList.contains("expression-input"),
+    inputMode: document.querySelector(".expression-input")?.inputMode,
+    innerHeight,
     viewportHeight: visualViewport.height
   }))()`);
   assert(
-    results.expressionIme.inputBottom <= results.expressionIme.viewportHeight,
-    `expression input is obscured by IME: ${JSON.stringify(results.expressionIme)}`
+    results.expressionIme.focused &&
+      results.expressionIme.inputMode === "none" &&
+      results.expressionIme.innerHeight === initial.innerHeight &&
+      !/mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
+    `expression tap opened IME or lost focus: ${JSON.stringify(results.expressionIme)}`
   );
-  adbOutput(["shell", "input", "keyevent", "4"]);
-  await waitFor(() => evaluate(`innerHeight === ${initial.innerHeight}`), 5_000);
   await evaluate('document.querySelector(".keyboard-key-ac")?.click()');
   adbOutput(["shell", "input", "text", "7+8"]);
   await waitFor(() =>
@@ -271,6 +293,69 @@ try {
       document.querySelector(".main-display > .result-output")?.textContent?.trim() === "15")()`)
   );
   results.hardwareKeyboard = true;
+  await evaluate('document.querySelector(".history-toggle")?.click()');
+  await waitFor(() =>
+    evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "true"')
+  );
+  adbOutput(["shell", "input", "text", "9"]);
+  await delay(200);
+  assert(
+    await evaluate('document.querySelector(".expression-input")?.value === "7+8"'),
+    "physical input edited expression while History was open"
+  );
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (
+      await evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "false"')
+    )
+      break;
+    adbOutput(["shell", "input", "keyevent", "4"]);
+    await delay(300);
+  }
+  assert(
+    await evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "false"'),
+    `Android Back did not close History: ${JSON.stringify({
+      ime: /mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
+      focused: await evaluate("document.activeElement?.className")
+    })}`
+  );
+  adbOutput(["shell", "input", "text", "9"]);
+  await waitFor(() => evaluate('document.querySelector(".expression-input")?.value === "7+89"'));
+  results.historyKeyboardRestored = true;
+  await setExpression("1/3");
+  await waitFor(() =>
+    evaluate('document.querySelector(".main-display > .result-output")?.dataset.kind === "value"')
+  );
+  const resultCenter = await evaluate(`(() => {
+    const r = document.querySelector(".main-display > .result-output").getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  })()`);
+  await touchSwipe(resultCenter, { x: resultCenter.x - 95, y: resultCenter.y }, 20);
+  const releasedDigit = BigInt(
+    await evaluate('document.querySelector(".main-display > .result-output")?.dataset.logicalStart')
+  );
+  await waitFor(
+    async () =>
+      BigInt(
+        await evaluate(
+          'document.querySelector(".main-display > .result-output")?.dataset.logicalStart'
+        )
+      ) > releasedDigit,
+    2_000
+  );
+  assert(
+    await evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "false"'),
+    "horizontal result touch opened History"
+  );
+  results.touchInertia = true;
+  await touchSwipe(resultCenter, { x: resultCenter.x + 2, y: resultCenter.y + 80 }, 60);
+  await waitFor(() =>
+    evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "true"')
+  );
+  results.touchHistory = true;
+  await evaluate('document.querySelector(".history-toggle")?.click()');
+  await waitFor(() =>
+    evaluate('document.querySelector(".calculator-shell")?.dataset.historyOpen === "false"')
+  );
   if (/mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"]))) {
     adbOutput(["shell", "input", "keyevent", "4"]);
   }
@@ -407,6 +492,22 @@ async function setExpression(source) {
     input.value = ${JSON.stringify(source)};
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
   })()`);
+}
+
+async function touchSwipe(from, to, stepDelayMs) {
+  const point = (x, y) => [{ x: Math.round(x), y: Math.round(y), id: 1 }];
+  await client.Input.dispatchTouchEvent({ type: "touchStart", touchPoints: point(from.x, from.y) });
+  for (let step = 1; step <= 4; step += 1) {
+    await delay(stepDelayMs);
+    await client.Input.dispatchTouchEvent({
+      type: "touchMove",
+      touchPoints: point(
+        from.x + ((to.x - from.x) * step) / 4,
+        from.y + ((to.y - from.y) * step) / 4
+      )
+    });
+  }
+  await client.Input.dispatchTouchEvent({ type: "touchEnd", touchPoints: [] });
 }
 
 async function startActiveWorker(assetName) {

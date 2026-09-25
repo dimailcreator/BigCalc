@@ -110,7 +110,11 @@ export function createNumberViewportModel(input: NumberViewportInput): NumberVie
     ? possibleInitial
     : 0n;
   const requested = input.logicalStart ?? initialStart;
-  const logicalStart = clamp(requested, initialStart, exactEndIndex);
+  const rightBoundary =
+    exactEndIndex === null
+      ? null
+      : lastFilledStart(value, initialStart, exactEndIndex, availableSlots, computedEnd);
+  const logicalStart = clamp(requested, initialStart, rightBoundary);
   const decimal = decimalLayout(value, logicalStart, availableSlots, computedEnd, exactEndIndex);
   const layout = decimalUsable(decimal, value.exponent10, exactEndIndex)
     ? decimal
@@ -138,6 +142,25 @@ export function createNumberViewportModel(input: NumberViewportInput): NumberVie
     canScrollRight,
     precisionDemand
   );
+}
+
+/** Find the earliest final window that still contains the last finite digit. */
+function lastFilledStart(
+  value: VerifiedNumberDto,
+  initialStart: bigint,
+  end: bigint,
+  slots: number,
+  computedEnd: number
+): bigint {
+  const first = end - BigInt(slots) > initialStart ? end - BigInt(slots) : initialStart;
+  for (let start = first; start <= end; start += 1n) {
+    const decimal = decimalLayout(value, start, slots, computedEnd, end);
+    const layout = decimalUsable(decimal, value.exponent10, end)
+      ? decimal
+      : scientificLayout(value, start, slots, computedEnd, end);
+    if (layout?.lastDigitIndex === end) return start;
+  }
+  return end;
 }
 
 /** Before the first result reveals its exponent, one slot can need at most one digit. */

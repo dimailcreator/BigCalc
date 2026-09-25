@@ -72,13 +72,18 @@ may naturally contain fewer digits.
 
 ## Stability boundary
 
-`CORE_PUBLIC_API_VERSION` is `1.0.0`. The package root exports only:
+`CORE_PUBLIC_API_VERSION` is `1.2.0`. The package root exports only:
 
 - `createCalculationHandle`;
+- `createCalculationHandleFromSegments` for saved references with their original settings;
 - `formatVerifiedNumber`;
 - `DEFAULT_CALCULATION_SETTINGS`;
 - `CORE_PUBLIC_API_VERSION`, `CORE_STAGE`, and `createCoreSmokeProbe`;
 - the TypeScript contracts needed by those values.
+
+Core API 1.2 adds `InvalidIterationError` for a recognized function iteration whose
+value is not a non-negative integer literal. Malformed syntax remains `SyntaxError`.
+The source-only `createCalculationHandle` contract is unchanged.
 
 Files under `src/core`, generated internal modules under `dist/core`, Worker transport,
 history infrastructure, registry callbacks, AST, `Rational`, `LazyReal`, `Ball`, and the
