@@ -19,6 +19,8 @@ test("a registered calculator screen mounts and switches without changing the ap
     const secondary = defineCalculatorModule({
       id: "test",
       title: "Test calculator",
+      keyboardLayout: ["untrusted module key"],
+      history: ["untrusted module entry"],
       fields: [
         { id: "input", role: "input", label: "Input", description: "Test input" },
         { id: "output", role: "output", label: "Output" }
@@ -36,7 +38,10 @@ test("a registered calculator screen mounts and switches without changing the ap
     shell.className = "calculator-shell";
     const primaryDisplay = globalThis.document.createElement("section");
     primaryDisplay.className = "main-display";
-    shell.append(primaryDisplay);
+    const keyboard = globalThis.document.createElement("section");
+    keyboard.className = "calculator-keyboard";
+    keyboard.textContent = "Application keyboard";
+    shell.append(primaryDisplay, keyboard);
     globalThis.document.body.append(shell);
     const surface = new CalculatorModuleSurface(shell, host);
     const testScreen = host.screens[0].root;
@@ -49,7 +54,11 @@ test("a registered calculator screen mounts and switches without changing the ap
       testVisible: globalThis.getComputedStyle(testScreen).display !== "none",
       moduleId: shell.dataset.activeModule,
       primaryActive: shell.dataset.primaryActive,
-      fieldRoles: secondary.fields.map((field) => field.role)
+      fieldRoles: secondary.fields.map((field) => field.role),
+      moduleContractKeys: Object.keys(secondary).sort(),
+      keyboardUnchanged:
+        keyboard.parentElement === shell && keyboard.textContent === "Application keyboard",
+      historySurfaces: shell.querySelectorAll(".history-panel").length
     };
     host.dispose();
     shell.remove();
@@ -62,7 +71,10 @@ test("a registered calculator screen mounts and switches without changing the ap
       testVisible: true,
       moduleId: "test",
       primaryActive: "false",
-      fieldRoles: ["input", "output"]
+      fieldRoles: ["input", "output"],
+      moduleContractKeys: ["createRuntime", "fields", "id", "title"],
+      keyboardUnchanged: true,
+      historySurfaces: 0
     }
   });
 });

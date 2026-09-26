@@ -1640,7 +1640,6 @@ UI считается корректным только если выполня�
 - exact animation timings;
 - exact icon set;
 - visual style timeout dialog;
-- auto-insert `(` после function key;
 - точный mapping всех Core error types на русский текст;
 - окончательный третий number representation для сверхдлинных exponent;
 - поведение custom calculator keyboard, кроме запрета module управлять layout;

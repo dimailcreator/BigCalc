@@ -20,6 +20,7 @@ if (workerAsset === undefined) throw new Error("Production Worker asset was not 
 let client;
 let Runtime;
 let webViewScreenY = 0;
+let webViewPixelRatio = 1;
 const results = {};
 
 try {
@@ -36,11 +37,14 @@ try {
   );
   assert(initial.top >= 12, `header has no safe padding: ${JSON.stringify(initial)}`);
   assert(
-    initial.bottom <= initial.innerHeight - 16,
+    initial.shellPaddingBottom >= 16 &&
+      initial.shellBottom - initial.bottom >= initial.shellPaddingBottom - 0.5 &&
+      initial.shellBottom <= initial.innerHeight + 1,
     `keyboard has no safe padding: ${JSON.stringify(initial)}`
   );
   results.safeArea = initial;
 
+  await ensureInitialCalculationBudget();
   await setExpression("2+3");
   await waitFor(() =>
     evaluate('document.querySelector(".main-display")?.dataset.phase === "completed"')
@@ -129,13 +133,8 @@ try {
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
   })()`);
   await refreshWebViewScreenY();
-  adbOutput([
-    "shell",
-    "input",
-    "tap",
-    String(inputCenter.x),
-    String(inputCenter.y + webViewScreenY)
-  ]);
+  const inputDevicePoint = devicePoint(inputCenter);
+  adbOutput(["shell", "input", "tap", String(inputDevicePoint.x), String(inputDevicePoint.y)]);
   try {
     await waitFor(
       () => /mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
@@ -201,13 +200,8 @@ try {
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
   })()`);
   await refreshWebViewScreenY();
-  adbOutput([
-    "shell",
-    "input",
-    "tap",
-    String(inertiaCenter.x),
-    String(inertiaCenter.y + webViewScreenY)
-  ]);
+  const inertiaDevicePoint = devicePoint(inertiaCenter);
+  adbOutput(["shell", "input", "tap", String(inertiaDevicePoint.x), String(inertiaDevicePoint.y)]);
   await waitFor(
     () => /mInputShown=true/u.test(adbOutput(["shell", "dumpsys", "input_method"])),
     10_000
@@ -310,12 +304,13 @@ try {
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
   })()`);
   await refreshWebViewScreenY();
+  const expressionDevicePoint = devicePoint(expressionCenter);
   adbOutput([
     "shell",
     "input",
     "tap",
-    String(expressionCenter.x),
-    String(expressionCenter.y + webViewScreenY)
+    String(expressionDevicePoint.x),
+    String(expressionDevicePoint.y)
   ]);
   await delay(600);
   results.expressionIme = await evaluate(`(() => ({
@@ -385,15 +380,17 @@ try {
     }, { once: true });
   })()`);
   await refreshWebViewScreenY();
+  const horizontalStart = devicePoint(resultCenter);
+  const horizontalEnd = devicePoint({ x: resultCenter.x - 95, y: resultCenter.y });
   adbOutput([
     "shell",
     "input",
     "touchscreen",
     "swipe",
-    String(resultCenter.x),
-    String(resultCenter.y + webViewScreenY),
-    String(resultCenter.x - 95),
-    String(resultCenter.y + webViewScreenY),
+    String(horizontalStart.x),
+    String(horizontalStart.y),
+    String(horizontalEnd.x),
+    String(horizontalEnd.y),
     "80"
   ]);
   await waitFor(() => evaluate("globalThis.__stage21Inertia.after !== null"), 5_000);
@@ -407,15 +404,16 @@ try {
     "horizontal result touch opened History"
   );
   results.touchInertia = true;
+  const verticalEnd = devicePoint({ x: resultCenter.x + 2, y: resultCenter.y + 80 });
   adbOutput([
     "shell",
     "input",
     "touchscreen",
     "swipe",
-    String(resultCenter.x),
-    String(resultCenter.y + webViewScreenY),
-    String(resultCenter.x + 2),
-    String(resultCenter.y + 80 + webViewScreenY),
+    String(horizontalStart.x),
+    String(horizontalStart.y),
+    String(verticalEnd.x),
+    String(verticalEnd.y),
     "180"
   ]);
   await waitFor(() =>
@@ -542,7 +540,16 @@ async function geometry() {
   return evaluate(`(() => {
     const header = document.querySelector(".top-bar").getBoundingClientRect();
     const keyboard = document.querySelector(".calculator-keyboard").getBoundingClientRect();
-    return { top: header.top, bottom: keyboard.bottom, innerWidth, innerHeight, screenHeight: screen.height };
+    const shell = document.querySelector(".calculator-shell");
+    return {
+      top: header.top,
+      bottom: keyboard.bottom,
+      shellBottom: shell.getBoundingClientRect().bottom,
+      shellPaddingBottom: parseFloat(getComputedStyle(shell).paddingBottom),
+      innerWidth,
+      innerHeight,
+      screenHeight: screen.height
+    };
   })()`);
 }
 
@@ -553,6 +560,14 @@ async function refreshWebViewScreenY() {
   );
   if (target === undefined) throw new Error("BigCalc WebView disappeared");
   webViewScreenY = JSON.parse(target.description).screenY;
+  webViewPixelRatio = await evaluate("devicePixelRatio");
+}
+
+function devicePoint({ x, y }) {
+  return {
+    x: Math.round(x * webViewPixelRatio),
+    y: Math.round(y * webViewPixelRatio + webViewScreenY)
+  };
 }
 
 async function setExpression(source) {
@@ -628,18 +643,59 @@ async function openSettings() {
   );
 }
 
+async function ensureInitialCalculationBudget() {
+  const timeLimit = await evaluate(`(() => {
+    try {
+      return JSON.parse(localStorage.getItem("bigcalc.app.settings.v1"))?.maxCalculationTimeMs;
+    } catch {
+      return null;
+    }
+  })()`);
+  if (timeLimit !== 0) return;
+  await openSettings();
+  await evaluate(`(() => {
+    const input = document.querySelector('input[aria-label="Лимит непрерывного вычисления, секунды"]');
+    input.value = "5";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  })()`);
+  await waitFor(() =>
+    evaluate(
+      'JSON.parse(localStorage.getItem("bigcalc.app.settings.v1"))?.maxCalculationTimeMs === 5000'
+    )
+  );
+  await evaluate('document.querySelector(".settings-back")?.click()');
+  await waitFor(() =>
+    evaluate('document.querySelector(".settings-screen")?.dataset.open === "false"')
+  );
+}
+
 async function foreground() {
   adbOutput(["shell", "am", "start", "-n", "com.bigcalc.app/.MainActivity"]);
   await delay(700);
 }
 
 async function returnFromHome() {
+  const homePackage = adbOutput([
+    "shell",
+    "cmd",
+    "package",
+    "resolve-activity",
+    "--brief",
+    "-a",
+    "android.intent.action.MAIN",
+    "-c",
+    "android.intent.category.HOME"
+  ])
+    .split(/\r?\n/u)
+    .at(-1)
+    ?.split("/")[0];
+  assert(homePackage, "Android HOME launcher was not resolved");
   adbOutput(["shell", "input", "keyevent", "KEYCODE_HOME"]);
   await waitFor(
     () =>
-      /(?:topResumedActivity|ResumedActivity|mFocusedApp)=.*com\.google\.android\.apps\.nexuslauncher/u.test(
-        adbOutput(["shell", "dumpsys", "activity", "activities"])
-      ),
+      adbOutput(["shell", "dumpsys", "activity", "activities"])
+        .match(/(?:topResumedActivity|ResumedActivity|mFocusedApp)=([^\r\n]+)/u)?.[1]
+        ?.includes(homePackage) === true,
     10_000
   );
   await delay(600);
