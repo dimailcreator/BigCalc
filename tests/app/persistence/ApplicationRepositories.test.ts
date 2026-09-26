@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createApplicationRepositories } from "../../../src/app/persistence/ApplicationRepositories.js";
 import { SETTINGS_STORAGE_KEY } from "../../../src/app/persistence/LocalSettingsRepository.js";
 import { MathModeStore } from "../../../src/app/settings/MathModeStore.js";
-import { NumberScrollInertiaStore } from "../../../src/app/settings/NumberScrollInertiaStore.js";
+import {
+  LEGACY_NUMBER_SCROLL_INERTIA_KEY,
+  NumberScrollInertiaStore
+} from "../../../src/app/settings/NumberScrollInertiaStore.js";
 import { DEFAULT_APP_SETTINGS } from "../../../src/app/state/AppState.js";
 import type { CalculationHistoryEntry } from "../../../src/app/history/CalculationHistory.js";
 
@@ -89,27 +92,39 @@ describe("application repositories", () => {
     expect(createApplicationRepositories(storage).settings.load()).toEqual(migrated);
   });
 
-  it("rejects persisted inertia outside the Settings control range", () => {
+  it.each([0.1, 100])("round-trips the inclusive inertia boundary %s", (value) => {
     const storage = new MemoryStorage();
     const repositories = createApplicationRepositories(storage);
-    expect(repositories.settings.save({ ...DEFAULT_APP_SETTINGS, numberScrollInertia: 4 })).toBe(
-      false
-    );
-    storage.setItem(
-      SETTINGS_STORAGE_KEY,
-      JSON.stringify({
-        schemaVersion: 1,
-        ...DEFAULT_APP_SETTINGS,
-        numberScrollInertia: 4
-      })
-    );
-    expect(repositories.settings.load()).toEqual(DEFAULT_APP_SETTINGS);
+    expect(
+      repositories.settings.save({ ...DEFAULT_APP_SETTINGS, numberScrollInertia: value })
+    ).toBe(true);
+    expect(createApplicationRepositories(storage).settings.load().numberScrollInertia).toBe(value);
   });
+
+  it.each([0.09, 100.01, Number.NaN])(
+    "rejects persisted inertia outside the Settings control range: %s",
+    (value) => {
+      const storage = new MemoryStorage();
+      const repositories = createApplicationRepositories(storage);
+      expect(
+        repositories.settings.save({ ...DEFAULT_APP_SETTINGS, numberScrollInertia: value })
+      ).toBe(false);
+      storage.setItem(
+        SETTINGS_STORAGE_KEY,
+        JSON.stringify({
+          schemaVersion: 1,
+          ...DEFAULT_APP_SETTINGS,
+          numberScrollInertia: value
+        })
+      );
+      expect(repositories.settings.load()).toEqual(DEFAULT_APP_SETTINGS);
+    }
+  );
 
   it("normalizes a legacy inertia outside the Settings control range", () => {
     const storage = new MemoryStorage();
     new MathModeStore(storage).save({ angleMode: "radians", factorialMode: "gamma" });
-    new NumberScrollInertiaStore(storage).save(4);
+    storage.setItem(LEGACY_NUMBER_SCROLL_INERTIA_KEY, JSON.stringify({ version: 1, value: 101 }));
     const migrated = createApplicationRepositories(storage).settings.load();
     expect(migrated).toEqual({
       ...DEFAULT_APP_SETTINGS,
@@ -117,6 +132,12 @@ describe("application repositories", () => {
       factorialMode: "gamma"
     });
     expect(createApplicationRepositories(storage).settings.load()).toEqual(migrated);
+  });
+
+  it.each([0.1, 100])("migrates a legacy inertia boundary %s", (value) => {
+    const storage = new MemoryStorage();
+    expect(new NumberScrollInertiaStore(storage).save(value)).toBe(true);
+    expect(createApplicationRepositories(storage).settings.load().numberScrollInertia).toBe(value);
   });
 
   it("preserves documents from a future schema version", () => {

@@ -100,10 +100,10 @@ export class SettingsScreen {
     interfaceCard.className = "settings-card";
     const inertia = numericRow(
       "Инерция прокрутки чисел",
-      "Чувствительность движения от 0,5× до 3×.",
+      "Чувствительность движения от 0,1× до 100×.",
       "×",
       "Инерция прокрутки чисел",
-      "Введите значение от 0,5 до 3.",
+      "Введите значение от 0,1 до 100.",
       parseNumberScrollInertia,
       options.onInertia
     );

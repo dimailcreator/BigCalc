@@ -2935,6 +2935,248 @@ Icon-only controls имеют доступные names, а основные flow
 
 ---
 
+
+# ЭТАП 23R. Малые product changes перед финальной регрессией
+
+**Статус: IMPLEMENTED — Stage 24 READY**
+
+Этот этап выполняется после завершённого Stage 23 и до Stage 24.
+
+Цель — внести две небольшие пользовательские правки до полной UI_SPEC regression, чтобы Stage 24 уже проверял окончательную семантику приложения.
+
+---
+
+## 23R.1. Расширить диапазон `NUMBER_SCROLL_INERTIA`
+
+Текущий допустимый диапазон настройки `NUMBER_SCROLL_INERTIA` расширяется до:
+
+```text
+[0.1; 100]
+```
+
+Границы включительные.
+
+Требования:
+
+```text
+minimum = 0.1
+maximum = 100
+```
+
+Нужно согласованно обновить:
+
+- UI ограничения Settings input;
+- parsing/validation;
+- persisted settings validation/migration;
+- runtime clamp/fallback, если он существует;
+- тесты граничных значений;
+- документацию/спецификацию, где указан старый диапазон.
+
+Обязательные cases:
+
+```text
+0.1    → accepted
+100    → accepted
+< 0.1  → rejected/clamped согласно существующей settings policy
+> 100  → rejected/clamped согласно существующей settings policy
+invalid / NaN / empty → существующая fallback policy
+```
+
+Расширение диапазона не должно менять значение по умолчанию.
+
+---
+
+## 23R.2. Автоматическая открывающая скобка после вставки функции
+
+При вставке **любой функции** в ExpressionEditor автоматически вставляется открывающая круглая скобка.
+
+Пример:
+
+```text
+sin
+```
+
+должен вставляться как:
+
+```text
+sin(
+```
+
+и курсор после операции находится после `(`:
+
+```text
+sin(|)
+```
+
+где `|` — логическая позиция курсора.
+
+### Token semantics
+
+Критически важно:
+
+```text
+[sin] (
+```
+
+а не:
+
+```text
+[sin(]
+```
+
+То есть:
+
+- `sin` остаётся атомарным function token;
+- курсор не может входить внутрь `sin`;
+- Backspace/Delete по имени функции сохраняют существующую atomic-token semantics;
+- автоматически добавленный `(` **не является частью атомарного имени функции**;
+- `(` — обычный bracket token/character и участвует в существующей bracket logic;
+- курсор может находиться непосредственно после `(`;
+- скобка может быть удалена отдельно от function token.
+
+Аналогично для всех функций:
+
+```text
+cos(
+tan(
+ln(
+log(
+...
+```
+
+Правило должно применяться ко всем function tokens, доступным приложению, а не к hardcoded списку только текущей клавиатуры.
+
+### Selection semantics
+
+Если при вставке функции есть выделение, функция оборачивает выделение:
+
+```text
+selection = x+1
+insert sin
+→ sin(x+1)
+```
+
+Структурно:
+
+```text
+[sin] ( x + 1 )
+```
+
+Имя функции остаётся атомарным, обе скобки — обычные bracket tokens.
+
+После wrapping курсор/selection должны следовать существующей editor policy для macro-like insertion; реализация должна быть детерминированной и покрыта тестом.
+
+### Interaction со smart brackets
+
+Автоматически добавленная `(` должна быть полностью совместима с существующим smart-bracket поведением.
+
+Пример:
+
+```text
+sin(
+```
+
+после ввода:
+
+```text
+30
+```
+
+и нажатия `()` должно позволять закрыть существующую unmatched `(`:
+
+```text
+sin(30)
+```
+
+Нельзя создавать отдельную специальную разновидность function bracket.
+
+### Serialization
+
+Для Core выражение сериализуется обычным способом:
+
+```text
+sin(30)
+```
+
+Никакой новый Core syntax или AST contract не требуется.
+
+### Paste/history/reconstruction
+
+Если существующий путь вставки создаёт function token через общий editor API, auto-`(` применяется только к пользовательской команде вставки функции.
+
+При восстановлении уже существующего выражения из history/persistence нельзя самопроизвольно добавлять отсутствующую скобку и менять сохранённое выражение.
+
+Paste должен сохранять существующий разбор входного текста. Например готовый текст:
+
+```text
+sin(30)
+```
+
+не должен превращаться в:
+
+```text
+sin((30)
+```
+
+Следовательно auto-`(` относится к insertion command/function-key action, а не к каждому факту создания FunctionToken во внутренних parser/reconstruction paths.
+
+---
+
+## 23R.3. Regression tests
+
+Добавить минимум:
+
+1. `NUMBER_SCROLL_INERTIA = 0.1` принимается;
+2. `NUMBER_SCROLL_INERTIA = 100` принимается;
+3. значения за границами обрабатываются согласно settings policy;
+4. persisted boundary values корректно round-trip;
+5. `sin` button → structural `[sin] (` и display `sin(`;
+6. `cos`, `tan`, `ln`, `log` получают ту же семантику;
+7. function name остаётся atomic;
+8. auto-added `(` удаляется отдельно;
+9. smart bracket закрывает auto-added unmatched `(`;
+10. selection `x+1` + `sin` → `sin(x+1)`;
+11. serialize/evaluate `sin(30)` использует обычный Core syntax;
+12. paste `sin(30)` не создаёт двойную `(`;
+13. history/persistence reconstruction не мутирует сохранённое expression;
+14. physical keyboard/editor behavior не регрессирует.
+
+---
+
+## 23R.4. Definition of Done
+
+Stage 23R завершён, когда:
+
+```text
+NUMBER_SCROLL_INERTIA range = [0.1; 100]
+```
+
+и function insertion имеет нормативную форму:
+
+```text
+atomic function token + ordinary "("
+```
+
+с корректной cursor, selection, smart-bracket, paste, history и serialization semantics.
+
+После автоматических tests провести короткий manual smoke:
+
+```text
+sin → sin(
+sin + number + smart close
+selection → function wrapping
+delete auto-added "(" separately
+settings inertia: 0.1 / 100
+```
+
+После этого:
+
+```text
+Stage 24 = READY
+```
+
+---
+
 # ЭТАП 24. Сквозной regression suite UI_SPEC
 
 ## Цель

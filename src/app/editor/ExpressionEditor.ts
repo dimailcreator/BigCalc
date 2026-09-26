@@ -1,14 +1,11 @@
-import { parseEditorText } from "./ClipboardParser.js";
+import { isFunctionName, parseEditorText } from "./ClipboardParser.js";
 import { BackspaceRepeater } from "./BackspaceRepeater.js";
-import { ExpressionModel, createAtomicIdentifierToken } from "./ExpressionModel.js";
+import { ExpressionModel } from "./ExpressionModel.js";
+import { insertFunctionMacro } from "./FunctionInsertion.js";
 import { insertSmartBracket } from "./SmartBrackets.js";
 import { insertSquareRootMacro } from "./SquareRootMacro.js";
 import type { AnsToken, ExpressionToken } from "./ExpressionModel.js";
 import type { SmartBracketPair } from "./SmartBrackets.js";
-
-export const FUNCTION_KEY_NAMES = ["sin", "cos", "tan", "ln", "log"] as const;
-export type FunctionKeyName = (typeof FUNCTION_KEY_NAMES)[number];
-const functionKeyNames = new Set<string>(FUNCTION_KEY_NAMES);
 
 export interface ExpressionEditorOptions {
   readonly onChange: (model: ExpressionModel) => void;
@@ -135,10 +132,10 @@ export class ExpressionEditor {
     this.focus();
   }
 
-  insertFunction(name: FunctionKeyName): void {
-    if (!functionKeyNames.has(name)) throw new TypeError("Unknown function key");
+  insertFunction(name: string): void {
+    if (!isFunctionName(name)) throw new TypeError("Unknown function name");
     if (this.#historyOpen) return;
-    this.#update(this.#model.insert(createAtomicIdentifierToken(name)));
+    this.#update(insertFunctionMacro(this.#model, name));
     this.focus();
   }
 

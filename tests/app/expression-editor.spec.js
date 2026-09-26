@@ -245,15 +245,15 @@ test("editor actions insert smart brackets and function keys at the cursor", asy
     globalThis.stage9Editor.clear();
     globalThis.stage9Editor.insertFunction("sin");
   });
-  await expect(input).toHaveValue("sin");
+  await expect(input).toHaveValue("sin(");
   await expect(page.locator(".expression-token-identifier")).toHaveText("sin");
-  expect(await page.evaluate(() => globalThis.stage9Editor.model.tokens.length)).toBe(1);
+  expect(await page.evaluate(() => globalThis.stage9Editor.model.tokens.length)).toBe(2);
   await page.evaluate(() => {
     globalThis.stage9Editor.setHistoryOpen(true);
     globalThis.stage9Editor.insertSmartBracket("[]");
     globalThis.stage9Editor.insertFunction("cos");
   });
-  await expect(input).toHaveValue("sin");
+  await expect(input).toHaveValue("sin(");
 });
 
 test("onscreen Backspace hold shares logical deletion and stops on release", async ({ page }) => {

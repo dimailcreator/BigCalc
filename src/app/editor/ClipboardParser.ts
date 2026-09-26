@@ -2,9 +2,15 @@ import { createAtomicIdentifierToken, createCharacterToken } from "./ExpressionM
 import type { ExpressionToken } from "./ExpressionModel.js";
 
 // Built-in public names from CORE_SPEC.md. Registration changes must update this UI list.
-const FUNCTION_NAMES = ["sin", "cos", "tan", "exp", "log", "ln", "abs"] as const;
+export const FUNCTION_NAMES = ["sin", "cos", "tan", "exp", "log", "ln", "abs"] as const;
+export type FunctionName = (typeof FUNCTION_NAMES)[number];
+const functionNames = new Set<string>(FUNCTION_NAMES);
 const NAMES = [...FUNCTION_NAMES, "e"].sort((left, right) => right.length - left.length);
 const SYNTAX_CHARACTER = /^[0-9,+\-*/^%!(){}\[\];π]$/u;
+
+export function isFunctionName(name: string): name is FunctionName {
+  return functionNames.has(name);
+}
 
 /** Filter untrusted text into editor tokens; this is not a mathematical parser. */
 export function parseEditorText(text: string): readonly ExpressionToken[] {

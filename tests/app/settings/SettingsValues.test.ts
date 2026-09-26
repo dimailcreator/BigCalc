@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatSettingNumber,
+  isAcceptedNumberScrollInertia,
   parseNumberScrollInertia,
   parseTimeoutSeconds
 } from "../../../src/app/settings/SettingsValues.js";
@@ -16,11 +17,15 @@ describe("settings input validation", () => {
   });
 
   it("accepts the documented inertia range and formats decimal comma", () => {
-    expect(parseNumberScrollInertia("0,5")).toBe(0.5);
+    expect(parseNumberScrollInertia("0,1")).toBe(0.1);
     expect(parseNumberScrollInertia("1.6")).toBe(1.6);
-    expect(parseNumberScrollInertia("3")).toBe(3);
-    for (const text of ["0,49", "3,01", "-1", "1,234", "foo"]) {
+    expect(parseNumberScrollInertia("100")).toBe(100);
+    for (const text of ["", "0,09", "100,01", "-1", "1,234", "foo", "NaN"]) {
       expect(parseNumberScrollInertia(text)).toBeNull();
+    }
+    for (const value of [0.1, 1.6, 100]) expect(isAcceptedNumberScrollInertia(value)).toBe(true);
+    for (const value of [0.09, 100.01, NaN, Infinity, null, ""]) {
+      expect(isAcceptedNumberScrollInertia(value)).toBe(false);
     }
     expect(formatSettingNumber(1.6)).toBe("1,6");
   });

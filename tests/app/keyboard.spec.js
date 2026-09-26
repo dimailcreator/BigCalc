@@ -84,7 +84,7 @@ test("expanded function keys and √ macro use Core source syntax", async ({ pag
   const input = page.getByRole("textbox", { name: "Выражение" });
   await keyboard.getByRole("button", { name: "Раскрыть клавиатуру" }).click();
   await keyboard.getByRole("button", { name: "sin", exact: true }).click();
-  await expect(input).toHaveValue("sin");
+  await expect(input).toHaveValue("sin(");
   await expect(page.locator(".expression-token-identifier")).toHaveText("sin");
   await keyboard.getByRole("button", { name: "Очистить" }).click();
   await keyboard.getByRole("button", { name: "Квадратный корень" }).click();

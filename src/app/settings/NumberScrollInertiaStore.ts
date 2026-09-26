@@ -1,5 +1,5 @@
 import { DEFAULT_APP_SETTINGS } from "../state/AppState.js";
-import { isValidInertia } from "./NumberScrollInertia.js";
+import { isAcceptedNumberScrollInertia } from "./SettingsValues.js";
 export { isValidInertia } from "./NumberScrollInertia.js";
 
 export const LEGACY_NUMBER_SCROLL_INERTIA_KEY = "bigcalc.number-scroll-inertia.v1";
@@ -21,7 +21,7 @@ export class NumberScrollInertiaStore {
         return DEFAULT_APP_SETTINGS.numberScrollInertia;
       }
       const fields = parsed as Record<string, unknown>;
-      return fields.version === 1 && isValidInertia(fields.value)
+      return fields.version === 1 && isAcceptedNumberScrollInertia(fields.value)
         ? fields.value
         : DEFAULT_APP_SETTINGS.numberScrollInertia;
     } catch {
@@ -30,7 +30,7 @@ export class NumberScrollInertiaStore {
   }
 
   save(value: number): boolean {
-    if (!isValidInertia(value)) return false;
+    if (!isAcceptedNumberScrollInertia(value)) return false;
     try {
       this.#storage.setItem(
         LEGACY_NUMBER_SCROLL_INERTIA_KEY,

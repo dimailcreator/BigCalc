@@ -63,14 +63,28 @@ test("numeric settings apply valid values and reject invalid text before persist
   );
   expect(saved.maxCalculationTimeMs).toBe(250);
   expect(saved.numberScrollInertia).toBe(2.4);
-  await inertia.fill("4");
+  await inertia.fill("0,1");
+  await expect(inertia).toHaveAttribute("aria-invalid", "false");
+  await inertia.fill("100");
+  await expect(inertia).toHaveAttribute("aria-invalid", "false");
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(globalThis.localStorage.getItem("bigcalc.app.settings.v1")).numberScrollInertia
+    )
+  ).toBe(100);
+  await inertia.fill("100,01");
   await expect(inertia).toHaveAttribute("aria-invalid", "true");
   expect(
     await page.evaluate(
       () =>
         JSON.parse(globalThis.localStorage.getItem("bigcalc.app.settings.v1")).numberScrollInertia
     )
-  ).toBe(2.4);
+  ).toBe(100);
+  await inertia.fill("0,09");
+  await expect(inertia).toHaveAttribute("aria-invalid", "true");
+  await inertia.fill("");
+  await expect(inertia).toHaveAttribute("aria-invalid", "true");
   await timeout.fill("-1");
   await expect(timeout).toHaveAttribute("aria-invalid", "true");
   expect(
@@ -83,7 +97,7 @@ test("numeric settings apply valid values and reject invalid text before persist
   await page.reload({ waitUntil: "networkidle" });
   await openSettings(page);
   await expect(timeout).toHaveValue("0,25");
-  await expect(inertia).toHaveValue("2,4");
+  await expect(inertia).toHaveValue("100");
 });
 
 test("inertia keeps the calculation session while timeout replaces it", async ({ page }) => {

@@ -1,7 +1,7 @@
 import { isValidInertia } from "./NumberScrollInertia.js";
 
-export const MIN_NUMBER_SCROLL_INERTIA = 0.5;
-export const MAX_NUMBER_SCROLL_INERTIA = 3;
+export const MIN_NUMBER_SCROLL_INERTIA = 0.1;
+export const MAX_NUMBER_SCROLL_INERTIA = 100;
 
 export function isAcceptedNumberScrollInertia(value: unknown): value is number {
   return (

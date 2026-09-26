@@ -33,6 +33,8 @@ describe("number scroll inertia storage", () => {
     expect(store.load()).toBe(1.6);
     expect(store.save(Number.NaN)).toBe(false);
     expect(store.save(0)).toBe(false);
+    expect(store.save(0.09)).toBe(false);
+    expect(store.save(100.01)).toBe(false);
     const unavailable = new NumberScrollInertiaStore({
       getItem: () => {
         throw new Error("blocked");
@@ -43,5 +45,17 @@ describe("number scroll inertia storage", () => {
     });
     expect(unavailable.load()).toBe(1.6);
     expect(unavailable.save(1)).toBe(false);
+  });
+
+  it.each([0.1, 100])("round-trips the new inclusive boundary %s", (value) => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, text: string) => {
+        values.set(key, text);
+      }
+    };
+    expect(new NumberScrollInertiaStore(storage).save(value)).toBe(true);
+    expect(new NumberScrollInertiaStore(storage).load()).toBe(value);
   });
 });
