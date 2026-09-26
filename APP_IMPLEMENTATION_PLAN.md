@@ -1989,6 +1989,8 @@ Portrait lock.
 
 # ЭТАП 21R. Стабилизация по результатам тестирования на реальном Android-устройстве
 
+**Статус: ACCEPTED — implementation и external physical-device validation завершены успешно.**
+
 ## Цель
 
 До performance/accessibility этапов устранить interaction/runtime дефекты, которые проявились на физическом Android-устройстве после Stage 21.
@@ -2295,11 +2297,10 @@ Stage 21R implementation считается завершённым, когда:
 
 Повторная проверка на физическом Android-устройстве выявила два оставшихся дефекта.
 
-До их исправления:
+Эти regression defects исправлены и подтверждены повторной проверкой на физическом Android-устройстве.
 
 ```text
-Stage 21R = NOT ACCEPTED
-Stage 22 = BLOCKED
+Stage 21R-F = ACCEPTED
 ```
 
 Этот follow-up не расширяет product scope. Он закрывает дефекты уже реализованных Stage 19/21R interaction/layout semantics.
@@ -2475,11 +2476,12 @@ Stage 21R-F завершён, когда:
 
 После Stage 21R-F повторное тестирование на физическом Android-устройстве выявило дополнительные дефекты.
 
-До их закрытия:
+Все пункты этапа реализованы и подтверждены повторной проверкой на физическом Android-устройстве.
 
 ```text
-Stage 21R = NOT ACCEPTED
-Stage 22 = BLOCKED
+Stage 21R-G = ACCEPTED
+Physical-device validation = PASSED
+Stage 22 = UNBLOCKED
 ```
 
 Исправления этого этапа не должны маскировать проблемы CSS clipping, сокращением математических данных или restart calculation вместо продолжения существующей session.
@@ -2816,7 +2818,37 @@ Stage 21R-G implementation завершён, когда пункты 1–9 ис�
 
 Уточнение cutoff обязательно должно быть зафиксировано в `CORE_SPEC.md` и regression tests до перехода к Stage 22. Core implementation менять не требуется, если текущее exact-rational exemption уже соответствует этому правилу.
 
-Physical-device-only проверки помечаются `PENDING PHYSICAL DEVICE VALIDATION` и выполняются пользователем после сборки APK.
+Physical-device validation выполнена пользователем после сборки APK: ранее зарегистрированные дефекты не воспроизводятся, новых blocking regressions на этом smoke не обнаружено.
+
+---
+
+# Acceptance Gate после Stage 21R
+
+Состояние перед началом Stage 22:
+
+```text
+Stage 21      ACCEPTED
+Stage 21R     ACCEPTED
+Stage 21R-F   ACCEPTED
+Stage 21R-G   ACCEPTED
+physical-device smoke PASSED
+```
+
+Подтверждено:
+
+- зарегистрированные Android IME/focus regressions закрыты;
+- `Ans` не материализует огромный numeric display в composite expression;
+- timeout/continue regressions закрыты;
+- IME resize больше не создаёт horizontal app overflow;
+- длинные calculator errors доступны без расширения document;
+- History swipe работает из нормативной верхней calculator area;
+- NumberViewport regression fixes подтверждены на устройстве;
+- exact Rational `+/-` остаётся exact и не подвергается precision cutoff;
+- новых blocking defects в последнем physical-device smoke не обнаружено.
+
+```text
+Stage 22 = READY
+```
 
 ---
 

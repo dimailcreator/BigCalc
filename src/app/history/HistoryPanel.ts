@@ -24,6 +24,7 @@ export class HistoryPanel {
   readonly #refiners: HistoryResultRefiner[] = [];
   #inertia: number;
   #open = false;
+  #renderFrame: number | null = null;
 
   constructor(options: HistoryPanelOptions) {
     this.#options = options;
@@ -69,6 +70,8 @@ export class HistoryPanel {
   }
 
   #clear(): void {
+    if (this.#renderFrame !== null) cancelAnimationFrame(this.#renderFrame);
+    this.#renderFrame = null;
     for (const refiner of this.#refiners) refiner.dispose();
     for (const viewport of this.#viewports) viewport.dispose();
     this.#refiners.length = 0;
@@ -86,7 +89,21 @@ export class HistoryPanel {
       this.#list.append(empty);
       return;
     }
-    for (const entry of entries) this.#list.append(this.#card(entry));
+    let next = 0;
+    const appendBatch = (): void => {
+      this.#renderFrame = null;
+      if (!this.#open) return;
+      const fragment = document.createDocumentFragment();
+      const deadline = performance.now() + 8;
+      do {
+        const entry = entries[next++];
+        if (entry === undefined) break;
+        fragment.append(this.#card(entry));
+      } while (next < entries.length && performance.now() < deadline);
+      this.#list.append(fragment);
+      if (next < entries.length) this.#renderFrame = requestAnimationFrame(appendBatch);
+    };
+    appendBatch();
   }
 
   #card(entry: CalculationHistoryEntry): HTMLElement {

@@ -223,6 +223,37 @@ describe("CalculationWorkerRuntime", () => {
     ).resolves.toMatchObject({ type: "worker-error", code: "UnknownSession" });
   });
 
+  it("keeps the Worker registry bounded across repeated calculation lifecycles", async () => {
+    const runtime = new CalculationWorkerRuntime(createCalculationHandle);
+    for (let cycle = 0; cycle < 120; cycle += 1) {
+      const sessionId = createCalculationSessionId(`resource-cycle-${String(cycle)}`);
+      const requestId = createCalculationRequestId(`resource-refine-${String(cycle)}`);
+      await expect(
+        runtime.handleCommand({ type: "create", sessionId, source: "1/7", settings })
+      ).resolves.toMatchObject({ type: "created", sessionId });
+      expect(runtime.sessionCount).toBe(1);
+
+      if (cycle % 3 !== 0) {
+        await expect(
+          runtime.handleCommand({ type: "refine", sessionId, requestId, significantDigits: 20 })
+        ).resolves.toMatchObject({
+          type: "refinement-result",
+          result: { status: "complete" }
+        });
+      }
+      if (cycle % 3 === 2) {
+        await expect(runtime.handleCommand({ type: "cancel", sessionId })).resolves.toMatchObject({
+          type: "cancelled"
+        });
+      }
+      await expect(runtime.handleCommand({ type: "dispose", sessionId })).resolves.toMatchObject({
+        type: "disposed",
+        sessionId
+      });
+      expect(runtime.sessionCount).toBe(0);
+    }
+  });
+
   it("keeps multiple sessions independent", async () => {
     const firstSession = createCalculationSessionId("first-session");
     const secondSession = createCalculationSessionId("second-session");

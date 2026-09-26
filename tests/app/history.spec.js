@@ -101,6 +101,46 @@ test("history cards fill the available portrait area and keep the current displa
   }
 });
 
+test("a long history renders in batches and closing cancels pending cards", async ({ page }) => {
+  const input = page.getByRole("textbox", { name: "Выражение" });
+  await input.fill("2+3");
+  await expect(page.getByRole("status", { name: "Результат" })).toHaveText("5");
+  await page.getByRole("button", { name: "Равно" }).click();
+  const seed = await page.evaluate(() => {
+    const saved = JSON.parse(globalThis.localStorage.getItem("bigcalc.history.v1"));
+    const entry = saved.entries.at(-1);
+    saved.entries = Array.from({ length: 200 }, (_, index) => ({
+      ...entry,
+      id: `many-${String(index)}`,
+      order: index
+    }));
+    return JSON.stringify(saved);
+  });
+  await page.addInitScript(
+    (saved) => globalThis.localStorage.setItem("bigcalc.history.v1", saved),
+    seed
+  );
+  await page.reload({ waitUntil: "networkidle" });
+
+  const toggle = page.getByRole("button", { name: "История", exact: true });
+  const cards = page.locator(".history-card");
+  await toggle.click();
+  await expect(cards.first()).toBeVisible();
+  await toggle.click();
+  await expect(cards).toHaveCount(0);
+  await page.waitForTimeout(100);
+  await expect(cards).toHaveCount(0);
+
+  await toggle.click();
+  await expect(cards).toHaveCount(200);
+  await page.locator(".history-list").evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  await expect(cards.last()).toBeVisible();
+  await toggle.click();
+  await expect(cards).toHaveCount(0);
+});
+
 test("vertical swipe opens history while horizontal number drag does not", async ({ page }) => {
   const result = page.getByRole("status", { name: "Результат" });
   await page.getByRole("textbox", { name: "Выражение" }).fill("1/3");

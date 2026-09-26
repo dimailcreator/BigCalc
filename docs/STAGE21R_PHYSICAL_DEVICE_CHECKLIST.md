@@ -1,8 +1,8 @@
 # Stage 21R physical Android validation
 
-Status: **PENDING PHYSICAL DEVICE VALIDATION**. The APK and emulator checks are prepared; complete this checklist on a real Android phone before marking the Stage 21R Definition of Done complete. Stage 22 has not started.
+Status: **PENDING PHYSICAL DEVICE VALIDATION**. The APK and emulator checks are prepared; complete this checklist on a real Android phone before marking the Stage 21R Definition of Done complete. Stage 22 performance work is tracked in [STAGE22_PERFORMANCE_REPORT.md](STAGE22_PERFORMANCE_REPORT.md).
 
-Prepared APK SHA-256: `99BB5EBDDF9697BD0D0783C067055471E2D10CABF3B822BF86147BD8F0D17F42`.
+Prepared APK SHA-256: `6C4BADB48F29176A89D21EDD6649475B5FF201726891DFC5C480E8E03082415F`.
 
 ## Preparation
 
