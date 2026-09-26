@@ -191,3 +191,21 @@ test("a second timeout after Continue remains a live dialog", async ({ page }) =
   await expect(page.locator(".main-display")).toHaveAttribute("data-phase", "pausedByTimeout");
   await expect(page.getByRole("dialog").getByRole("button", { name: "Продолжить" })).toBeFocused();
 });
+
+test("timeout dialog traps keyboard focus and restores it after dismissal", async ({ page }) => {
+  await openTimedOutCalculation(page, 3);
+  const dialog = page.getByRole("dialog");
+  const continueButton = dialog.getByRole("button", { name: "Продолжить" });
+  const freezeButton = dialog.getByRole("button", { name: "Отменить" });
+  await expect(continueButton).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(freezeButton).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(continueButton).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(freezeButton).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".calculator-shell")).not.toHaveAttribute("inert", "");
+  await expect(page.getByRole("button", { name: "Равно" })).toBeFocused();
+});

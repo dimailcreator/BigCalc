@@ -1,6 +1,6 @@
 # Stage 22 — application performance and resources
 
-Status: **PENDING PHYSICAL DEVICE VALIDATION**. The production browser probe, Android emulator probe, and Worker registry regression passed. The Stage 22 release gate requires at least one physical Android device in addition to the emulator. The device run will be performed separately.
+Status: **PHYSICAL DEVICE VALIDATION PASSED (user report, 2026-09-26)**. The production browser probe, Android emulator probe, Worker registry regression, and the supplied physical Android probe passed. The physical report is [stage22-android.json](../test-results/stage22-android.json); it is an ignored local artifact.
 
 ## Reproduce the automated probes
 
@@ -37,19 +37,23 @@ The emulator startup is slow in this setup; it is not a representative physical-
 
 The browser main-thread JS heap during the 5,000-digit Worker run was 4.33 → 4.35 → 2.53 MB (before, during, after dispose and forced GC). This excludes Worker memory. Android `dumpsys meminfo com.bigcalc.app` reported total PSS 94.5 → 89.9 → 90.7 MiB at the same points; GC and process accounting make individual PSS samples noisy. After each block of 40 Worker lifecycle cycles, PSS was 91.9, 96.7, and 97.7 MiB; the preceding emulator run showed 96.0, 97.4, and 97.4 MiB. The Worker runtime regression checks that its live registry returns to zero after every one of 120 cycles. These bounded runs found no runaway registry or memory growth; they cannot prove long-duration leak freedom.
 
+## Physical Android result
+
+The user supplied a successful probe from `SM-A576B`, Android API 36, WebView 153.0.8010.36, 7.3 GiB RAM, 384 × 749 CSS viewport. Activity startup was 530 ms; automation readiness 1,524 ms; first `2+3` result 263 ms; Worker startup 35 ms. `π` reached 1,200 verified digits in 94 ms and 5,000 digits in 1,104 ms. Keyboard response during the latter was 8 ms, with 17 ms p95 and maximum frame gaps. After each 40 of 120 Worker lifecycle cycles, total app PSS was 177.5, 173.2, and 173.3 MiB. A 200-entry History opened in 19 ms and finished rendering in 391 ms. Background/foreground retained the expression. The report does not record the APK digest or separate manual touch observations; the user reported the phone tests passed.
+
 ## Physical-device release checklist
 
 Use one test Android phone at minimum. Record its model, Android version, Android System WebView package/version, RAM, display size, power mode, APK hash, and date. If low, mid, and high-end phones are available, repeat the same matrix on each. Otherwise the emulator plus this one physical phone satisfies the device-class fallback in the plan. Keep the phone in portrait, use the APK above, and run each scenario three times after a force-stop. Record each run's timing and any visible stall or crash. A 60 fps screen recording or Android frame timeline is useful for interaction checks.
 
-| ID    | Status                             | Physical check and expected behavior                                                                                                                                                                                   |
-| ----- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P22-1 | PENDING PHYSICAL DEVICE VALIDATION | Force-stop, launch, time app readiness, Worker readiness, and first `2+3` result. Record three runs.                                                                                                                   |
-| P22-2 | PENDING PHYSICAL DEVICE VALIDATION | Calculate `1/7`; drag and flick horizontally through distant digits. The number responds and stays at digit boundaries. Request beyond 1,000 digits and confirm new digits appear without losing the scroll position.  |
-| P22-3 | PENDING PHYSICAL DEVICE VALIDATION | Calculate `e^e^e^(e+0,2)` and scroll its long-exponent viewport. No document-wide horizontal movement or unresponsive UI.                                                                                              |
-| P22-4 | PENDING PHYSICAL DEVICE VALIDATION | During a long refinement, tap calculator keys and open/close History. Input and navigation respond while the Worker continues. Record longest visible stall and frame timeline if available.                           |
-| P22-5 | PENDING PHYSICAL DEVICE VALIDATION | Run repeated create/refine/cancel/dispose and note app PSS after each block of 40. Live Worker sessions return to zero in the unit regression; on device, memory must not climb steadily across blocks after settling. |
-| P22-6 | PENDING PHYSICAL DEVICE VALIDATION | Open and scroll 200 History entries. First entries are usable promptly; the rest appear progressively; closing and reopening leaves no stale or duplicate cards.                                                       |
-| P22-7 | PENDING PHYSICAL DEVICE VALIDATION | Move app to background and return during/after calculation. Expression and result state remain usable; no crash or runaway memory.                                                                                     |
+| ID    | Status             | Physical check and expected behavior                                                                                                                                                                                   |
+| ----- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P22-1 | PASS (user report) | Force-stop, launch, time app readiness, Worker readiness, and first `2+3` result. Record three runs.                                                                                                                   |
+| P22-2 | PASS (user report) | Calculate `1/7`; drag and flick horizontally through distant digits. The number responds and stays at digit boundaries. Request beyond 1,000 digits and confirm new digits appear without losing the scroll position.  |
+| P22-3 | PASS (user report) | Calculate `e^e^e^(e+0,2)` and scroll its long-exponent viewport. No document-wide horizontal movement or unresponsive UI.                                                                                              |
+| P22-4 | PASS (user report) | During a long refinement, tap calculator keys and open/close History. Input and navigation respond while the Worker continues. Record longest visible stall and frame timeline if available.                           |
+| P22-5 | PASS (user report) | Run repeated create/refine/cancel/dispose and note app PSS after each block of 40. Live Worker sessions return to zero in the unit regression; on device, memory must not climb steadily across blocks after settling. |
+| P22-6 | PASS (user report) | Open and scroll 200 History entries. First entries are usable promptly; the rest appear progressively; closing and reopening leaves no stale or duplicate cards.                                                       |
+| P22-7 | PASS (user report) | Move app to background and return during/after calculation. Expression and result state remain usable; no crash or runaway memory.                                                                                     |
 
 For repeatable instrumented measurements on a **disposable** physical app installation, set `ANDROID_SERIAL` if more than one device is attached and run:
 
@@ -63,4 +67,4 @@ This instrumented run changes BigCalc History. Save the JSON report under a devi
 
 ## Release decision
 
-Automated evidence currently shows no known application-level Worker registry leak or long-calculation UI-thread blocking regression. **Stage 22 remains pending physical-device validation** because the required on-device performance and interaction checks have not been performed here. Do not treat emulator startup times as the physical release baseline.
+Automated evidence and the user-confirmed physical run show no known application-level Worker registry leak or long-calculation UI-thread blocking regression. **The Stage 22 physical release gate is accepted.** The single saved JSON run does not establish a cross-device performance distribution or document three repeated physical runs.

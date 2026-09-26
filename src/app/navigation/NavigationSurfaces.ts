@@ -117,6 +117,15 @@ export class AboutScreen {
     this.root = document.createElement("section");
     this.root.className = "about-screen";
     this.root.setAttribute("aria-label", "О проекте BigCalc");
+    this.root.addEventListener("transitionend", (event) => {
+      if (
+        event.target === this.root &&
+        event.propertyName === "opacity" &&
+        this.#open &&
+        !this.root.contains(document.activeElement)
+      )
+        this.#back.focus();
+    });
     this.root.setAttribute("aria-hidden", "true");
     this.root.inert = true;
     const top = document.createElement("header");
@@ -169,7 +178,10 @@ export class AboutScreen {
     this.root.dataset.open = String(open);
     this.root.inert = !open;
     this.root.setAttribute("aria-hidden", String(!open));
-    if (open) this.#back.focus();
+    if (open)
+      requestAnimationFrame(() => {
+        if (this.#open) this.#back.focus();
+      });
   }
 }
 

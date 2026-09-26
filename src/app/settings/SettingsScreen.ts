@@ -32,6 +32,15 @@ export class SettingsScreen {
     this.root.setAttribute("aria-label", "Настройки калькулятора");
     this.root.setAttribute("aria-hidden", "true");
     this.root.inert = true;
+    this.root.addEventListener("transitionend", (event) => {
+      if (
+        event.target === this.root &&
+        event.propertyName === "opacity" &&
+        this.#open &&
+        !this.root.contains(document.activeElement)
+      )
+        this.#back.focus();
+    });
 
     const top = document.createElement("header");
     top.className = "settings-top-bar";
@@ -120,7 +129,9 @@ export class SettingsScreen {
     this.root.setAttribute("aria-hidden", String(!open));
     if (open) {
       this.sync(this.#settings);
-      this.#back.focus();
+      requestAnimationFrame(() => {
+        if (this.#open) this.#back.focus();
+      });
     }
   }
 
@@ -183,6 +194,7 @@ function segmentedRow(
     button.className = "settings-segment";
     button.dataset.value = value;
     button.textContent = caption;
+    button.setAttribute("aria-label", segmentName(value));
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
       onChoose(value);
@@ -192,6 +204,21 @@ function segmentedRow(
   });
   result.root.append(control);
   return { root: result.root, buttons };
+}
+
+function segmentName(value: string): string {
+  switch (value) {
+    case "degrees":
+      return "Градусы";
+    case "radians":
+      return "Радианы";
+    case "integer":
+      return "Только целые";
+    case "gamma":
+      return "Гамма-функция";
+    default:
+      throw new TypeError("Unknown settings segment");
+  }
 }
 
 function numericRow(

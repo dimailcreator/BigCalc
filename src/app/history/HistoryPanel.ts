@@ -192,7 +192,9 @@ export class HistoryPanel {
 
     const meta = document.createElement("div");
     meta.className = "history-meta";
+    meta.id = `history-meta-${String(this.#viewports.length)}`;
     meta.textContent = `${entry.settings.angleMode === "degrees" ? "deg" : "rad"} · ${entry.settings.factorialMode === "gamma" ? "Gm" : "fac"}`;
+    viewport.root.setAttribute("aria-describedby", meta.id);
     card.append(expression, viewport.root, meta);
     return card;
   }

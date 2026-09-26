@@ -21,10 +21,16 @@ test("settings modes recalculate immediately, sync with keyboard, and survive re
   await expect(screen).toBeVisible();
   const angles = screen.getByRole("group", { name: "Углы" });
   const factorial = screen.getByRole("group", { name: "Факториал" });
-  await expect(angles.getByRole("button", { name: "deg" })).toHaveAttribute("aria-pressed", "true");
-  await angles.getByRole("button", { name: "rad" }).click();
-  await factorial.getByRole("button", { name: "Gm" }).click();
-  await expect(angles.getByRole("button", { name: "rad" })).toHaveAttribute("aria-pressed", "true");
+  await expect(angles.getByRole("button", { name: "Градусы" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await angles.getByRole("button", { name: "Радианы" }).click();
+  await factorial.getByRole("button", { name: "Гамма-функция" }).click();
+  await expect(angles.getByRole("button", { name: "Радианы" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
   await screen.getByRole("button", { name: "Назад к калькулятору" }).click();
   await expect(result).not.toHaveText("0,5");
   await expect(page.getByRole("button", { name: "Режим углов: радианы" })).toBeVisible();
@@ -33,7 +39,7 @@ test("settings modes recalculate immediately, sync with keyboard, and survive re
   await expect(page.getByRole("button", { name: "Режим углов: радианы" })).toBeVisible();
   await openSettings(page);
   await expect(
-    screen.getByRole("group", { name: "Углы" }).getByRole("button", { name: "rad" })
+    screen.getByRole("group", { name: "Углы" }).getByRole("button", { name: "Радианы" })
   ).toHaveAttribute("aria-pressed", "true");
   await page.goBack({ waitUntil: "networkidle" });
   await expect(screen).toBeHidden();
