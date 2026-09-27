@@ -181,7 +181,7 @@ export class ExpressionModel {
     return this.tokens.map(tokenText).join("");
   }
 
-  /** Never turn a visible Ans number into Core source. Stage 7 resolves references. */
+  /** Never turn a visible Ans number into Core source; history resolves references. */
   serializeForEvaluation(): EvaluationRepresentation {
     if (this.tokens.some((token) => token.kind === "ans")) {
       return Object.freeze({ kind: "requires-ans-resolution", tokens: this.tokens });

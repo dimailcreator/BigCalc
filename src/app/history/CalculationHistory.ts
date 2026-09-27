@@ -28,7 +28,7 @@ export interface RecordCalculationInput {
   readonly resultValue: VerifiedNumberDto;
 }
 
-/** Runtime history for Stage 14. Persistence and History UI are added in Stage 15. */
+/** Runtime history of explicit results and their transitive reference snapshots. */
 export class CalculationHistory {
   readonly #entries = new Map<string, CalculationHistoryEntry>();
   readonly #createId: () => string;
