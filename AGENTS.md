@@ -408,6 +408,7 @@ Grammar принадлежит ядру.
 decimal separator: ,
 argument separator: ;
 power: ^
+square root: prefix √
 percent: postfix %
 factorial: postfix !
 ```
@@ -416,12 +417,13 @@ factorial: postfix !
 
 ```text
 1. %
-2. !
-3. ^
-4. unary + -
-5. implicit multiplication
-6. * /
-7. + -
+2. √
+3. !
+4. ^
+5. unary + -
+6. implicit multiplication
+7. * /
+8. + -
 ```
 
 `^` правоассоциативен.
@@ -433,6 +435,8 @@ factorial: postfix !
 2^2^2  = 2^(2^2)
 2^50%  = 2^(0,5)
 5!%    = (0,05)!
+√4!   = (√4)!
+√9%   = √(9%)
 2/3π   = 2/(3*π)
 ```
 

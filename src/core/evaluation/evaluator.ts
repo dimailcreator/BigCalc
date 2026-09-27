@@ -4,6 +4,7 @@ import type { CalcError } from "../errors/index.js";
 import { parseExpression } from "../syntax/parser.js";
 import type { ExpressionNode } from "../syntax/ast.js";
 import type { RealValue } from "../values/contracts.js";
+import { createRational } from "../values/rational.js";
 import { createEvaluationContext } from "./context.js";
 import type { EvaluationContextOptions, EvaluationGraphContext } from "./context.js";
 import {
@@ -103,6 +104,8 @@ class EvaluationGraphBuilder {
         return this.getOrCreateConstant(ast.name);
       case "unary":
         return createUnaryNode(ast.operator, this.build(ast.operand));
+      case "square-root":
+        return createPowNode(this.build(ast.operand), createRationalNode(createRational(1n, 2n)));
       case "binary":
         return this.buildBinary(ast);
       case "postfix":

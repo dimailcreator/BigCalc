@@ -9,6 +9,7 @@ import type {
   FunctionIterationNode,
   LogNode,
   PostfixNode,
+  SquareRootNode,
   SourceSpan,
   UnaryNode
 } from "./ast.js";
@@ -189,7 +190,7 @@ class Parser {
   }
 
   private parsePower(): NodeResult {
-    const left = this.parsePostfixChain();
+    const left = this.parseFactorialChain();
     if (!left.ok) {
       return left;
     }
@@ -214,8 +215,8 @@ class Parser {
     return { ok: true, node };
   }
 
-  private parsePostfixChain(): NodeResult {
-    const operand = this.parsePrimary();
+  private parseFactorialChain(): NodeResult {
+    const operand = this.parseSquareRoot();
     if (!operand.ok) {
       return operand;
     }
@@ -244,6 +245,45 @@ class Parser {
         span: mergeSpans(node.span, entry.span)
       };
       node = postfixNode;
+    }
+
+    return { ok: true, node };
+  }
+
+  private parseSquareRoot(): NodeResult {
+    const token = this.peek();
+    if (token.kind === "operator" && token.value === "√") {
+      this.advance();
+      const operand = this.parseSquareRoot();
+      if (!operand.ok) {
+        return operand;
+      }
+
+      const node: SquareRootNode = {
+        kind: "square-root",
+        operand: operand.node,
+        span: { start: token.start, end: operand.node.span.end }
+      };
+      return { ok: true, node };
+    }
+
+    return this.parsePercentChain();
+  }
+
+  private parsePercentChain(): NodeResult {
+    const operand = this.parsePrimary();
+    if (!operand.ok) {
+      return operand;
+    }
+
+    let node = operand.node;
+    while (this.matchOperator("%")) {
+      node = {
+        kind: "postfix",
+        operator: "%",
+        operand: node,
+        span: mergeSpans(node.span, this.spanOf(this.previous()))
+      };
     }
 
     return { ok: true, node };
@@ -668,7 +708,7 @@ type ArgumentListResult =
     }
   | { readonly ok: false; readonly error: CalcError };
 
-type OperatorTokenValue = "%" | "!" | "+" | "-" | "*" | "/" | "^";
+type OperatorTokenValue = "%" | "!" | "+" | "-" | "*" | "/" | "^" | "√";
 type DelimiterValue = "(" | ")" | "{" | "}" | "[" | "]" | ";";
 type RegisteredNameParserToken = Extract<Token, { readonly kind: "registered-name" }>;
 
@@ -703,6 +743,7 @@ function withSpan(node: ExpressionNode, span: SourceSpan): ExpressionNode {
     case "number-literal":
     case "constant":
     case "unary":
+    case "square-root":
     case "binary":
     case "postfix":
     case "function-call":
@@ -720,6 +761,8 @@ export function astToDebugString(node: ExpressionNode): string {
       return node.name;
     case "unary":
       return `(${node.operator}${astToDebugString(node.operand)})`;
+    case "square-root":
+      return `(√${astToDebugString(node.operand)})`;
     case "binary":
       return `(${astToDebugString(node.left)} ${node.operator} ${astToDebugString(node.right)})`;
     case "postfix":

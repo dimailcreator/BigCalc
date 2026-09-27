@@ -107,6 +107,13 @@ void describe("parser precedence and associativity", () => {
     ["-2^2", "(-(2 ^ 2))"],
     ["2^2^2", "(2 ^ (2 ^ 2))"],
     ["2^50%", "(2 ^ (50%))"],
+    ["√4!", "((√4)!)"],
+    ["√4^2", "((√4) ^ 2)"],
+    ["√9%", "(√(9%))"],
+    ["2^√4", "(2 ^ (√4))"],
+    ["-√4", "(-(√4))"],
+    ["√(4!)", "(√(4!))"],
+    ["√√16", "(√(√16))"],
     ["5!%", "((5%)!)"],
     ["2/3π", "(2 / (3 implicit-multiply π))"],
     ["50%%", "((50%)%)"],
@@ -127,6 +134,20 @@ void describe("parser precedence and associativity", () => {
       assert.equal(parseDebug(source), expected);
     });
   }
+});
+
+void describe("square root prefix grammar", () => {
+  void it("keeps square root as a distinct immutable AST node", () => {
+    const root = expectKind(parseOk("√π"), "square-root");
+    assert.equal(expectKind(root.operand, "constant").name, "π");
+    assert.equal(Object.isFrozen(root), true);
+    assert.equal(Object.isFrozen(root.operand), true);
+  });
+
+  void it("requires grouping for a negative radicand", () => {
+    assert.equal(parseErrorCode("√-1"), "SyntaxError");
+    assert.equal(expectKind(parseOk("√(-1)"), "square-root").operand.kind, "unary");
+  });
 });
 
 void describe("parser functions and logarithms", () => {

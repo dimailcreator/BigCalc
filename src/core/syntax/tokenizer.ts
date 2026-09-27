@@ -31,7 +31,7 @@ export interface RegisteredNameToken {
 
 export interface OperatorToken {
   readonly kind: "operator";
-  readonly value: "+" | "-" | "*" | "/" | "^" | "!" | "%";
+  readonly value: "+" | "-" | "*" | "/" | "^" | "!" | "%" | "√";
   readonly start: number;
   readonly end: number;
 }
@@ -228,7 +228,8 @@ function isOperator(character: string): character is OperatorToken["value"] {
     character === "/" ||
     character === "^" ||
     character === "!" ||
-    character === "%"
+    character === "%" ||
+    character === "√"
   );
 }
 

@@ -4,6 +4,7 @@ export type ExpressionNode =
   | NumberLiteralNode
   | ConstantNode
   | UnaryNode
+  | SquareRootNode
   | BinaryNode
   | PostfixNode
   | FunctionCallNode
@@ -31,6 +32,12 @@ export interface ConstantNode {
 export interface UnaryNode {
   readonly kind: "unary";
   readonly operator: "+" | "-";
+  readonly operand: ExpressionNode;
+  readonly span: SourceSpan;
+}
+
+export interface SquareRootNode {
+  readonly kind: "square-root";
   readonly operand: ExpressionNode;
   readonly span: SourceSpan;
 }
@@ -79,6 +86,7 @@ export function freezeExpressionNode<T extends ExpressionNode>(node: T): T {
     case "constant":
       return Object.freeze(node);
     case "unary":
+    case "square-root":
       freezeExpressionNode(node.operand);
       return Object.freeze(node);
     case "binary":

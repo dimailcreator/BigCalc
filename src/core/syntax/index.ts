@@ -10,6 +10,7 @@ export type {
   LogNode,
   NumberLiteralNode,
   PostfixNode,
+  SquareRootNode,
   SourceSpan,
   UnaryNode
 } from "./ast.js";
