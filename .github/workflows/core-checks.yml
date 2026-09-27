@@ -1,4 +1,4 @@
-name: Core Checks
+name: BigCalc Checks
 
 on:
   push:
@@ -8,6 +8,8 @@ on:
 jobs:
   core:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,3 +18,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+  app:
+    needs: core
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check:app

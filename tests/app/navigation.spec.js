@@ -1,4 +1,10 @@
+import { readFileSync } from "node:fs";
+import { URL } from "node:url";
 import { expect, test } from "@playwright/test";
+
+const { versionName } = JSON.parse(
+  readFileSync(new URL("../../app-version.json", import.meta.url), "utf8")
+);
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/", { waitUntil: "networkidle" });
@@ -33,7 +39,7 @@ test("overflow destinations and history follow the same browser navigation stack
   await menu.getByRole("menuitem", { name: "О проекте" }).click();
   const about = page.getByRole("region", { name: "О проекте BigCalc" });
   await expect(about).toBeVisible();
-  await expect(about.getByText("Версия 1.0")).toBeVisible();
+  await expect(about.getByText(`Версия ${versionName}`)).toBeVisible();
   await expect(about.getByRole("link", { name: "Открыть GitHub" })).toHaveAttribute(
     "href",
     "https://github.com/dimailcreator/BigCalc"

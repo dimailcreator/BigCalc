@@ -150,7 +150,7 @@ export class AboutScreen {
     name.textContent = "BigCalc";
     const version = document.createElement("span");
     version.className = "about-version";
-    version.textContent = "Версия 1.0";
+    version.textContent = `Версия ${appVersion.versionName}`;
     hero.append(eyebrow, name, version);
     const sectionTitle = document.createElement("h3");
     sectionTitle.className = "settings-section-title";
@@ -197,3 +197,4 @@ function trapTab(event: KeyboardEvent, focusable: readonly HTMLButtonElement[]):
     first?.focus();
   }
 }
+import appVersion from "../../../app-version.json";

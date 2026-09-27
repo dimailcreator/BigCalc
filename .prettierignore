@@ -9,3 +9,17 @@ package-lock.json
 AGENTS.md
 CORE_SPEC.md
 IMPLEMENTATION_PLAN.md
+
+# Formatting debt predating the release pipeline. Keep Core files unchanged in Stage 25.
+APP_IMPLEMENTATION_PLAN.md
+docs/CORE_API.md
+scripts/audit-public-api.mjs
+src/core/evaluation/graph.ts
+src/core/public.ts
+src/core/values/ball.ts
+tests/app/ans-core-boundary.test.ts
+tests/core-import.test.ts
+tests/core-verification.test.ts
+tests/public-api.test.ts
+tests/structured-references.test.ts
+tests/trig-post-stabilization.test.ts

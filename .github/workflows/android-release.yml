@@ -1,0 +1,57 @@
+name: Android Release Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Android SDK packages
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - run: npm ci
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check:app
+      - name: Prepare release signing key
+        env:
+          BIGCALC_RELEASE_KEYSTORE_BASE64: ${{ secrets.BIGCALC_RELEASE_KEYSTORE_BASE64 }}
+          BIGCALC_RELEASE_STORE_PASSWORD: ${{ secrets.BIGCALC_RELEASE_STORE_PASSWORD }}
+          BIGCALC_RELEASE_KEY_ALIAS: ${{ secrets.BIGCALC_RELEASE_KEY_ALIAS }}
+          BIGCALC_RELEASE_KEY_PASSWORD: ${{ secrets.BIGCALC_RELEASE_KEY_PASSWORD }}
+        run: |
+          test -n "$BIGCALC_RELEASE_KEYSTORE_BASE64"
+          test -n "$BIGCALC_RELEASE_STORE_PASSWORD"
+          test -n "$BIGCALC_RELEASE_KEY_ALIAS"
+          test -n "$BIGCALC_RELEASE_KEY_PASSWORD"
+          umask 077
+          printf '%s' "$BIGCALC_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/bigcalc-release.jks"
+          echo "BIGCALC_RELEASE_KEYSTORE=$RUNNER_TEMP/bigcalc-release.jks" >> "$GITHUB_ENV"
+      - name: Build signed APK and AAB
+        env:
+          BIGCALC_RELEASE_STORE_PASSWORD: ${{ secrets.BIGCALC_RELEASE_STORE_PASSWORD }}
+          BIGCALC_RELEASE_KEY_ALIAS: ${{ secrets.BIGCALC_RELEASE_KEY_ALIAS }}
+          BIGCALC_RELEASE_KEY_PASSWORD: ${{ secrets.BIGCALC_RELEASE_KEY_PASSWORD }}
+        run: npm run android:build:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bigcalc-android-${{ github.run_number }}
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
