@@ -622,6 +622,12 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
     const leftValue = left.evaluate(context);
     const rightValue = right.evaluate(context);
 
+    // A repeated built-in constant is one semantic node in this graph. Evaluate
+    // both operands first so that any child error still reaches the caller.
+    if (this.isBuiltinConstantCancellation(left, right)) {
+      return RATIONAL_ZERO;
+    }
+
     if (leftValue.kind !== "rational" || rightValue.kind !== "rational") {
       return null;
     }
@@ -640,6 +646,29 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
     }
   }
 
+  private isBuiltinConstantCancellation(left: EvaluationNode, right: EvaluationNode): boolean {
+    const sameBuiltinConstant = (first: EvaluationNode, second: EvaluationNode): boolean =>
+      first === second &&
+      first instanceof ConstantEvaluationNode &&
+      (first.isNamed("π") || first.isNamed("e"));
+
+    if (this.nodeType === "sub") {
+      return sameBuiltinConstant(left, right);
+    }
+
+    return (
+      this.nodeType === "add" &&
+      ((right instanceof UnaryEvaluationNode &&
+        right.operator === "-" &&
+        right.children[0] !== undefined &&
+        sameBuiltinConstant(left, right.children[0])) ||
+        (left instanceof UnaryEvaluationNode &&
+          left.operator === "-" &&
+          left.children[0] !== undefined &&
+          sameBuiltinConstant(left.children[0], right)))
+    );
+  }
+
   protected evaluateUncached(context: EvaluationGraphContext): RealValue {
     const left = this.children[0];
     const right = this.children[1];
@@ -647,24 +676,7 @@ class BinaryEvaluationNode extends BaseEvaluationNode {
       throw new InternalCalculationException("Binary node operands are missing");
     }
 
-    const leftValue = left.evaluate(context);
-    const rightValue = right.evaluate(context);
-    if (leftValue.kind !== "rational" || rightValue.kind !== "rational") {
-      return nodeToLazyReal(this);
-    }
-
-    switch (this.nodeType) {
-      case "add":
-        return addRational(leftValue, rightValue);
-      case "sub":
-        return subtractRational(leftValue, rightValue);
-      case "mul":
-        return multiplyRational(leftValue, rightValue);
-      case "div":
-        return divideRational(leftValue, rightValue);
-      default:
-        throw new InternalCalculationException(`Unsupported binary node ${this.nodeType}`);
-    }
+    return this.evaluateExactBinaryOrNull(context, left, right) ?? nodeToLazyReal(this);
   }
 }
 

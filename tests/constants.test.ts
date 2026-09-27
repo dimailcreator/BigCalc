@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { createCalculationHandle } from "../src/core/api.js";
 import { internalFloatToRational } from "../src/core/backend/index.js";
 import {
   ballToOutwardInterval,
@@ -60,6 +61,58 @@ const PI_PLUS_E_PREFIX_100 =
   "5859874482048838473822930854632165381954416493075065395941912220031893036639756593199417003867283495";
 
 void describe("built-in constants π and e", () => {
+  void it("returns exact zero for repeated constants at increasing precision demands", async () => {
+    for (const source of ["π-π", "e-e"]) {
+      const created = createCalculationHandle(source);
+      if (!created.ok) assert.fail(created.error.message);
+
+      for (const significantDigits of [10, 100, 1000]) {
+        const result = await created.handle.refine({ significantDigits });
+        if (result.status !== "complete") {
+          assert.fail(`${source} at ${String(significantDigits)} digits: ${result.status}`);
+        }
+        assert.equal(result.value.digits, "0", source);
+        assert.equal(result.value.valueExact, true, source);
+        assert.equal(result.value.rounded, false, source);
+        assert.equal(result.value.zeroKind, "exact", source);
+      }
+    }
+  });
+
+  void it("keeps other lazy constant arithmetic and additive inverses correct", async () => {
+    const values = new Map<string, { sign: -1 | 0 | 1; digits: string }>();
+    for (const source of ["π-e", "e-π", "π+π", "e+e", "π+(-π)", "e+(-e)"]) {
+      const created = createCalculationHandle(source);
+      if (!created.ok) assert.fail(created.error.message);
+      const result = await created.handle.refine({ significantDigits: 10 });
+      if (result.status !== "complete") assert.fail(`${source}: ${result.status}`);
+
+      values.set(source, { sign: result.value.sign, digits: result.value.digits });
+      if (source === "π+(-π)" || source === "e+(-e)") {
+        assert.equal(result.value.valueExact, true, source);
+        assert.equal(result.value.rounded, false, source);
+        assert.equal(result.value.zeroKind, "exact", source);
+        assert.equal(result.value.digits, "0", source);
+      } else {
+        assert.equal(result.value.verifiedDigits >= 10, true, source);
+        assert.equal(result.value.zeroKind, undefined, source);
+      }
+    }
+
+    assert.deepEqual(values.get("π-e"), { sign: 1, digits: values.get("e-π")?.digits });
+    assert.equal(values.get("e-π")?.sign, -1);
+    assert.equal(values.get("π+π")?.sign, 1);
+    assert.equal(values.get("e+e")?.sign, 1);
+  });
+
+  void it("does not mask errors in repeated operands", async () => {
+    const created = createCalculationHandle("1/0-1/0");
+    if (!created.ok) assert.fail(created.error.message);
+    const result = await created.handle.refine({ significantDigits: 10 });
+    if (result.status !== "failed") assert.fail(`Expected failure, got ${result.status}`);
+    assert.equal(result.error.code, "DivisionByZeroError");
+  });
+
   void it("refines π and e as LazyReal values to 10, 100, and 1000 digits", async () => {
     assert.equal(PI_REFERENCE_DIGITS.length, 1000);
     assert.equal(E_REFERENCE_DIGITS.length, 1001);
