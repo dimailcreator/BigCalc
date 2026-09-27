@@ -744,6 +744,15 @@ class PowEvaluationNode extends BaseEvaluationNode {
     const baseValue = base.evaluate(context);
     const exponentValue = exponent.evaluate(context);
 
+    if (
+      base instanceof ConstantEvaluationNode &&
+      base.isNamed("e") &&
+      exponentValue.kind === "rational" &&
+      equalsRational(exponentValue, RATIONAL_ONE)
+    ) {
+      return base.refine(request, context);
+    }
+
     if (baseValue.kind === "rational" && isZeroRational(baseValue)) {
       return this.refineZeroBasePower(request, context, exponent, exponentValue);
     }
@@ -788,6 +797,18 @@ class PowEvaluationNode extends BaseEvaluationNode {
 
     const baseValue = base.evaluate(context);
     const exponentValue = exponent.evaluate(context);
+    const exact = this.exactLogPowerOrNull(context, base, exponent, baseValue, exponentValue);
+    if (exact !== null) {
+      return exact;
+    }
+    if (
+      base instanceof ConstantEvaluationNode &&
+      base.isNamed("e") &&
+      exponentValue.kind === "rational" &&
+      equalsRational(exponentValue, RATIONAL_ONE)
+    ) {
+      return baseValue;
+    }
     if (baseValue.kind !== "rational" || exponentValue.kind !== "rational") {
       return nodeToLazyReal(this);
     }
@@ -1006,11 +1027,53 @@ class PowEvaluationNode extends BaseEvaluationNode {
     const baseValue = base.evaluate(context);
     const exponentValue = exponent.evaluate(context);
 
+    const logPower = this.exactLogPowerOrNull(context, base, exponent, baseValue, exponentValue);
+    if (logPower !== null) {
+      return logPower;
+    }
+
     if (baseValue.kind !== "rational" || exponentValue.kind !== "rational") {
       return null;
     }
 
     return evaluateExactRationalPower(baseValue, exponentValue, context, this.exactPowerState);
+  }
+
+  private exactLogPowerOrNull(
+    context: EvaluationGraphContext,
+    base: EvaluationNode,
+    exponent: EvaluationNode,
+    baseValue: RealValue,
+    exponentValue: RealValue
+  ): Rational | null {
+    if (base instanceof ConstantEvaluationNode && base.isNamed("e")) {
+      if (exponentValue.kind === "rational" && isZeroRational(exponentValue)) {
+        return RATIONAL_ONE;
+      }
+
+      const argument =
+        exponent instanceof FunctionEvaluationNode ? exponent.unaryArgumentIfNamed("ln") : null;
+      if (argument !== null) {
+        const value = argument.evaluate(context);
+        if (value.kind === "rational") {
+          assertLnRationalDomain(value);
+          return value;
+        }
+      }
+    }
+
+    if (baseValue.kind === "rational" && exponent instanceof LogEvaluationNode) {
+      const argument = exponent.argumentForRationalBase(baseValue, context);
+      if (argument !== null) {
+        const value = argument.evaluate(context);
+        if (value.kind === "rational") {
+          assertLogRationalDomain(baseValue, value);
+          return value;
+        }
+      }
+    }
+
+    return null;
   }
 }
 
@@ -1185,6 +1248,12 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     super("function", args);
   }
 
+  unaryArgumentIfNamed(name: "ln"): EvaluationNode | null {
+    return this.functionName === name && this.children.length === 1
+      ? (this.children[0] ?? null)
+      : null;
+  }
+
   protected refineUncached(
     request: PrecisionRequest,
     context: EvaluationGraphContext
@@ -1254,6 +1323,10 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
       const value = args[0];
       if (value === undefined) {
         throw new InternalCalculationException("ln argument is missing");
+      }
+
+      if (this.children[0] instanceof ConstantEvaluationNode && this.children[0].isNamed("e")) {
+        return RATIONAL_ONE;
       }
 
       if (value.kind !== "rational") {
@@ -1380,6 +1453,10 @@ class FunctionEvaluationNode extends BaseEvaluationNode {
     context: EvaluationGraphContext
   ): Promise<Ball> {
     const operand = this.onlyArgumentNode("ln");
+    if (operand instanceof ConstantEvaluationNode && operand.isNamed("e")) {
+      operand.evaluate(context);
+      return rationalToBall(RATIONAL_ONE, precisionBitsForRequest(request), context.backend);
+    }
     const expArgument = this.argumentOfNestedUnaryFunction(operand, "exp");
     if (expArgument !== null) {
       return expArgument.refine(request, context);
@@ -1569,6 +1646,11 @@ class LogEvaluationNode extends BaseEvaluationNode {
     private readonly argument: EvaluationNode
   ) {
     super("log", [base, argument]);
+  }
+
+  argumentForRationalBase(base: Rational, context: EvaluationGraphContext): EvaluationNode | null {
+    const logBase = this.base.evaluate(context);
+    return logBase.kind === "rational" && equalsRational(logBase, base) ? this.argument : null;
   }
 
   protected async refineUncached(
