@@ -1,4 +1,4 @@
-import { invalidIterationError, syntaxError } from "../errors/index.js";
+import { syntaxError } from "../errors/index.js";
 import type { CalcError } from "../errors/index.js";
 import { createCoreRegistry } from "../registry/index.js";
 import type { CoreRegistry } from "../registry/index.js";
@@ -437,16 +437,10 @@ class Parser {
       return { ok: true, value: null };
     }
 
-    const token = this.peek();
-
-    if (token.kind !== "number" || !token.integerLiteral) {
-      return {
-        ok: false,
-        error: invalidIterationError(this.spanOf(token))
-      };
+    const expression = this.parseAdditive();
+    if (!expression.ok) {
+      return expression;
     }
-
-    this.advance();
     const close = this.consumeDelimiter("]", "Expected ']' to close function iteration");
     if (!close.ok) {
       return close;
@@ -454,7 +448,7 @@ class Parser {
 
     return {
       ok: true,
-      value: token.value.numerator
+      value: expression.node
     };
   }
 
@@ -659,7 +653,7 @@ type NodeResult =
   | { readonly ok: false; readonly error: CalcError };
 
 type IterationResult =
-  | { readonly ok: true; readonly value: bigint | null }
+  | { readonly ok: true; readonly value: ExpressionNode | null }
   | { readonly ok: false; readonly error: CalcError };
 
 type TokenResult =
@@ -733,12 +727,12 @@ export function astToDebugString(node: ExpressionNode): string {
     case "function-call":
       return `${node.functionName}(${node.args.map(astToDebugString).join(";")})`;
     case "function-iteration":
-      return `${node.functionName}[${String(node.iteration)}](${node.args
+      return `${node.functionName}[${astToDebugString(node.iteration)}](${node.args
         .map(astToDebugString)
         .join(";")})`;
     case "log": {
       const base = node.base === null ? "" : `{${astToDebugString(node.base)}}`;
-      const iteration = node.iteration === null ? "" : `[${String(node.iteration)}]`;
+      const iteration = node.iteration === null ? "" : `[${astToDebugString(node.iteration)}]`;
       return `log${base}${iteration}(${astToDebugString(node.argument)})`;
     }
   }

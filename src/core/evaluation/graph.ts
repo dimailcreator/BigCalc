@@ -57,7 +57,13 @@ import {
   subtractRational
 } from "../values/rational.js";
 import type { RationalPowerState } from "../values/rational.js";
-import { DomainException, InternalCalculationException } from "../errors/index.js";
+import {
+  DomainException,
+  InvalidIterationException,
+  InternalCalculationException,
+  ResourceLimitException
+} from "../errors/index.js";
+import type { SourceRange } from "../errors/index.js";
 import { verifiedNumberFromBall } from "../formatting/verified-number.js";
 import type { EvaluationGraphContext } from "./context.js";
 import type { EvaluationContext, PrecisionRequest } from "./contracts.js";
@@ -75,6 +81,7 @@ export type EvaluationNodeType =
   | "factorial"
   | "function"
   | "log"
+  | "iteration"
   | "lazy-real";
 
 export interface OperandPrecisionRequest {
@@ -120,6 +127,16 @@ export type OperandPrecisionStrategy = (
 ) => PrecisionRequest;
 
 const DEFAULT_GUARD_DIGITS = 2;
+const MAX_ITERATION_GRAPH_NODES = 512n;
+
+interface IterationNodeOptions {
+  readonly iteration: EvaluationNode;
+  readonly argument: EvaluationNode;
+  readonly operation:
+    | { readonly kind: "function"; readonly name: string }
+    | { readonly kind: "log"; readonly base: EvaluationNode | null };
+  readonly range?: SourceRange;
+}
 
 export function createEvaluationGraph(
   root: EvaluationNode,
@@ -199,15 +216,23 @@ export function createFunctionNode(
   return new FunctionEvaluationNode(functionName, args);
 }
 
+export function createIterationNode(options: IterationNodeOptions): EvaluationNode {
+  return new IterationEvaluationNode(options);
+}
+
 export function createLogNode(options: {
   readonly base: EvaluationNode | null;
   readonly argument: EvaluationNode;
   readonly iteration: bigint | null;
 }): EvaluationNode {
   const iteration = options.iteration ?? 1n;
+  if (iteration < 0n) {
+    throw new InvalidIterationException();
+  }
   if (iteration === 0n) {
     return options.argument;
   }
+  guardIterationGraphSize(iteration);
 
   const base = options.base ?? createRationalNode(integerRational(10n));
   let current = options.argument;
@@ -217,6 +242,15 @@ export function createLogNode(options: {
   }
 
   return current;
+}
+
+function guardIterationGraphSize(iteration: bigint): void {
+  if (iteration > MAX_ITERATION_GRAPH_NODES) {
+    throw new ResourceLimitException(
+      "memory",
+      `Function iteration requires too many graph nodes: ${String(iteration)} > ${String(MAX_ITERATION_GRAPH_NODES)}`
+    );
+  }
 }
 
 export function nodeToLazyReal(node: EvaluationNode): LazyReal {
@@ -339,6 +373,74 @@ abstract class BaseEvaluationNode implements EvaluationNode {
   ): Promise<Ball>;
 
   protected abstract evaluateUncached(context: EvaluationGraphContext): RealValue;
+}
+
+class IterationEvaluationNode extends BaseEvaluationNode {
+  private readonly logBase: EvaluationNode | null;
+  private target: bigint | null = null;
+  private completed = 0n;
+  private current: EvaluationNode;
+
+  constructor(private readonly options: IterationNodeOptions) {
+    const logBase =
+      options.operation.kind === "log"
+        ? (options.operation.base ?? createRationalNode(integerRational(10n)))
+        : null;
+    super("iteration", [
+      options.iteration,
+      options.argument,
+      ...(logBase === null ? [] : [logBase])
+    ]);
+    this.logBase = logBase;
+    this.current = options.argument;
+  }
+
+  protected refineUncached(
+    request: PrecisionRequest,
+    context: EvaluationGraphContext
+  ): Promise<Ball> {
+    return this.expand(context).refine(request, context);
+  }
+
+  protected evaluateUncached(context: EvaluationGraphContext): RealValue {
+    return this.expand(context).evaluate(context);
+  }
+
+  override invalidateWithVisited(visited: Set<EvaluationNode>): void {
+    if (visited.has(this)) return;
+    const expanded = this.current;
+    super.invalidateWithVisited(visited);
+    invalidateNodeWithVisited(expanded, visited);
+    this.target = null;
+    this.completed = 0n;
+    this.current = this.options.argument;
+  }
+
+  private expand(context: EvaluationGraphContext): EvaluationNode {
+    if (this.target === null) {
+      const value = this.options.iteration.evaluate(context);
+      if (value.kind !== "rational" || value.denominator !== 1n || value.numerator < 0n) {
+        throw new InvalidIterationException(this.options.range);
+      }
+      guardIterationGraphSize(value.numerator);
+      this.target = value.numerator;
+    }
+
+    while (this.completed < this.target) {
+      context.checkpoint();
+      if (this.options.operation.kind === "function") {
+        this.current = createFunctionNode(this.options.operation.name, [this.current]);
+      } else {
+        if (this.logBase === null) {
+          throw new InternalCalculationException("Log iteration base is missing");
+        }
+        this.current = new LogEvaluationNode(this.logBase, this.current);
+      }
+      this.completed += 1n;
+    }
+
+    return this.current;
+  }
 }
 
 class RationalEvaluationNode extends BaseEvaluationNode {

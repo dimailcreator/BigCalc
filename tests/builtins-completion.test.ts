@@ -73,10 +73,13 @@ void describe("built-in completion", () => {
     assert.equal(verified.digits.startsWith("123456789123"), true);
   });
 
-  void it("keeps parser arity and iteration checks tied to registry metadata", () => {
+  void it("keeps parser arity and iteration support tied to registry metadata", () => {
     assertParseError("abs()");
     assertParseError("cos(1;2)");
-    assertParseError("ln[1,5](2)");
+    assert.equal(parseExpression("ln[1,5](2)").ok, true);
+    const invalidIteration = evaluateExpressionToRealValue("ln[1,5](2)");
+    assert.equal(invalidIteration.ok, false);
+    assert.equal(invalidIteration.error.code, "InvalidIterationError");
 
     assertExpressionRational("abs[0](-3)", integerRational(-3n));
     assertExpressionRational("abs[2](-3)", integerRational(3n));

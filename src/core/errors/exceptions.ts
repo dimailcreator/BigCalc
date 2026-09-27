@@ -1,15 +1,30 @@
 import type {
   DomainError,
+  InvalidIterationError,
   InternalCalculationError,
   ResourceLimitError,
+  SourceRange,
   RegistryConfigurationError
 } from "./contracts.js";
 import {
   domainError,
+  invalidIterationError,
   internalCalculationError,
   registryConfigurationError,
   resourceLimitError
 } from "./factories.js";
+
+export class InvalidIterationException extends Error implements InvalidIterationError {
+  readonly kind = "calc-error";
+  readonly code = "InvalidIterationError";
+  readonly range?: SourceRange;
+
+  constructor(range?: SourceRange) {
+    super(invalidIterationError(range).message);
+    this.name = "InvalidIterationError";
+    if (range !== undefined) this.range = range;
+  }
+}
 
 export class DomainException extends Error implements DomainError {
   readonly kind = "calc-error";

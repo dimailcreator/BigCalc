@@ -29,7 +29,7 @@ export function invalidIterationError(range?: SourceRange): InvalidIterationErro
     {
       kind: "calc-error",
       code: "InvalidIterationError",
-      message: "Function iteration must be a non-negative integer literal"
+      message: "Iteration expression does not evaluate to a provably exact non-negative integer"
     },
     range
   );

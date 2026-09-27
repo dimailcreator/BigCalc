@@ -141,9 +141,28 @@ void describe("parser functions and logarithms", () => {
 
     const iteration = expectKind(ast, "function-iteration");
     assert.equal(iteration.functionName, "sin");
-    assert.equal(iteration.iteration, 0n);
+    assert.equal(expectKind(iteration.iteration, "number-literal").value.numerator, 0n);
+    assert.equal(Object.isFrozen(iteration.iteration), true);
     assert.equal(iteration.args.length, 1);
     assert.equal(parseDebug("sin[2](x)"), "sin[2](x)");
+  });
+
+  void it("stores full iteration expressions in immutable function and log AST nodes", () => {
+    for (const source of ["sin[1+1](x)", "sin[4/2](x)", "sin[(1+3)/2](x)", "sin[1+2*3](x)"]) {
+      const iteration = expectKind(parseOk(source), "function-iteration").iteration;
+      assert.equal(iteration.kind, "binary", source);
+      assert.equal(Object.isFrozen(iteration), true, source);
+    }
+    const nested = expectKind(parseOk("sin[(1+3)/2](x)"), "function-iteration");
+    const division = expectKind(nested.iteration, "binary");
+    assert.equal(division.operator, "/");
+    assert.equal(expectKind(division.left, "binary").operator, "+");
+
+    const log = expectKind(parseOk("log{2}[1+2](8)"), "log");
+    assert.notEqual(log.iteration, null);
+    if (log.iteration === null) assert.fail("Expected log iteration expression");
+    assert.equal(expectKind(log.iteration, "binary").operator, "+");
+    assert.equal(Object.isFrozen(log.iteration), true);
   });
 
   void it("parses log default, numeric, expression, and iterated bases", () => {
@@ -182,20 +201,16 @@ void describe("parser malformed input", () => {
     "sin()",
     "sin(1;)",
     "sin[2(1)",
+    "sin[1+](0)",
+    "sin[(1+2](0)",
     "log{2+}(8)",
     "log(1;2)",
     "1;",
     "2**3"
   ];
 
-  for (const source of ["sin[2,5](0)", "sin[-1](0)"]) {
-    void it(`classifies invalid iteration value in ${source}`, () => {
-      assert.equal(parseErrorCode(source), "InvalidIterationError");
-    });
-  }
-
-  for (const source of ["sin[2](0)", "sin[0](0)"]) {
-    void it(`accepts non-negative integer iteration in ${source}`, () => {
+  for (const source of ["sin[2](0)", "sin[0](0)", "sin[3/2](0)", "sin[-1](0)"]) {
+    void it(`parses syntactically valid iteration expression in ${source}`, () => {
       parseOk(source);
     });
   }

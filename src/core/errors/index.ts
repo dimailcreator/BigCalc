@@ -14,6 +14,7 @@ export {
 export { isCalcError, isDivisionByZeroError } from "./guards.js";
 export {
   DomainException,
+  InvalidIterationException,
   InternalCalculationException,
   ResourceLimitException,
   RegistryConfigurationException

@@ -13,6 +13,7 @@ import {
   createEvaluationGraph,
   createFactorialNode,
   createFunctionNode,
+  createIterationNode,
   createLogNode,
   createMulNode,
   createPostfixPercentNode,
@@ -116,11 +117,7 @@ class EvaluationGraphBuilder {
       case "function-iteration":
         return this.buildFunctionIteration(ast.functionName, ast.iteration, ast.args);
       case "log":
-        return createLogNode({
-          base: ast.base === null ? null : this.build(ast.base),
-          argument: this.build(ast.argument),
-          iteration: ast.iteration
-        });
+        return this.buildLog(ast);
     }
   }
 
@@ -145,7 +142,7 @@ class EvaluationGraphBuilder {
 
   private buildFunctionIteration(
     functionName: string,
-    iteration: bigint,
+    iteration: ExpressionNode,
     args: readonly ExpressionNode[]
   ): EvaluationNode {
     if (args.length !== 1) {
@@ -157,13 +154,27 @@ class EvaluationGraphBuilder {
       throw new InternalCalculationException("Function iteration argument is missing");
     }
 
-    let current = this.build(firstArgument);
+    return createIterationNode({
+      iteration: this.build(iteration),
+      argument: this.build(firstArgument),
+      operation: { kind: "function", name: functionName },
+      range: iteration.span
+    });
+  }
 
-    for (let index = 0n; index < iteration; index += 1n) {
-      current = createFunctionNode(functionName, [current]);
+  private buildLog(ast: Extract<ExpressionNode, { readonly kind: "log" }>): EvaluationNode {
+    const base = ast.base === null ? null : this.build(ast.base);
+    const argument = this.build(ast.argument);
+    if (ast.iteration === null) {
+      return createLogNode({ base, argument, iteration: null });
     }
 
-    return current;
+    return createIterationNode({
+      iteration: this.build(ast.iteration),
+      argument,
+      operation: { kind: "log", base },
+      range: ast.iteration.span
+    });
   }
 
   private getOrCreateConstant(name: string): EvaluationNode {

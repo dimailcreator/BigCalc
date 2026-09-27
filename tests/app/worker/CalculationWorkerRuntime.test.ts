@@ -22,6 +22,32 @@ const settings = Object.freeze({
 });
 
 describe("CalculationWorkerRuntime", () => {
+  it("transports expression iteration errors from public Core as calculation failures", async () => {
+    const runtime = new CalculationWorkerRuntime(createCalculationHandle);
+    const sessionId = createCalculationSessionId("iteration-invalid");
+    const requestId = createCalculationRequestId("iteration-refine");
+    const created = await runtime.handleCommand({
+      type: "create",
+      sessionId,
+      source: "sin[3/2](0)",
+      settings
+    });
+    expect(structuredClone(created)).toMatchObject({ type: "created", sessionId });
+
+    const response = await runtime.handleCommand({
+      type: "refine",
+      sessionId,
+      requestId,
+      significantDigits: 10
+    });
+    expect(structuredClone(response)).toMatchObject({
+      type: "refinement-result",
+      sessionId,
+      requestId,
+      result: { status: "failed", error: { code: "InvalidIterationError" } }
+    });
+  });
+
   it("evaluates two structured references through the public Core boundary", async () => {
     const sessionId = createCalculationSessionId("structured-two-references");
     const requestId = createCalculationRequestId("structured-refinement");

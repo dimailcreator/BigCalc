@@ -78,13 +78,15 @@ void describe("Core public API 1.2 with preserved source-only behavior", () => {
     assert.equal(result.error.code, "DivisionByZeroError");
   });
 
-  void it("classifies recognized invalid iteration values through the public boundary", () => {
-    for (const source of ["sin[2,5](0)", "sin[-1](0)"]) {
+  void it("classifies invalid iteration values through the public boundary", async () => {
+    for (const source of ["sin[2,5](0)", "sin[3/2](0)", "sin[-1](0)", "sin[π](0)"]) {
       const created = api.createCalculationHandle(source);
-      if (created.ok) assert.fail(`Expected invalid iteration: ${source}`);
-      assert.equal(created.error.code, "InvalidIterationError");
+      if (!created.ok) assert.fail(created.error.message);
+      const result = await created.handle.refine({ significantDigits: 10 });
+      if (result.status !== "failed") assert.fail(`Expected invalid iteration: ${source}`);
+      assert.equal(result.error.code, "InvalidIterationError");
     }
-    for (const source of ["sin[0](0)", "sin[2](0)"]) {
+    for (const source of ["sin[0](0)", "sin[2](0)", "sin[1+1](0)"]) {
       const created = api.createCalculationHandle(source);
       if (!created.ok) assert.fail(created.error.message);
       created.handle.cancel();

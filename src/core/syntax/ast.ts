@@ -60,7 +60,7 @@ export interface FunctionCallNode {
 export interface FunctionIterationNode {
   readonly kind: "function-iteration";
   readonly functionName: string;
-  readonly iteration: bigint;
+  readonly iteration: ExpressionNode;
   readonly args: readonly ExpressionNode[];
   readonly span: SourceSpan;
 }
@@ -68,7 +68,7 @@ export interface FunctionIterationNode {
 export interface LogNode {
   readonly kind: "log";
   readonly base: ExpressionNode | null;
-  readonly iteration: bigint | null;
+  readonly iteration: ExpressionNode | null;
   readonly argument: ExpressionNode;
   readonly span: SourceSpan;
 }
@@ -95,6 +95,7 @@ export function freezeExpressionNode<T extends ExpressionNode>(node: T): T {
       Object.freeze(node.args);
       return Object.freeze(node);
     case "function-iteration":
+      freezeExpressionNode(node.iteration);
       for (const argument of node.args) {
         freezeExpressionNode(argument);
       }
@@ -103,6 +104,9 @@ export function freezeExpressionNode<T extends ExpressionNode>(node: T): T {
     case "log":
       if (node.base !== null) {
         freezeExpressionNode(node.base);
+      }
+      if (node.iteration !== null) {
+        freezeExpressionNode(node.iteration);
       }
       freezeExpressionNode(node.argument);
       return Object.freeze(node);

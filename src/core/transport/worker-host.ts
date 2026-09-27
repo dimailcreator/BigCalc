@@ -184,6 +184,44 @@ export function serializeVerifiedNumber(value: VerifiedNumber): VerifiedNumberDt
   return Object.freeze(value.zeroKind === undefined ? base : { ...base, zeroKind: value.zeroKind });
 }
 
+function serializeCalcError(error: CalcError): CalcError {
+  const base = {
+    kind: "calc-error" as const,
+    message: error.message,
+    ...(error.range === undefined
+      ? {}
+      : { range: { start: error.range.start, end: error.range.end } })
+  };
+
+  switch (error.code) {
+    case "SyntaxError":
+    case "InvalidIterationError":
+    case "DivisionByZeroError":
+    case "CancelledError":
+    case "InternalCalculationError":
+      return Object.freeze({ ...base, code: error.code });
+    case "UnknownIdentifierError":
+      return Object.freeze({ ...base, code: error.code, identifier: error.identifier });
+    case "AmbiguousIdentifierError":
+      return Object.freeze({
+        ...base,
+        code: error.code,
+        identifier: error.identifier,
+        candidates: Object.freeze([...error.candidates])
+      });
+    case "DomainError":
+      return Object.freeze({ ...base, code: error.code, operation: error.operation });
+    case "PrecisionError":
+      return Object.freeze({
+        ...base,
+        code: error.code,
+        ...(error.requestedDigits === undefined ? {} : { requestedDigits: error.requestedDigits })
+      });
+    case "ResourceLimitError":
+      return Object.freeze({ ...base, code: error.code, resource: error.resource });
+  }
+}
+
 function failedResponse(
   handleId: string,
   error: CalcError,
@@ -193,7 +231,7 @@ function failedResponse(
   return Object.freeze({
     type: "failed",
     handleId,
-    error,
+    error: serializeCalcError(error),
     ...(requestedDigits === undefined ? {} : { requestedDigits }),
     ...(partial === undefined ? {} : { partial })
   });

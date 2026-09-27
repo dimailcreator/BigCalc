@@ -5,6 +5,33 @@ import { createWorkerTransportHost } from "../src/core/index.js";
 import type { WorkerTransportResponse } from "../src/core/index.js";
 
 void describe("worker-compatible calculation transport", () => {
+  void it("transports expression iteration results and typed failures as DTOs", async () => {
+    const host = createWorkerTransportHost();
+    for (const [handleId, source, code] of [
+      ["iter-valid", "sin[1+1](0)", null],
+      ["iter-invalid", "sin[3/2](0)", "InvalidIterationError"],
+      ["iter-domain", "sin[1/0](0)", "DivisionByZeroError"],
+      ["iter-huge", "sin[1000000000000](0)", "ResourceLimitError"]
+    ] as const) {
+      const created = await host.handleCommand({ type: "create", handleId, source });
+      assertSerializableDto(created);
+      assert.equal(created.type, "created", source);
+      const refined = await host.handleCommand({
+        type: "refine",
+        handleId,
+        significantDigits: 10
+      });
+      assertSerializableDto(refined);
+      if (code === null) {
+        assert.equal(refined.type, "complete", source);
+        assert.equal(refined.value.digits, "0");
+      } else {
+        assert.equal(refined.type, "failed", source);
+        assert.equal(refined.error.code, code, source);
+      }
+    }
+  });
+
   void it("runs sequential refine calls through a serializable DTO protocol", async () => {
     const host = createWorkerTransportHost();
 
