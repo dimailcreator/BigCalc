@@ -8,6 +8,7 @@ import { ExpressionEditor } from "./editor/ExpressionEditor.js";
 import { createAnsToken } from "./editor/ExpressionModel.js";
 import { CalculationHistory, expressionSegmentsFromModel } from "./history/CalculationHistory.js";
 import { HistoryPanel } from "./history/HistoryPanel.js";
+import { bindButtonPress } from "./interaction/ButtonPress.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
 import { ApplicationLifecycle } from "./lifecycle/ApplicationLifecycle.js";
 import { defineCalculatorModule } from "./modules/CalculatorModule.js";
@@ -221,15 +222,15 @@ const overflow = new OverflowMenu(
 );
 shell.append(header, historyPanel.root, display, keyboard.root);
 const moduleSurface = new CalculatorModuleSurface(shell, moduleHost);
-drawerButton.addEventListener("click", () => {
+bindButtonPress(drawerButton, () => {
   if (navigation.topLayer === "drawer") navigation.back();
   else navigation.openLayer("drawer");
 });
-overflowButton.addEventListener("click", () => {
+bindButtonPress(overflowButton, () => {
   if (navigation.topLayer === "overflow") navigation.back();
   else navigation.openLayer("overflow");
 });
-historyButton.addEventListener("click", () => {
+bindButtonPress(historyButton, () => {
   if (moduleHost.activeId !== moduleHost.primaryId) return;
   if (navigation.topLayer === "history") navigation.back();
   else navigation.openLayer("history");

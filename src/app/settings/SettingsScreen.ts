@@ -1,4 +1,5 @@
 import type { AppSettings } from "../state/AppState.js";
+import { bindButtonPress } from "../interaction/ButtonPress.js";
 import { createNavigationIcon } from "../navigation/NavigationIcon.js";
 import {
   formatSettingNumber,
@@ -49,7 +50,7 @@ export class SettingsScreen {
     this.#back.className = "settings-back";
     this.#back.append(createNavigationIcon("back"));
     this.#back.setAttribute("aria-label", "Назад к калькулятору");
-    this.#back.addEventListener("click", options.onBack);
+    bindButtonPress(this.#back, options.onBack);
     const title = document.createElement("h2");
     title.textContent = "Настройки";
     top.append(this.#back, title);
@@ -196,7 +197,7 @@ function segmentedRow(
     button.textContent = caption;
     button.setAttribute("aria-label", segmentName(value));
     button.setAttribute("aria-pressed", "false");
-    button.addEventListener("click", () => {
+    bindButtonPress(button, () => {
       onChoose(value);
     });
     control.append(button);

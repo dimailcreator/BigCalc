@@ -31,6 +31,12 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+.press-control {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .calculator-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

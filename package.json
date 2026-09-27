@@ -24,6 +24,7 @@
     "android:build:debug": "npm run android:sync && node scripts/build-android-debug.mjs",
     "android:build:release": "npm run android:sync && node scripts/build-android-release.mjs",
     "test:android:smoke": "node scripts/android-webview-smoke.mjs",
+    "test:android:stage27": "node scripts/android-stage27-touch-smoke.mjs",
     "test:android:lifecycle": "node scripts/android-lifecycle-smoke.mjs",
     "benchmark:app": "npm run build:app && node scripts/app-performance.mjs",
     "benchmark:android": "node scripts/android-app-performance.mjs",

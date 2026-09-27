@@ -1,3 +1,4 @@
+import { bindButtonPress } from "../interaction/ButtonPress.js";
 import type { CalculatorModuleRegistration } from "./NavigationController.js";
 import { createNavigationIcon } from "./NavigationIcon.js";
 
@@ -20,7 +21,7 @@ export class CalculatorDrawer {
     scrim.className = "calculator-drawer-scrim";
     scrim.setAttribute("aria-label", "Закрыть список калькуляторов");
     scrim.tabIndex = -1;
-    scrim.addEventListener("click", onClose);
+    bindButtonPress(scrim, onClose);
     const panel = document.createElement("nav");
     panel.className = "calculator-drawer";
     panel.setAttribute("aria-label", "Калькуляторы");
@@ -36,7 +37,7 @@ export class CalculatorDrawer {
       button.textContent = module.title;
       button.dataset.moduleId = module.id;
       button.setAttribute("aria-current", String(module.id === activeModuleId));
-      button.addEventListener("click", () => {
+      bindButtonPress(button, () => {
         onSelect(module.id);
       });
       panel.append(button);
@@ -78,7 +79,7 @@ export class OverflowMenu {
     scrim.className = "overflow-scrim";
     scrim.setAttribute("aria-label", "Закрыть меню");
     scrim.tabIndex = -1;
-    scrim.addEventListener("click", onClose);
+    bindButtonPress(scrim, onClose);
     const menu = document.createElement("div");
     menu.className = "overflow-menu";
     menu.setAttribute("role", "menu");
@@ -87,12 +88,12 @@ export class OverflowMenu {
     this.#settingsButton.type = "button";
     this.#settingsButton.textContent = "Настройки";
     this.#settingsButton.setAttribute("role", "menuitem");
-    this.#settingsButton.addEventListener("click", onSettings);
+    bindButtonPress(this.#settingsButton, onSettings);
     const about = document.createElement("button");
     about.type = "button";
     about.textContent = "О проекте";
     about.setAttribute("role", "menuitem");
-    about.addEventListener("click", onAbout);
+    bindButtonPress(about, onAbout);
     menu.append(this.#settingsButton, about);
     this.root.append(scrim, menu);
     this.root.addEventListener("keydown", (event) => {
@@ -135,7 +136,7 @@ export class AboutScreen {
     this.#back.className = "settings-back";
     this.#back.append(createNavigationIcon("back"));
     this.#back.setAttribute("aria-label", "Назад к калькулятору");
-    this.#back.addEventListener("click", onBack);
+    bindButtonPress(this.#back, onBack);
     const title = document.createElement("h2");
     title.textContent = "О проекте";
     top.append(this.#back, title);

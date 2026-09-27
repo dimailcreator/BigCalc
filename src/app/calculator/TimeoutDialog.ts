@@ -1,3 +1,5 @@
+import { bindButtonPress } from "../interaction/ButtonPress.js";
+
 export interface TimeoutDialogActions {
   readonly onContinue: () => void;
   readonly onFreeze: () => void;
@@ -39,13 +41,13 @@ export class TimeoutDialog {
     this.#freezeButton.type = "button";
     this.#freezeButton.className = "timeout-dialog-freeze";
     this.#freezeButton.textContent = "Отменить";
-    this.#freezeButton.addEventListener("click", actions.onFreeze);
+    bindButtonPress(this.#freezeButton, actions.onFreeze);
 
     this.#continueButton = document.createElement("button");
     this.#continueButton.type = "button";
     this.#continueButton.className = "timeout-dialog-continue";
     this.#continueButton.textContent = "Продолжить";
-    this.#continueButton.addEventListener("click", actions.onContinue);
+    bindButtonPress(this.#continueButton, actions.onContinue);
 
     actionsRoot.append(this.#freezeButton, this.#continueButton);
     dialog.append(title, body, actionsRoot);

@@ -1,4 +1,5 @@
 import type { ExpressionEditor } from "../editor/ExpressionEditor.js";
+import { bindButtonPress } from "../interaction/ButtonPress.js";
 import type { MathModes } from "../settings/MathModes.js";
 import { EXPANDED_ROWS, KEY_LABELS } from "./KeyboardLayout.js";
 import type { KeyboardKeyId } from "./KeyboardLayout.js";
@@ -30,7 +31,6 @@ export class CalculatorKeyboard {
   readonly #additionalRows: readonly HTMLDivElement[];
   #modes: MathModes;
   #expanded = false;
-  #ignoreBackspaceClick = false;
 
   constructor(
     editor: ExpressionEditor,
@@ -104,10 +104,26 @@ export class CalculatorKeyboard {
     if (key === "backspace") button.replaceChildren(createBackspaceIcon());
     const label = this.#accessibleLabel(key);
     if (label !== null) button.setAttribute("aria-label", label);
-    button.addEventListener("click", (event) => {
-      this.#activate(key, event);
-    });
-    if (key === "backspace") this.#bindBackspaceHold(button);
+    if (key === "backspace") {
+      bindButtonPress(
+        button,
+        () => {
+          this.#editor.deleteBackward();
+        },
+        {
+          activateOnPointerUp: false,
+          onPointerStart: () => {
+            this.#editor.startBackspaceHold();
+          },
+          onPointerStop: () => {
+            this.#editor.stopBackspaceHold();
+          }
+        }
+      );
+    } else
+      bindButtonPress(button, () => {
+        this.#activate(key);
+      });
     cell.append(button);
     this.#buttons.set(key, button);
     return cell;
@@ -161,7 +177,7 @@ export class CalculatorKeyboard {
     }
   }
 
-  #activate(key: KeyboardKeyId, event: MouseEvent): void {
+  #activate(key: KeyboardKeyId): void {
     switch (key) {
       case "expand":
         this.#setExpanded(!this.#expanded);
@@ -177,14 +193,6 @@ export class CalculatorKeyboard {
         return;
       case "equals":
         this.#actions.equals();
-        return;
-      case "backspace":
-        if (this.#ignoreBackspaceClick && event.detail !== 0) {
-          this.#ignoreBackspaceClick = false;
-          return;
-        }
-        this.#ignoreBackspaceClick = false;
-        this.#editor.deleteBackward();
         return;
       case "round":
         this.#editor.insertSmartBracket("()");
@@ -248,27 +256,9 @@ export class CalculatorKeyboard {
         this.#editor.insertText(key);
         return;
       case "reserved":
+      case "backspace":
         return;
     }
-  }
-
-  #bindBackspaceHold(button: HTMLButtonElement): void {
-    button.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      this.#ignoreBackspaceClick = true;
-      button.setPointerCapture(event.pointerId);
-      this.#editor.startBackspaceHold();
-    });
-    button.addEventListener("pointerup", () => {
-      this.#editor.stopBackspaceHold();
-    });
-    button.addEventListener("pointercancel", () => {
-      this.#editor.stopBackspaceHold();
-      this.#ignoreBackspaceClick = false;
-    });
-    button.addEventListener("lostpointercapture", () => {
-      this.#editor.stopBackspaceHold();
-    });
   }
 }
 

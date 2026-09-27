@@ -3,6 +3,7 @@ import type { VerifiedNumberDto } from "../calculation/CalculationProtocol.js";
 import { formatTemporaryResult } from "../calculator/TemporaryResultFormatter.js";
 import type { ExpressionToken } from "../editor/ExpressionModel.js";
 import { createAnsToken } from "../editor/ExpressionModel.js";
+import { bindButtonPress } from "../interaction/ButtonPress.js";
 import { NumberViewport } from "../viewport/NumberViewport.js";
 import { CalculationHistory } from "./CalculationHistory.js";
 import type { CalculationHistoryEntry } from "./CalculationHistory.js";
@@ -115,7 +116,7 @@ export class HistoryPanel {
     expression.className = "history-expression";
     expression.textContent = entry.originalExpressionText;
     expression.setAttribute("aria-label", `Вставить выражение: ${entry.originalExpressionText}`);
-    expression.addEventListener("click", () => {
+    bindButtonPress(expression, () => {
       this.#options.onInsert(this.#options.history.editableTokensFor(entry.id));
     });
 
