@@ -1,4 +1,6 @@
-# BigCalc Core API 1.0
+# BigCalc Core API
+
+Current public version: **1.3.0**.
 
 The package root is the stable, UI-independent API for evaluating BigCalc expressions.
 It does not expose numeric-backend objects, balls, evaluation graphs, parser nodes, or
@@ -72,7 +74,7 @@ may naturally contain fewer digits.
 
 ## Stability boundary
 
-`CORE_PUBLIC_API_VERSION` is `1.2.0`. The package root exports only:
+`CORE_PUBLIC_API_VERSION` is `1.3.0`. The package root exports only:
 
 - `createCalculationHandle`;
 - `createCalculationHandleFromSegments` for saved references with their original settings;
@@ -81,14 +83,26 @@ may naturally contain fewer digits.
 - `CORE_PUBLIC_API_VERSION`, `CORE_STAGE`, and `createCoreSmokeProbe`;
 - the TypeScript contracts needed by those values.
 
-Core API 1.2 adds `InvalidIterationError` for a recognized function iteration whose
-value is not a non-negative integer literal. Malformed syntax remains `SyntaxError`.
-The source-only `createCalculationHandle` contract is unchanged.
+Public version history:
+
+- **1.1** added structured expression segments with stable saved references and their original settings.
+- **1.2** added `InvalidIterationError` for an invalid value in a recognized function iteration.
+- **1.3** added expression-valued iteration and the prefix `√` source operator.
+
+An iteration count such as `sin[1+1](0)` or `sin[4/2](0)` is valid when the bracketed
+expression evaluates to an exact, non-negative integer `Rational`. `sin[0](x)` is the
+identity `x`. A syntactically valid expression with a negative, fractional, or
+approximate count reports `InvalidIterationError` during refinement; malformed syntax
+remains `SyntaxError`, and mathematical failures inside the count keep their own error
+codes. `√2` and `√(4/9)` are Core source syntax, with `√` binding below postfix `%`
+and above postfix `!` and power `^`. `√(-1)` reports `DomainError`.
+
+The source-only `createCalculationHandle(source, options)` contract remains unchanged.
 
 Files under `src/core`, generated internal modules under `dist/core`, Worker transport,
 history infrastructure, registry callbacks, AST, `Rational`, `LazyReal`, `Ball`, and the
 numeric backend are implementation details and are not package entrypoints.
 
 Function/constant registration remains registry-aware and does not change the grammar,
-but its callback contract is intentionally not frozen as public API 1.0. A future plugin
+but its callback contract is intentionally outside the public API. A future plugin
 contract can be added without changing expression grammar or the calculation-handle API.

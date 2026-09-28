@@ -11,7 +11,7 @@ assert.equal(packageJson.types, "./dist/core/api.d.ts");
 assert.deepEqual(Object.keys(packageJson.exports), ["."]);
 
 const api = await import(packageJson.name);
-assert.equal(api.CORE_PUBLIC_API_VERSION, "1.2.0");
+assert.equal(api.CORE_PUBLIC_API_VERSION, "1.3.0");
 assert.deepEqual(Object.keys(api).sort(), [
   "CORE_PUBLIC_API_VERSION",
   "CORE_STAGE",

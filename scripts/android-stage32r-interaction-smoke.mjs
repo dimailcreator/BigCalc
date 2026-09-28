@@ -93,6 +93,13 @@ try {
     await Input.dispatchTouchEvent({ type: "touchEnd", touchPoints: [] });
   };
 
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate("document.querySelector('.drawer-toggle') !== null")) break;
+    await delay(100);
+  }
+  if (!(await evaluate("document.querySelector('.drawer-toggle') !== null")))
+    throw new Error("BigCalc controls did not finish mounting");
+
   await evaluate(`(() => {
     const events = [];
     const removers = [];

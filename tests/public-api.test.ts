@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import * as api from "../src/core/api.js";
 import type { CalculationOptions, CalculationSettings, RefinementResult } from "../src/core/api.js";
 
-void describe("Core public API 1.2 with preserved source-only behavior", () => {
+void describe("Core public API 1.3 with preserved source-only behavior", () => {
   void it("exports only the documented runtime surface", () => {
     assert.deepEqual(Object.keys(api).sort(), [
       "CORE_PUBLIC_API_VERSION",
@@ -15,7 +15,7 @@ void describe("Core public API 1.2 with preserved source-only behavior", () => {
       "createCoreSmokeProbe",
       "formatVerifiedNumber"
     ]);
-    assert.equal(api.CORE_PUBLIC_API_VERSION, "1.2.0");
+    assert.equal(api.CORE_PUBLIC_API_VERSION, "1.3.0");
     assert.equal(api.CORE_STAGE, "stage-38");
   });
 

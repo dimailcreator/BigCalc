@@ -96,6 +96,10 @@ try {
     throw new Error("viewport-fit=cover is missing in Android WebView");
   }
 
+  if (await evaluate('document.querySelector("[data-key=angle]")?.textContent === "rad"')) {
+    await evaluate('document.querySelector("[data-key=angle]")?.click()');
+  }
+
   const calculations = [];
   calculations.push(await calculate("2+3", (value) => value === "5"));
   calculations.push(await calculate("π", (value) => value.startsWith("3,14159")));

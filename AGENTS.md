@@ -4,7 +4,7 @@
 
 Этот файл задаёт правила работы coding-агента с репозиторием BigCalc.
 
-Математическое ядро BigCalc завершило Core-development phase, а его public API 1.0 считается замороженным. Текущая активная фаза — разработка application layer, Web UI, Worker transport, persistence и Android/Capacitor host по `APP_IMPLEMENTATION_PLAN.md`.
+Математическое ядро BigCalc завершило первоначальную Core-development phase и прошло public API freeze. Текущая public-версия определяется `CORE_PUBLIC_API_VERSION`; post-freeze дополнения допускаются только по явному решению с обновлением версии, спецификаций и regression tests. Application layer, Web UI, Worker transport, persistence и Android/Capacitor host развиваются по `APP_IMPLEMENTATION_PLAN.md`.
 
 Application development разрешён и является следующим активным слоем. Он не отменяет математические гарантии Core и не даёт права менять Core API или внутреннюю семантику ради удобства UI.
 
@@ -99,7 +99,7 @@ AGENTS.md
 
 ### 4.2. Core changes
 
-Core API 1.0 заморожен. Application-задача сама по себе не разрешает менять:
+Public Core boundary заморожен относительно произвольных изменений. Application-задача сама по себе не разрешает менять:
 
 - `src/core/**`;
 - `src/core/api.ts` и его public contracts;
@@ -107,7 +107,7 @@ Core API 1.0 заморожен. Application-задача сама по себе
 - numeric backend, evaluation graph или resource lifecycle;
 - Core build/test semantics.
 
-Core change допустим только по явной задаче пользователя или после зафиксированного blocking cross-boundary решения. Перед ним обязательно прочитать релевантные разделы `CORE_SPEC.md`, проверить public API audit и выполнить Core regression suite.
+Core change допустим только по явной задаче пользователя или после зафиксированного blocking cross-boundary решения. Public change после freeze требует явного решения, обновления `CORE_PUBLIC_API_VERSION`, `CORE_SPEC.md` и API docs, а также regression coverage. Перед ним обязательно прочитать релевантные разделы `CORE_SPEC.md`, проверить public API audit и выполнить Core regression suite.
 
 Внутри Core по-прежнему запрещены зависимости от:
 
@@ -869,7 +869,7 @@ portrait tablet / wide viewport
 - не менять frozen Core public API;
 - не фиксировать преждевременно API будущих app-этапов.
 
-Application API может осознанно эволюционировать до Stage 26. Изменение Core API 1.0 требует отдельного cross-boundary решения и не является обычным рефакторингом.
+После Stage 26 изменение замороженных application contracts требует документированного решения и regression coverage. Изменение public Core API после первоначального freeze требует отдельного cross-boundary решения, повышения версии и обновления спецификаций/API docs; оно не является обычным рефакторингом.
 
 ---
 

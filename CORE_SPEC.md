@@ -31,7 +31,7 @@ BigCalc не должен быть привязан к JavaScript `number` ка�
 - комплексные числа;
 - символьная алгебра общего назначения;
 - CAS-преобразования;
-- специальное символьное хранение `sqrt(2)`, `π/2`, `sin(π)` и аналогичных выражений;
+- специальное символьное хранение `√2`, `π/2`, `sin(π)` и аналогичных выражений;
 - `NaN`;
 - `Infinity`;
 - `-Infinity`;
@@ -127,7 +127,7 @@ gcd(abs(numerator), denominator) = 1
 ```text
 π
 e
-sqrt(2)
+√2
 sin(1)
 ln(2)
 Gamma(1/2)
@@ -679,11 +679,34 @@ sin[2](x)
 `Rational` со знаменателем `1`; приближённый `LazyReal`, отрицательное и дробное
 значения не являются допустимыми показателями итерации.
 
+Концептуальная grammar для обычного вызова функции:
+
+```text
+FunctionCall := FunctionName Iteration? "(" Arguments ")"
+Iteration    := "[" Expression "]"
+```
+
+`Expression` внутри `[...]` разбирается обычной grammar BigCalc, а его значение
+проверяется при вычислении до построения цепочки применений функции.
+
+```text
+sin[1+1](0)      = sin(sin(0))
+sin[4/2](0)      = sin(sin(0))
+log{2}[1+1](8)   = log{2}(log{2}(8))
+sin[π](0)        → InvalidIterationError
+sin[3/2](0)      → InvalidIterationError
+```
+
 ```text
 f[0](x) = x
 f[1](x) = f(x)
 f[2](x) = f(f(x))
 ```
+
+`[0]` возвращает аргумент без применения функции; в частности, `f[0](x) = x`.
+Синтаксическая ошибка внутри `[...]` даёт `SyntaxError`, а математическая ошибка
+при вычислении показателя сохраняет собственный тип. Лишь корректно вычисленный,
+но недопустимый показатель даёт `InvalidIterationError`.
 
 Отрицательные и дробные итерации в текущую спецификацию не входят.
 
@@ -1040,12 +1063,16 @@ AST неизменяем после построения.
 NumberLiteralNode
 ConstantNode
 UnaryNode
+SquareRootNode
 BinaryNode
 PostfixNode
 FunctionCallNode
 FunctionIterationNode
 LogNode
 ```
+
+`SquareRootNode` хранит операнд prefix `√`. `FunctionIterationNode` и `LogNode`
+хранят AST выражения показателя итерации, а не только числовой литерал.
 
 AST описывает синтаксис, не хранит вычислительное состояние и не содержит типов сторонних библиотек.
 
@@ -1110,7 +1137,7 @@ decimalTerminating = true
 valueExact = true
 decimalTerminating = false
 
-sqrt(2):
+√2:
 valueExact = false
 decimalTerminating = false
 ```
@@ -1384,6 +1411,7 @@ Hard limit не является пользовательской математ
 ```text
 CalcError
 ├─ SyntaxError
+├─ InvalidIterationError
 ├─ UnknownIdentifierError
 ├─ AmbiguousIdentifierError
 ├─ DomainError
@@ -1513,8 +1541,9 @@ special asymptotic forms
 - precedence и associativity;
 - implicit multiplication;
 - `%`;
+- prefix `√`, его приоритет, exact roots и вещественную область определения;
 - factorial modes;
-- function iterations, включая `[0]`;
+- function iterations с выражениями в `[...]`, exact-integer validation и `[0]` identity;
 - binary arbitrary-precision adapter;
 - directed rounding;
 - ball propagation;

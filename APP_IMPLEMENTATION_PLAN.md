@@ -1,17 +1,17 @@
 # BigCalc App Implementation Plan
 
 **Файл:** `APP_IMPLEMENTATION_PLAN.md`  
-**Статус:** Draft 1  
+**Статус:** Stages 0–33 implemented; Stage 33 gate and physical-device matrix passed on SM-A576B (2026-09-28)
 **Базовая ветка:** `main`  
 **Базовое состояние репозитория:** после `d4cc0a1` (`prepare for APP_IMPLEMENTATION`) и `f28c4fb` (`Prettier`)  
-**Основание:** `CORE_SPEC.md`, Core API 1.0, `UI_SPEC.md` Draft 2, `DESIGN_SPEC.md` Draft 1, `prototype.html`  
+**Основание:** `CORE_SPEC.md`, текущий public Core API, `UI_SPEC.md`, `DESIGN_SPEC.md`, `POST_STAGE_26_REMEDIATION_PLAN.md`, `prototype.html`
 **Область:** application layer, Web UI, Web Worker, persistence, Capacitor/Android host, тестирование и release pipeline BigCalc.
 
 ---
 
 # 1. Назначение плана
 
-Этот документ задаёт **порядок реализации Android-приложения BigCalc после завершения и freeze математического Core API 1.0**.
+Этот документ задаёт **порядок реализации Android-приложения BigCalc после первоначального freeze математического Core API**. Этапы 27–33 документируют отдельную post-freeze remediation; они не переписывают историю этапов 0–26.
 
 Он отвечает на вопросы:
 
@@ -131,7 +131,7 @@ Web Worker protocol
         ↓
 calculator.worker.ts
         ↓
-BigCalc Core API 1.0
+BigCalc current public Core API
 ```
 
 Core работает вне UI thread.
@@ -3364,6 +3364,48 @@ CalculatorModule boundary
 
 ---
 
+# Post-Stage-26 remediation — Stages 27–33
+
+Подробные scope, решения и Definition of Done находятся в `POST_STAGE_26_REMEDIATION_PLAN.md`; результаты финального gate — в `docs/STAGE_33_VERIFICATION.md`. Следующие записи фиксируют порядок и границы уже выполненной post-freeze работы. Математическая семантика остаётся за `CORE_SPEC.md`, а Core вызывается приложением только через public boundary в Worker.
+
+## Stage 27. Long-press activation
+
+Обычная экранная клавиша выполняет одно действие после pointer release даже без browser `click`; последующий compatibility click не дублирует его. `⌫` сохраняет собственный autorepeat.
+
+## Stage 28. Lazy-constant cancellation
+
+Core устраняет ложные resource failures для выражений с сокращением ленивых констант, включая `π-π` и `e-e`, сохраняя verified-digit и resource guarantees.
+
+## Stage 29. Logarithm and power resource remediation
+
+Локальные доказуемые маршруты устраняют патологический refinement в композициях вроде `e^ln(2)` без изменения hard resource policy или общего symbolic engine.
+
+## Stage 30. Expression-valued iteration
+
+Core разбирает выражение в `[...]` как AST, принимает только точное неотрицательное целое значение, сохраняет `[0]` identity и различает синтаксическую, математическую и iteration-value errors.
+
+## Stage 31. Core `√` source syntax
+
+Prefix `√` принадлежит grammar Core, имеет зафиксированный приоритет и использует существующую вещественную square-root semantics. Это не UI macro.
+
+## Stage 32. App `√` integration
+
+Редактор и клавиатура вставляют один source-символ `√`; Worker, clipboard, History и persistence сохраняют тот же source без decimal substitution.
+
+## Stage 32R. Android editor and TopBar interaction stabilization
+
+Главный expression input поддерживает native selection/clipboard ActionMode при скрытой Android IME. TopBar pointer activation выполняется ровно один раз и не конфликтует со swipe History.
+
+## Stage 32S. History viewport geometry and editor caret stabilization
+
+History NumberViewport измеряет usable content width; видимый logical caret сохраняется после экранных кнопок без нарушения keyboard accessibility focus. Physical-device проверки Stage 32S подтверждены пользователем.
+
+## Stage 33. Documentation, public API version and regression closure
+
+Public Core version 1.3.0, Core/UI/API docs, app plans и README согласованы с уже принятой семантикой. Полный Core/App/Android build gate и physical-device acceptance matrix пройдены на SM-A576B; результаты зафиксированы в `docs/STAGE_33_VERIFICATION.md`.
+
+---
+
 # 7. Зависимости этапов
 
 Основная цепочка:
@@ -3428,6 +3470,26 @@ CalculatorModule boundary
 25 Release
     ↓
 26 App architecture freeze
+    ↓
+27 Long-press activation
+    ↓
+28 Lazy constant cancellation
+    ↓
+29 Log/power resource remediation
+    ↓
+30 Expression-valued iteration
+    ↓
+31 Core √ syntax
+    ↓
+32 App √ integration
+    ↓
+32R Android editor/TopBar stabilization
+    ↓
+32S History geometry/editor caret stabilization
+    ↓
+33 Documentation/API regression closure
+    ↓
+Further product development
 ```
 
 Некоторые этапы можно частично вести параллельно:
@@ -3534,6 +3596,12 @@ CalculatorModule boundary
 - full UI regression;
 - signed release pipeline;
 - application architecture freeze.
+
+---
+
+## Milestone F — Post-freeze remediation closure
+
+Этапы 27–32S добавили ограниченные cross-boundary изменения после freeze. Stage 33 согласует документацию и public Core version с фактическими контрактами. Milestone закрывается после полного regression gate и physical-device acceptance matrix из `POST_STAGE_26_REMEDIATION_PLAN.md`.
 
 ---
 
@@ -3735,7 +3803,7 @@ history open state
 
 Первая версия приложения считается готовой, когда одновременно выполняются условия:
 
-1. Core API 1.0 не был нарушен application implementation.
+1. Исходный source-only contract Core API 1.0 сохранён; additive structured-reference API 1.1 выпущен по отдельному cross-boundary решению.
 2. UI не импортирует Core internals.
 3. Heavy calculation выполняется в Worker.
 4. Worker protocol имеет stale-session protection.
