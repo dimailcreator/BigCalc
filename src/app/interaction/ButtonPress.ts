@@ -152,7 +152,7 @@ export interface ButtonPressOptions {
 /** Bind a semantic button without relying on the browser to emit click after a touch hold. */
 export function bindButtonPress(
   button: HTMLButtonElement,
-  activate: () => void,
+  activate: (origin: "pointer" | "keyboard") => void,
   options: ButtonPressOptions = {}
 ): void {
   const press = new ButtonPressState();
@@ -190,7 +190,7 @@ export function bindButtonPress(
     const shouldActivate = press.end(event.pointerId, event.clientX, event.clientY, inside);
     coordinator.record(press, event);
     options.onPointerStop?.();
-    if (shouldActivate && options.activateOnPointerUp !== false) activate();
+    if (shouldActivate && options.activateOnPointerUp !== false) activate("pointer");
   });
   button.addEventListener("pointercancel", (event) => {
     if (press.tracks(event.pointerId)) coordinator.record(press, event);
@@ -211,7 +211,7 @@ export function bindButtonPress(
       event.stopImmediatePropagation();
       return;
     }
-    activate();
+    activate("keyboard");
   });
   button.addEventListener("contextmenu", (event) => {
     event.preventDefault();

@@ -25,6 +25,8 @@
     ↓
 32R Android editor/TopBar interaction stabilization
     ↓
+32S History NumberViewport geometry + editor caret stabilization
+    ↓
 33 Documentation/API/version audit
 ```
 
@@ -1130,7 +1132,6 @@ Expression с `√`:
 
 ---
 
-
 # ЭТАП 32R. Android editor/context-menu и exactly-once TopBar interaction
 
 ## Цель
@@ -1835,6 +1836,696 @@ Stage 32R завершён, когда:
 
 ---
 
+# ЭТАП 32S. History NumberViewport geometry + editor caret stabilization
+
+## Цель
+
+Исправить layout regression в History:
+
+```text
+длинный числовой результат
+→ первый видимый символ слева частично или полностью обрезается
+```
+
+На physical Android дефект воспроизводится на длинном результате вроде `√(40!)` внутри history card.
+
+---
+
+## 32S.1. Вероятная root cause
+
+History использует обычный `NumberViewport`, но добавляет:
+
+```css
+.history-card .history-result {
+  padding: 3px 7px;
+}
+```
+
+`NumberViewport.#measure()` сейчас считает примерно:
+
+```text
+available = root.clientWidth
+slots = floor(available / slotWidth)
+```
+
+`clientWidth` включает horizontal padding элемента, тогда как `.number-viewport-content` реально размещается внутри content box.
+
+Получается:
+
+```text
+measured width
+≈ actual slot content width + left padding + right padding
+```
+
+То есть в History доступная ширина может быть завышена примерно на 14 CSS px. На некоторых font/device metrics модель считает, что помещается на один slot больше, после чего `.result-output { overflow: hidden; }` режет левый slot.
+
+До fix добавить regression measurement и подтвердить либо опровергнуть эту root cause фактической geometry.
+
+---
+
+## 32S.2. Нормативное правило geometry
+
+`NumberViewport` рассчитывает `availableSlots` по реальной usable width области, где располагаются `.number-slot`.
+
+Нельзя hardcode:
+
+```text
+7px
+14px
+history padding
+```
+
+в TypeScript.
+
+Компонент должен быть корректен при любом CSS padding и оставаться reusable вне History.
+
+---
+
+## 32S.3. Реализация
+
+Предпочтительно измерять layout primitive, которому реально принадлежит slots:
+
+1. width `.number-viewport-content`; либо
+2. content-box width root через корректную geometry/computed-style формулу; либо
+3. отдельный внутренний measuring container с той же usable width.
+
+Не исправлять проблему только:
+
+```css
+.history-result {
+  padding: 0;
+}
+```
+
+если `NumberViewport` всё ещё неверно измеряет padded container.
+
+Не делать:
+
+```text
+availableSlots -= 1
+```
+
+как постоянный safety margin.
+
+---
+
+## 32S.4. Ownership
+
+Сохраняется разделение:
+
+```text
+NumberViewport
+→ DOM/CSS geometry
+
+NumberViewportModel
+→ pure projection по уже вычисленному availableSlots
+```
+
+Не переносить padding/CSS awareness в `NumberViewportModel`.
+
+---
+
+## 32S.5. Slot containment invariant
+
+После render каждый visible slot должен полностью помещаться в usable content rectangle.
+
+Минимум:
+
+```text
+firstSlot.left  >= content.left  - epsilon
+lastSlot.right  <= content.right + epsilon
+```
+
+где:
+
+```text
+epsilon <= 1 CSS px
+```
+
+только для subpixel rounding.
+
+---
+
+## 32S.6. Семантика результата не меняется
+
+Fix не должен менять:
+
+- mathematical value;
+- scientific/decimal representation;
+- relative `E`;
+- `..` как один visual slot;
+- `logicalStart`;
+- precision demand;
+- history refinement;
+- click result → `Ans`;
+- horizontal drag/inertia.
+
+Это geometry fix, а не redesign NumberViewportModel.
+
+---
+
+## 32S.7. Automated geometry tests
+
+Добавить regression coverage для `NumberViewport` при фиксированной width и разных padding:
+
+```text
+padding 0
+padding 7px + 7px
+asymmetric horizontal padding
+```
+
+Проверить, что `availableSlots` соответствует usable content width, а не padded `clientWidth`.
+
+Проверить минимум несколько widths:
+
+```text
+320
+360
+384
+390
+412
+```
+
+Особенно `384px` как Android-like regression width.
+
+---
+
+## 32S.8. History no-clipping tests
+
+Создать history card с длинным result и проверить geometry первого/последнего visible slots:
+
+```text
+first.left >= content.left - 1px
+last.right <= content.right + 1px
+```
+
+Representative results:
+
+```text
+2
+√4
+√(40!)
+1/7
+10^100
+10^-100
+```
+
+Допустимы эквивалентные existing fixtures, если они покрывают:
+
+- short exact integer;
+- long/scientific value;
+- decimal;
+- positive exponent;
+- negative exponent.
+
+---
+
+## 32S.9. Scroll/inertia regression
+
+Для длинного history result проверить:
+
+```text
+drag left
+drag right
+flick
+Home
+ArrowLeft
+ArrowRight
+```
+
+После движения slots по-прежнему полностью находятся внутри viewport; `logicalStart` и precision refinement корректны.
+
+Не должно появляться document-wide horizontal scrolling.
+
+---
+
+## 32S.10. Main result regression
+
+Основной calculator result использует тот же `NumberViewport`.
+
+Проверить, что generic measurement fix:
+
+- не отнимает лишний slot на main screen;
+- не меняет ранее утверждённый relative-`E` output;
+- не создаёт clipping на narrow viewport;
+- не меняет precision demand без фактической причины.
+
+---
+
+## 32S.11. Accessibility / hit target
+
+History result остаётся полноценным interaction target:
+
+```text
+min-height >= 44px
+```
+
+Исправление inner geometry не должно ломать tap-to-insert `Ans`, focus и horizontal gesture.
+
+---
+
+## 32S.12. Regression commands
+
+Обязательно:
+
+```text
+npm run check
+npm run check:app
+npm run build:app
+npm run android:build:debug
+```
+
+При доступном Android device:
+
+```text
+npm run test:android:smoke
+npm run test:android:lifecycle
+```
+
+Stage 27/32R interaction regressions также должны оставаться зелёными.
+
+---
+
+## 32S.13. Physical-device validation
+
+На Android:
+
+1. вычислить `√(40!)`;
+2. нажать `=`;
+3. открыть History;
+4. убедиться, что первая видимая цифра результата полностью помещается;
+5. повторить для `√4!` и `√4`;
+6. проверить несколько длинных history results;
+7. прокрутить длинный result к обоим пределам;
+8. убедиться, что первый и последний visible slots не обрезаются.
+
+Сделать screenshot после fix для сравнения с исходным regression screenshot.
+
+---
+
+## 32S.14. Visual caret после нажатия экранных кнопок
+
+### Regression
+
+После установки cursor внутрь expression:
+
+```text
+12|34
+```
+
+и последующего нажатия любой экранной calculator key визуальный caret исчезает.
+
+При этом logical cursor в `ExpressionModel` сохраняется, поэтому следующий введённый символ всё ещё попадает в ожидаемую позицию:
+
+```text
+12|34
+tap 5
+→ 125|34
+```
+
+Проблема именно presentation/focus synchronization, а не потеря logical cursor.
+
+---
+
+## 32S.15. Вероятная root cause caret regression
+
+Текущий `ExpressionEditor.#render()` создаёт `.expression-caret` только если одновременно:
+
+```text
+selection collapsed
+cursor boundary совпадает
+document.activeElement === this.input
+```
+
+То есть visual caret напрямую зависит от native DOM focus hidden expression input.
+
+Экранная calculator key является semantic `<button>`. Pointer interaction может перевести focus на кнопку уже после того, как editor action обновил `ExpressionModel`.
+
+В результате:
+
+```text
+ExpressionModel.cursor → корректен
+document.activeElement → button
+visual caret           → hidden
+```
+
+До fix добавить test/trace, который подтверждает actual focus sequence.
+
+---
+
+## 32S.16. Нормативная semantics logical cursor vs DOM focus
+
+Разделить два понятия:
+
+```text
+logical editor cursor
+DOM accessibility focus
+```
+
+Visual caret на основном calculator screen должен отражать logical insertion position, когда пользователь продолжает взаимодействовать с calculator keypad.
+
+Нельзя использовать:
+
+```text
+document.activeElement === input
+```
+
+как единственный источник истины для видимости logical caret.
+
+При этом accessibility focus semantics настоящих `<button>` нельзя ломать.
+
+---
+
+## 32S.17. Требуемое поведение
+
+Пример:
+
+```text
+1234
+tap between 2 and 3
+→ 12|34
+
+tap 5
+→ 125|34
+```
+
+После `tap 5` caret остаётся видимым после `5`.
+
+То же правило для:
+
+```text
+digit
+operator
+√
+π
+e
+function
+bracket
+backspace
+mode key, если expression/cursor не меняется
+```
+
+Если action не изменяет expression, например:
+
+```text
+deg/rad
+fac/Gm
+keyboard expand
+```
+
+logical caret также не должен визуально исчезать только из-за tap по кнопке.
+
+---
+
+## 32S.18. Когда caret действительно скрывается
+
+Visual caret может быть скрыт, когда это соответствует product state, например:
+
+- editor/history mode явно запрещает normal editing;
+- отображается lone `Ans` через отдельный result viewport согласно существующей semantics;
+- navigation уводит пользователя на отдельный screen/layer, где expression editor не является активным editing surface;
+- app background/lifecycle state требует убрать active editing indication;
+- non-collapsed selection отображается как selection, а не collapsed caret.
+
+Не превращать caret в постоянно видимый декоративный элемент во всех screens.
+
+---
+
+## 32S.19. Не исправлять через принудительный focus всех кнопок обратно в input
+
+Не делать безусловно:
+
+```text
+button action
+→ editor.input.focus()
+```
+
+для всех способов activation, если это ломает:
+
+```text
+Tab navigation
+Enter/Space activation
+screen-reader focus
+focus-visible
+```
+
+Keyboard user, который переместил DOM focus на calculator button через Tab, должен иметь возможность сохранить focus на этой кнопке.
+
+Нужна distinction между:
+
+```text
+pointer/touch keypad interaction
+keyboard accessibility navigation
+```
+
+либо отдельная logical-caret-visibility semantics, не завязанная напрямую на activeElement.
+
+---
+
+## 32S.20. Preferred implementation direction
+
+Предпочтительно ввести явное состояние вроде:
+
+```text
+editor interaction active
+logical caret visible
+```
+
+или эквивалентную derivation из app state.
+
+Возможны два корректных направления:
+
+### A. Logical caret state
+
+`ExpressionEditor` рисует caret на основании:
+
+```text
+collapsed logical selection
++
+editor editing surface active
+```
+
+а не только DOM focus.
+
+DOM focus остаётся независимым accessibility mechanism.
+
+### B. Pointer-specific focus preservation
+
+Для pointer/touch экранной клавиатуры предотвращать/восстанавливать focus transfer так, чтобы native input оставался focused, но только если это не ломает Stage 32R context-menu и accessibility.
+
+Выбор делается после focus trace.
+
+Не смешивать это с keyboard-originated button activation.
+
+---
+
+## 32S.21. Взаимодействие со Stage 32R
+
+Stage 32R восстанавливает native Android text selection/action mode expression input.
+
+Caret fix не должен отменить его.
+
+Проверить:
+
+```text
+long press expression
+→ native selection/action mode
+
+tap calculator key
+→ logical caret remains visible
+
+inputmode="none"
+→ Android IME stays hidden
+```
+
+Не возвращать безусловный `preventDefault()` на expression touch path только ради caret.
+
+---
+
+## 32S.22. Automated caret tests
+
+Добавить browser/App regression минимум:
+
+### Pointer keypad insertion
+
+```text
+expression = 1234
+cursor = 2
+tap 5
+→ value = 12534
+→ logical cursor = 3
+→ .expression-caret exists
+→ caret rendered at logical boundary 3
+```
+
+### Последовательность нескольких taps
+
+```text
+12|34
+tap 5
+tap +
+tap 6
+```
+
+После каждого action caret остаётся видимым и перемещается вместе с logical cursor.
+
+### Non-text calculator controls
+
+После pointer tap:
+
+```text
+deg/rad
+fac/Gm
+expand/collapse keyboard
+```
+
+если editor остаётся current editing surface:
+
+```text
+logical cursor unchanged
+visual caret remains visible
+```
+
+### Backspace
+
+```text
+123|4
+tap ⌫
+→ 12|4
+→ caret visible
+```
+
+Hold autorepeat Stage 27 также не должен оставлять caret в исчезнувшем состоянии после release.
+
+### Function / root / bracket
+
+Проверить representative:
+
+```text
+sin(
+√
+()
+```
+
+Caret остаётся на ожидаемой logical boundary.
+
+---
+
+## 32S.23. Accessibility focus regression
+
+Отдельно проверить keyboard navigation:
+
+1. Tab переводит DOM focus на calculator key.
+2. `:focus-visible` остаётся на этой key.
+3. Enter/Space активирует её один раз.
+4. Fix не насильно перебрасывает DOM focus обратно в hidden expression input.
+5. Screen-reader-accessible button semantics не меняются.
+
+Visual logical caret может оставаться видимым на calculator surface, но не должен заменять настоящий focus indicator кнопки.
+
+---
+
+## 32S.24. Android physical caret validation
+
+На physical Android:
+
+1. Ввести:
+
+```text
+1234
+```
+
+2. Tap между `2` и `3`.
+3. Убедиться:
+
+```text
+12|34
+```
+
+4. Нажать `5`.
+
+Ожидается:
+
+```text
+125|34
+```
+
+и caret виден.
+
+5. Нажать последовательно:
+
+```text
++
+6
+√
+()
+⌫
+```
+
+После каждого relevant editing action caret остаётся видимым в правильной позиции.
+
+6. Нажать:
+
+```text
+deg/rad
+fac/Gm
+expand/collapse
+```
+
+Caret не исчезает, пока основной expression editor остаётся active editing surface.
+
+7. Проверить long press Copy/Paste/Select all из Stage 32R.
+8. Проверить background → foreground.
+9. Убедиться, что Android IME не появляется.
+
+---
+
+## Definition of Done
+
+Stage 32S завершён, когда:
+
+1. фактическая root cause History clipping подтверждена;
+2. `NumberViewport` измеряет usable content width, а не padded outer/client width;
+3. нет history-specific hardcoded padding в TypeScript;
+4. padded viewport получает корректный `availableSlots`;
+5. первый visible slot полностью помещается;
+6. последний visible slot полностью помещается;
+7. geometry tolerance не превышает 1 CSS px;
+8. History `√(40!)` больше не режет первую цифру;
+9. short History results не регрессировали;
+10. scientific/decimal representations не изменились;
+11. drag/inertia/logicalStart не регрессировали;
+12. precision demand/refinement не регрессировали;
+13. main result не теряет лишний slot;
+14. relative `E` semantics не меняется;
+15. tap-to-insert `Ans` работает;
+16. accessibility hit target сохранён;
+17. automated geometry regression добавлен;
+18. фактическая focus sequence, вызывавшая исчезновение caret, подтверждена;
+19. logical cursor и visual caret больше не зависят ошибочно от одного `document.activeElement === input`;
+20. pointer/touch calculator key не скрывает logical caret;
+21. digits/operators/functions/root/brackets/backspace сохраняют видимый caret в правильной logical position;
+22. mode/expand buttons не скрывают caret, пока expression остаётся active editing surface;
+23. Tab/Enter/Space accessibility focus semantics не сломаны;
+24. Stage 32R native Copy/Paste/Select all не регрессировал;
+25. Android IME main editor остаётся скрытой;
+26. automated caret regression tests добавлены;
+27. `npm run check` проходит;
+28. `npm run check:app` проходит;
+29. physical Android geometry validation подтверждает отсутствие clipping;
+30. physical Android caret validation подтверждает видимый cursor после calculator-key interaction.
+
+В итоговом отчёте зафиксировать:
+
+- фактическую root cause;
+- old/new measurement formula;
+- root/content/slot widths на regression case;
+- `availableSlots` до/после;
+- automated results;
+- physical-device observation/screenshot.
+
+---
+
 # ЭТАП 33. Documentation, public version и full remediation regression
 
 ## Цель
@@ -1909,6 +2600,7 @@ CORE_PUBLIC_API_VERSION
 - `⌫` остаётся специальной hold-autorepeat key;
 - long press main expression поддерживает standard Copy/Paste/Select all без открытия Android IME;
 - TopBar touch activation exactly-once: compatibility click не дублирует pointer action.
+- calculator-key pointer interaction сохраняет видимый logical expression caret, не ломая keyboard accessibility focus.
 
 Также исправить ранее выявленные stale UI examples/wording, если они противоречат уже принятой production semantics.
 
@@ -1945,7 +2637,7 @@ App по-прежнему не импортирует Core internals.
 
 ## 33.7. `APP_IMPLEMENTATION_PLAN.md`
 
-Добавить Stages 27–33, включая Stage 32R, после Stage 26 и обновить dependency chain:
+Добавить Stages 27–33, включая Stages 32R и 32S, после Stage 26 и обновить dependency chain:
 
 ```text
 26 App architecture freeze
@@ -1963,6 +2655,8 @@ App по-прежнему не импортирует Core internals.
 32 App √ integration
     ↓
 32R Android editor/TopBar interaction stabilization
+    ↓
+32S History NumberViewport geometry + editor caret stabilization
     ↓
 33 Documentation/API regression closure
     ↓
@@ -2007,7 +2701,7 @@ npm run build:app
 npm run android:build:debug
 ```
 
-и все отдельные suites Stages 27–32R.
+и все отдельные suites Stages 27–32S.
 
 ## Physical-device acceptance matrix
 
@@ -2056,7 +2750,7 @@ npm run android:build:debug
 4. UI_SPEC описывает реальное root insertion behavior без скобок;
 5. APP_ARCHITECTURE_FREEZE не утверждает устаревшую current Core version;
 6. AGENTS отражает post-freeze change discipline;
-7. APP_IMPLEMENTATION_PLAN содержит Stages 27–33 и отдельный Stage 32R;
+7. APP_IMPLEMENTATION_PLAN содержит Stages 27–33 и отдельные Stages 32R/32S;
 8. core implementation history не переписана задним числом;
 9. README/syntax reference обновлены;
 10. `npm run check` проходит;
@@ -2094,6 +2788,9 @@ App √ integration
     ↓
 Stage 32R
 Android editor/context-menu + TopBar exactly-once interaction
+    ↓
+Stage 32S
+History NumberViewport geometry + editor caret stabilization
     ↓
 Stage 33
 Docs + API 1.3 + full regression

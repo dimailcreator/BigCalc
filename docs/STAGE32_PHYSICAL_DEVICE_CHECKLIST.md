@@ -13,15 +13,15 @@ SHA-256: `E55848713BBF9D45307FB86214EB2574F3D966ED3247A76744812A799F817C4D`
 
 ## Manual touch checks
 
-| Action | Expected |
-| --- | --- |
-| Expand keyboard; tap `√` once | Expression is exactly `√`; cursor is after it. No `(`, `)` or `^(1/2)` appears. |
-| Tap `4` | Source is `√4`; live result is `2`. Tap `=`; History stores `√4`. |
-| Clear; tap `√`, `4`, `!` | Source is `√4!`; live result is `2`. Tap `=`; History stores `√4!`. |
-| Clear; tap `√`, `()`, `4`, `0`, `!`, `()` | Source is `√(40!)`; a positive result beginning with `903280` appears. Tap `=`; History stores the same source. |
-| Relaunch; insert each root expression from History | Each expression still contains `√` and recalculates. |
-| Select an existing expression; tap `√` | Selection is replaced with one `√`, without wrapping. |
-| Put cursor after `√`; tap `⌫` once | Only `√` is deleted. |
-| Paste `√(2+3)` into the editor | Source retains `√`; a result beginning with `2,23606` appears. |
+| Action                                             | Expected                                                                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Expand keyboard; tap `√` once                      | Expression is exactly `√`; cursor is after it. No `(`, `)` or `^(1/2)` appears.                                 |
+| Tap `4`                                            | Source is `√4`; live result is `2`. Tap `=`; History stores `√4`.                                               |
+| Clear; tap `√`, `4`, `!`                           | Source is `√4!`; live result is `2`. Tap `=`; History stores `√4!`.                                             |
+| Clear; tap `√`, `()`, `4`, `0`, `!`, `()`          | Source is `√(40!)`; a positive result beginning with `903280` appears. Tap `=`; History stores the same source. |
+| Relaunch; insert each root expression from History | Each expression still contains `√` and recalculates.                                                            |
+| Select an existing expression; tap `√`             | Selection is replaced with one `√`, without wrapping.                                                           |
+| Put cursor after `√`; tap `⌫` once                 | Only `√` is deleted.                                                                                            |
+| Paste `√(2+3)` into the editor                     | Source retains `√`; a result beginning with `2,23606` appears.                                                  |
 
 Mark the stage's physical-device check complete only after the smoke and manual touch checks pass.

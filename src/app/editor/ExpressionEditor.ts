@@ -24,6 +24,9 @@ export class ExpressionEditor {
   readonly #backspaceRepeater: BackspaceRepeater;
   #model = new ExpressionModel();
   #historyOpen = false;
+  #editingSurfaceActive = true;
+  #logicalCaretVisible = false;
+  #backgroundSuspended = false;
   #composing = false;
   #suppressCompositionInput = false;
   #pointerAnchor: number | null = null;
@@ -68,12 +71,16 @@ export class ExpressionEditor {
   }
 
   suspendNativeFocus(): void {
+    this.#backgroundSuspended = true;
+    this.#render();
     if (document.activeElement !== this.input) return;
     this.#restoreFocusAfterForeground = true;
     this.input.blur();
   }
 
   restoreNativeFocus(): void {
+    this.#backgroundSuspended = false;
+    this.#render();
     if (!this.#restoreFocusAfterForeground || this.#historyOpen) return;
     this.#restoreFocusAfterForeground = false;
     this.input.focus({ preventScroll: true });
@@ -87,6 +94,7 @@ export class ExpressionEditor {
 
   setCursor(position: number): void {
     this.#model = this.#model.setCursor(position);
+    this.#logicalCaretVisible = true;
     this.#render();
     this.focus();
   }
@@ -105,6 +113,13 @@ export class ExpressionEditor {
     if (open) this.#backspaceRepeater.stop();
     this.#historyOpen = open;
     this.root.dataset.historyOpen = String(open);
+    this.#render();
+  }
+
+  setEditingSurfaceActive(active: boolean): void {
+    if (this.#editingSurfaceActive === active) return;
+    this.#editingSurfaceActive = active;
+    this.#render();
   }
 
   insertHistoryTokens(tokens: readonly ExpressionToken[]): void {
@@ -119,26 +134,26 @@ export class ExpressionEditor {
   replaceWithResultAns(token: AnsToken): void {
     this.#backspaceRepeater.stop();
     this.#model = new ExpressionModel([token]);
+    this.#logicalCaretVisible = true;
     this.#render();
-    this.focus();
   }
 
-  insertSmartBracket(pair: SmartBracketPair): void {
+  insertSmartBracket(pair: SmartBracketPair, restoreFocus = true): void {
     if (this.#historyOpen) return;
     this.#update(insertSmartBracket(this.#model, pair));
-    this.focus();
+    if (restoreFocus) this.focus();
   }
 
-  insertFunction(name: string): void {
+  insertFunction(name: string, restoreFocus = true): void {
     if (!isFunctionName(name)) throw new TypeError("Unknown function name");
     if (this.#historyOpen) return;
     this.#update(insertFunctionMacro(this.#model, name));
-    this.focus();
+    if (restoreFocus) this.focus();
   }
 
-  insertText(text: string): void {
+  insertText(text: string, restoreFocus = true): void {
     this.#insertText(text);
-    if (!this.#historyOpen) this.focus();
+    if (!this.#historyOpen && restoreFocus) this.focus();
   }
 
   deleteBackward(): void {
@@ -193,6 +208,7 @@ export class ExpressionEditor {
     this.input.addEventListener("pointerup", () => (this.#pointerAnchor = null));
     this.input.addEventListener("pointercancel", () => (this.#pointerAnchor = null));
     this.input.addEventListener("focus", () => {
+      this.#logicalCaretVisible = true;
       this.#render();
     });
     this.input.addEventListener("blur", () => {
@@ -289,6 +305,7 @@ export class ExpressionEditor {
     );
     if (next.anchor === this.#model.anchor && next.focus === this.#model.focus) return;
     this.#model = next;
+    this.#logicalCaretVisible = true;
     this.#render();
   }
 
@@ -359,6 +376,7 @@ export class ExpressionEditor {
         (token, index) => JSON.stringify(token) !== JSON.stringify(this.#model.tokens[index])
       );
     this.#model = next;
+    this.#logicalCaretVisible = true;
     this.#render();
     if (changed) this.#onChange(this.#model);
   }
@@ -373,7 +391,14 @@ export class ExpressionEditor {
     const children: HTMLElement[] = [];
     const { start, end } = this.#model.selection;
     for (let index = 0; index <= this.#model.tokens.length; index += 1) {
-      if (start === end && index === this.#model.cursor && document.activeElement === this.input) {
+      if (
+        start === end &&
+        index === this.#model.cursor &&
+        this.#logicalCaretVisible &&
+        this.#editingSurfaceActive &&
+        !this.#historyOpen &&
+        !this.#backgroundSuspended
+      ) {
         const caret = document.createElement("span");
         caret.className = "expression-caret";
         caret.setAttribute("aria-hidden", "true");

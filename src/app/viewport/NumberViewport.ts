@@ -117,6 +117,7 @@ export class NumberViewport {
       delete this.root.dataset.logicalStart;
       return;
     }
+    this.#measure();
     if (this.#value === null) {
       this.#logicalStart = createNumberViewportModel({
         value,
@@ -145,7 +146,7 @@ export class NumberViewport {
 
   #measure(): boolean {
     const width = this.#probe.getBoundingClientRect().width;
-    const available = this.root.clientWidth;
+    const available = this.#content.getBoundingClientRect().width;
     if (width <= 0 || available <= 0) return false;
     const slots = Math.max(1, Math.min(256, Math.floor(available / width)));
     const changed = slots !== this.#availableSlots || Math.abs(width - this.#slotWidth) > 0.01;
@@ -305,6 +306,7 @@ export class NumberViewport {
         break;
       case "Home":
         if (this.#value !== null) {
+          this.#stopMomentum();
           const initial = createNumberViewportModel({
             value: this.#value,
             availableSlots: this.#availableSlots

@@ -5,7 +5,7 @@ import { EXPANDED_ROWS, KEY_LABELS } from "./KeyboardLayout.js";
 import type { KeyboardKeyId } from "./KeyboardLayout.js";
 
 export interface CalculatorKeyboardActions {
-  readonly clear: () => void;
+  readonly clear: (origin: "pointer" | "keyboard") => void;
   readonly equals: () => void;
   readonly toggleAngleMode: () => void;
   readonly toggleFactorialMode: () => void;
@@ -120,8 +120,8 @@ export class CalculatorKeyboard {
         }
       );
     } else
-      bindButtonPress(button, () => {
-        this.#activate(key);
+      bindButtonPress(button, (origin) => {
+        this.#activate(key, origin);
       });
     cell.append(button);
     this.#buttons.set(key, button);
@@ -176,7 +176,7 @@ export class CalculatorKeyboard {
     }
   }
 
-  #activate(key: KeyboardKeyId): void {
+  #activate(key: KeyboardKeyId, origin: "pointer" | "keyboard"): void {
     switch (key) {
       case "expand":
         this.#setExpanded(!this.#expanded);
@@ -188,59 +188,59 @@ export class CalculatorKeyboard {
         this.#actions.toggleFactorialMode();
         return;
       case "clear":
-        this.#actions.clear();
+        this.#actions.clear(origin);
         return;
       case "equals":
         this.#actions.equals();
         return;
       case "round":
-        this.#editor.insertSmartBracket("()");
+        this.#editor.insertSmartBracket("()", origin === "pointer");
         return;
       case "square":
-        this.#editor.insertSmartBracket("[]");
+        this.#editor.insertSmartBracket("[]", origin === "pointer");
         return;
       case "curly":
-        this.#editor.insertSmartBracket("{}");
+        this.#editor.insertSmartBracket("{}", origin === "pointer");
         return;
       case "sin":
       case "cos":
       case "tan":
       case "ln":
       case "log":
-        this.#editor.insertFunction(key);
+        this.#editor.insertFunction(key, origin === "pointer");
         return;
       case "squareRoot":
-        this.#editor.insertText("√");
+        this.#editor.insertText("√", origin === "pointer");
         return;
       case "pi":
-        this.#editor.insertText("π");
+        this.#editor.insertText("π", origin === "pointer");
         return;
       case "e":
-        this.#editor.insertText("e");
+        this.#editor.insertText("e", origin === "pointer");
         return;
       case "power":
-        this.#editor.insertText("^");
+        this.#editor.insertText("^", origin === "pointer");
         return;
       case "factorialOperator":
-        this.#editor.insertText("!");
+        this.#editor.insertText("!", origin === "pointer");
         return;
       case "percent":
-        this.#editor.insertText("%");
+        this.#editor.insertText("%", origin === "pointer");
         return;
       case "divide":
-        this.#editor.insertText("/");
+        this.#editor.insertText("/", origin === "pointer");
         return;
       case "multiply":
-        this.#editor.insertText("*");
+        this.#editor.insertText("*", origin === "pointer");
         return;
       case "minus":
-        this.#editor.insertText("-");
+        this.#editor.insertText("-", origin === "pointer");
         return;
       case "plus":
-        this.#editor.insertText("+");
+        this.#editor.insertText("+", origin === "pointer");
         return;
       case "comma":
-        this.#editor.insertText(",");
+        this.#editor.insertText(",", origin === "pointer");
         return;
       case "0":
       case "1":
@@ -252,7 +252,7 @@ export class CalculatorKeyboard {
       case "7":
       case "8":
       case "9":
-        this.#editor.insertText(key);
+        this.#editor.insertText(key, origin === "pointer");
         return;
       case "reserved":
       case "backspace":

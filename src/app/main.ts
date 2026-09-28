@@ -120,10 +120,10 @@ display.append(editor.root, resultOutput.root);
 const keyboard = new CalculatorKeyboard(
   editor,
   {
-    clear() {
+    clear(origin) {
       controller.clear();
       editor.clear();
-      editor.focus();
+      if (origin === "pointer") editor.focus();
     },
     equals() {
       controller.evaluateExplicitly();
@@ -490,6 +490,7 @@ function renderNavigation(
   }
   historyPanel.setOpen(historyOpen);
   editor.setHistoryOpen(historyOpen);
+  editor.setEditingSurfaceActive(primaryActive && (top === null || top === "history"));
   shell.dataset.historyOpen = String(historyOpen);
   historyButton.setAttribute("aria-expanded", String(historyOpen));
   drawer.setActiveModule(navigation.activeModuleId);
