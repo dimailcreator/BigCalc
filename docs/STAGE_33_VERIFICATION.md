@@ -18,6 +18,17 @@ Stage 33 closes the post-freeze remediation from Stages 27–32S. Stage 32S phys
 
 The debug APK was installed with `adb install -r` before device checks. APK: `android/app/build/outputs/apk/debug/app-debug.apk`; SHA-256: `B51DDFC3B2C2A1C39461E8C723CFF05449957EB05D6B464075B4190CBA325244`. Device: Samsung SM-A576B (`R5GL36KWGNT`).
 
+## Stage 32S physical validation
+
+The Stage 32S physical checklist was completed and passed before Stage 33. On the physical Android device:
+
+- the long History result for `√(40!)` no longer clips its first visible digit/slot;
+- calculator-key taps preserve the visible logical expression caret at the correct insertion position;
+- native expression Select all/Copy/Paste remains available;
+- the main expression editor keeps the Android IME hidden, including after lifecycle transitions.
+
+This is the physical confirmation required by Stage 32S DoD items 29–30 and supersedes the stale `PENDING PHYSICAL DEVICE VALIDATION` wording that remained in `docs/STAGE32S_PHYSICAL_DEVICE_CHECKLIST.md` after the pass.
+
 ## Physical-device acceptance matrix
 
 | #     | Check                                                    | Evidence                                                                                                                                                                                                        | Result |

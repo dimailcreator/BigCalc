@@ -1,9 +1,20 @@
 # Stage 32S — Android geometry and caret validation
 
-**Status: PENDING PHYSICAL DEVICE VALIDATION.** On 2026-09-28, ADB listed no connected device. Browser geometry and interaction tests establish the regression fix in Chromium; physical touch, WebView font metrics, ActionMode, and IME behavior still need device confirmation.
+**Status: PASSED ON PHYSICAL ANDROID.** Physical-device validation was completed before Stage 33 on Samsung SM-A576B. Browser geometry/interaction regressions and the physical checks below confirm the Stage 32S fixes.
 
 Debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 SHA-256: `B51DDFC3B2C2A1C39461E8C723CFF05449957EB05D6B464075B4190CBA325244`
+
+## Validation result
+
+Physical validation passed on the Stage 33 debug APK:
+
+- History geometry: long History results including `√(40!)` keep the first and last visible slots fully inside the result field; the original left-edge clipping is no longer present.
+- Expression caret: after placing the cursor inside an expression, calculator-key taps keep the logical caret visible at the correct insertion position.
+- Stage 32R interaction behavior remained intact: native Select all/Copy/Paste works on the expression field while the main-editor Android IME stays hidden.
+- Background/foreground and calculator-key interaction did not reintroduce the caret or IME regressions.
+
+This checklist now records the user-confirmed physical-device pass that preceded Stage 33.
 
 ## Setup
 
@@ -34,4 +45,4 @@ Capture a screenshot of the open `√(40!)` History card at the start position a
 | Background and foreground the app                                         | Focus and caret recover; Android IME stays hidden for the main editor.          |
 | Navigate by hardware Tab and activate keys with Enter/Space, if available | The key retains DOM focus and its focus indicator; activation happens once.     |
 
-Mark Stage 32S physical validation complete only after these checks pass on a real device. Record any mismatch and the corresponding screenshot or recording.
+Stage 32S physical validation is complete. No failing mismatch remained in the geometry/caret scenarios above.
