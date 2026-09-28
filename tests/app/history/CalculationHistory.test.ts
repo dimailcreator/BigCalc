@@ -75,6 +75,33 @@ describe("CalculationHistory", () => {
     ]);
   });
 
+  it("restores a native √ source from history as editable tokens", () => {
+    const source = "√(40!)";
+    const original = new CalculationHistory(() => "root-entry");
+    const recorded = original.record({
+      expression: [{ kind: "source", source }],
+      originalExpressionText: source,
+      displayedResultText: "9032802905233224E8",
+      settings,
+      resultValue: {
+        ...value,
+        digits: "9032802905233224",
+        exponent10: 23n,
+        verifiedDigits: 16,
+        valueExact: false,
+        decimalTerminating: false
+      }
+    });
+    const restored = new CalculationHistory();
+    restored.restore(structuredClone([recorded]));
+    const entry = restored.get(recorded.id);
+    expect(entry?.expression).toEqual([{ kind: "source", source }]);
+    expect(entry?.originalExpressionText).toBe(source);
+    const model = new ExpressionModel(restored.editableTokensFor(recorded.id));
+    expect(model.serializeDisplay()).toBe(source);
+    expect(model.serializeForEvaluation()).toEqual({ kind: "source", source });
+  });
+
   it("rejects a duplicate stable ID and a missing reference", () => {
     const history = new CalculationHistory(() => "fixed-id");
     const input = {

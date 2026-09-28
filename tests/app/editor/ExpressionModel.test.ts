@@ -159,6 +159,22 @@ describe("ExpressionModel logical editing", () => {
     expect(JSON.stringify(withAns.serializeForEvaluation())).toContain("history-42");
   });
 
+  it("edits √ as one ordinary character without wrapping or source rewriting", () => {
+    const original = model(character("2"), character("+"), character("9"));
+    const inserted = original.setCursor(2).insert(character("√"));
+    expect(inserted.serializeDisplay()).toBe("2+√9");
+    expect(inserted.cursor).toBe(3);
+    expect(inserted.tokens[2]).toEqual({ kind: "character", value: "√" });
+    expect(inserted.serializeForEvaluation()).toEqual({ kind: "source", source: "2+√9" });
+    expect(inserted.deleteBackward().serializeDisplay()).toBe("2+9");
+
+    const replaced = original.setSelection(1, 3).insert(character("√"));
+    expect(replaced.serializeDisplay()).toBe("2√");
+    expect(replaced.cursor).toBe(2);
+    expect(replaced.serializeForEvaluation()).toEqual({ kind: "source", source: "2√" });
+    expect(replaced.setSelection(1, 2).deleteBackward().serializeDisplay()).toBe("2");
+  });
+
   it("validates token shape and position boundaries", () => {
     expect(() => character("sin")).toThrow(TypeError);
     expect(() => character("")).toThrow(TypeError);

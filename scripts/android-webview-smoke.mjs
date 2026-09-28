@@ -101,6 +101,25 @@ try {
   calculations.push(await calculate("π", (value) => value.startsWith("3,14159")));
   calculations.push(await calculate("e", (value) => value.startsWith("2,71828")));
   calculations.push(await calculate("sin(30)", (value) => value === "0,5"));
+  calculations.push(await calculate("√2", (value) => value.startsWith("1,41421")));
+  calculations.push(await calculate("√4!", (value) => value === "2"));
+  calculations.push(await calculate("√(40!)", (value) => value.startsWith("903280")));
+  await setExpression("");
+  await evaluate('globalThis.document.querySelector("[data-key=expand]")?.click()');
+  await evaluate('globalThis.document.querySelector("[data-key=squareRoot]")?.click()');
+  assertEqual(
+    await evaluate('globalThis.document.querySelector(".expression-input")?.value'),
+    "√",
+    "root key native insertion"
+  );
+  await evaluate('globalThis.document.querySelector("[data-key=4]")?.click()');
+  await waitFor(
+    () =>
+      evaluate(
+        'globalThis.document.querySelector(".main-display > .result-output")?.textContent === "2"'
+      ),
+    10_000
+  );
   const workerLifecycle = await probeWorkerLifecycle(workerAsset);
   assertEqual(workerLifecycle.pauseStatus, "paused", "soft timeout status");
   assertEqual(workerLifecycle.continueStatus, "paused", "continued handle status");

@@ -135,9 +135,6 @@ const keyboard = new CalculatorKeyboard(
     toggleFactorialMode() {
       controller.toggleFactorialMode();
       saveSettings();
-    },
-    squareRoot() {
-      editor.insertSquareRoot();
     }
   },
   initialSettings

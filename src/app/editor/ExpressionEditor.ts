@@ -3,7 +3,6 @@ import { BackspaceRepeater } from "./BackspaceRepeater.js";
 import { ExpressionModel } from "./ExpressionModel.js";
 import { insertFunctionMacro } from "./FunctionInsertion.js";
 import { insertSmartBracket } from "./SmartBrackets.js";
-import { insertSquareRootMacro } from "./SquareRootMacro.js";
 import type { AnsToken, ExpressionToken } from "./ExpressionModel.js";
 import type { SmartBracketPair } from "./SmartBrackets.js";
 
@@ -123,12 +122,6 @@ export class ExpressionEditor {
   insertSmartBracket(pair: SmartBracketPair): void {
     if (this.#historyOpen) return;
     this.#update(insertSmartBracket(this.#model, pair));
-    this.focus();
-  }
-
-  insertSquareRoot(): void {
-    if (this.#historyOpen) return;
-    this.#update(insertSquareRootMacro(this.#model));
     this.focus();
   }
 

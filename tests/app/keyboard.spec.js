@@ -79,7 +79,7 @@ test("operator symbols insert Core syntax and Backspace hold repeats until relea
   await expect(input).toHaveValue("8/2");
 });
 
-test("expanded function keys and √ macro use Core source syntax", async ({ page }) => {
+test("expanded function keys and √ key insert native Core source syntax", async ({ page }) => {
   const keyboard = page.getByRole("region", { name: "Клавиатура калькулятора" });
   const input = page.getByRole("textbox", { name: "Выражение" });
   await keyboard.getByRole("button", { name: "Раскрыть клавиатуру" }).click();
@@ -88,17 +88,22 @@ test("expanded function keys and √ macro use Core source syntax", async ({ pag
   await expect(page.locator(".expression-token-identifier")).toHaveText("sin");
   await keyboard.getByRole("button", { name: "Очистить" }).click();
   await keyboard.getByRole("button", { name: "Квадратный корень" }).click();
-  await expect(input).toHaveValue("()^(1/2)");
+  await expect(input).toHaveValue("√");
   expect(await input.evaluate((element) => element.selectionStart)).toBe(1);
   await keyboard.getByRole("button", { name: "9", exact: true }).click();
-  await expect(input).toHaveValue("(9)^(1/2)");
+  await expect(input).toHaveValue("√9");
   await expect(page.getByRole("status", { name: "Результат" })).toHaveText("3");
 
   await input.fill("4+5");
-  await input.evaluate((element) => element.setSelectionRange(2, 3));
+  await input.evaluate((element) => {
+    element.setSelectionRange(2, 3);
+    element.dispatchEvent(new globalThis.Event("select"));
+  });
   await keyboard.getByRole("button", { name: "Квадратный корень" }).click();
-  await expect(input).toHaveValue("4+(5)^(1/2)");
-  expect(await input.inputValue()).not.toMatch(/√|sqrt/u);
+  await expect(input).toHaveValue("4+√");
+  expect(await input.inputValue()).not.toMatch(/\^\(1\/2\)|sqrt/u);
+  await keyboard.getByRole("button", { name: "Удалить" }).click();
+  await expect(input).toHaveValue("4+");
 });
 
 test("math modes survive reload while expansion resets to compact", async ({ page }) => {

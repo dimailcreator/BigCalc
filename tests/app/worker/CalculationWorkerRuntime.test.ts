@@ -22,6 +22,29 @@ const settings = Object.freeze({
 });
 
 describe("CalculationWorkerRuntime", () => {
+  it("evaluates native √ source through the public Core Worker boundary", async () => {
+    const runtime = new CalculationWorkerRuntime(createCalculationHandle);
+    const sessionId = createCalculationSessionId("native-root");
+    const requestId = createCalculationRequestId("root-refinement");
+    const created = await runtime.handleCommand({
+      type: "create",
+      sessionId,
+      source: "√4!",
+      settings
+    });
+    expect(structuredClone(created)).toMatchObject({ type: "created", sessionId });
+    const response = await runtime.handleCommand({
+      type: "refine",
+      sessionId,
+      requestId,
+      significantDigits: 10
+    });
+    expect(structuredClone(response)).toMatchObject({
+      type: "refinement-result",
+      result: { status: "complete", value: { digits: "2", valueExact: true } }
+    });
+  });
+
   it("transports expression iteration errors from public Core as calculation failures", async () => {
     const runtime = new CalculationWorkerRuntime(createCalculationHandle);
     const sessionId = createCalculationSessionId("iteration-invalid");

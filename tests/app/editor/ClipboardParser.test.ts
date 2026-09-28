@@ -28,6 +28,9 @@ describe("clipboard token filtering", () => {
     ],
     ["<b>2</b>", "2/", ["character", "character"]],
     ["sinexp", "sinexp", ["identifier", "identifier"]],
+    ["√2", "√2", ["character", "character"]],
+    ["√(2+3)", "√(2+3)", Array(6).fill("character")],
+    ["2+√9", "2+√9", Array(4).fill("character")],
     ["sinew", "", []],
     ["Ans", "", []]
   ] as const)("filters %s", (input, display, kinds) => {

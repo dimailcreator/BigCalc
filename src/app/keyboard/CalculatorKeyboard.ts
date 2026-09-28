@@ -9,7 +9,6 @@ export interface CalculatorKeyboardActions {
   readonly equals: () => void;
   readonly toggleAngleMode: () => void;
   readonly toggleFactorialMode: () => void;
-  readonly squareRoot: () => void;
 }
 
 const SPECIAL_KEYS = new Set<KeyboardKeyId>([
@@ -211,7 +210,7 @@ export class CalculatorKeyboard {
         this.#editor.insertFunction(key);
         return;
       case "squareRoot":
-        this.#actions.squareRoot();
+        this.#editor.insertText("√");
         return;
       case "pi":
         this.#editor.insertText("π");

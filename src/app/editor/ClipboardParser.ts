@@ -6,7 +6,7 @@ export const FUNCTION_NAMES = ["sin", "cos", "tan", "exp", "log", "ln", "abs"] a
 export type FunctionName = (typeof FUNCTION_NAMES)[number];
 const functionNames = new Set<string>(FUNCTION_NAMES);
 const NAMES = [...FUNCTION_NAMES, "e"].sort((left, right) => right.length - left.length);
-const SYNTAX_CHARACTER = /^[0-9,+\-*/^%!(){}\[\];π]$/u;
+const SYNTAX_CHARACTER = /^[0-9,+\-*/^%!(){}\[\];π√]$/u;
 
 export function isFunctionName(name: string): name is FunctionName {
   return functionNames.has(name);
