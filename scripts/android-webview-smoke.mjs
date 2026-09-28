@@ -112,11 +112,11 @@ try {
     "√",
     "root key native insertion"
   );
-  await evaluate('globalThis.document.querySelector("[data-key=4]")?.click()');
+  await evaluate("globalThis.document.querySelector(\"[data-key='4']\")?.click()");
   await waitFor(
     () =>
       evaluate(
-        'globalThis.document.querySelector(".main-display > .result-output")?.textContent === "2"'
+        'globalThis.document.querySelector(".main-display > .result-output")?.textContent?.trim() === "2"'
       ),
     10_000
   );

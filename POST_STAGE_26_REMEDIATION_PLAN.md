@@ -23,6 +23,8 @@
     ↓
 32 App square-root integration
     ↓
+32R Android editor/TopBar interaction stabilization
+    ↓
 33 Documentation/API/version audit
 ```
 
@@ -1128,6 +1130,711 @@ Expression с `√`:
 
 ---
 
+
+# ЭТАП 32R. Android editor/context-menu и exactly-once TopBar interaction
+
+## Цель
+
+Закрыть два interaction regression, найденных на физическом Android после Stage 32:
+
+1. long press по expression editor показывает системные действия вроде:
+
+```text
+Управление приложением
+Автозаполнение
+```
+
+вместо обычных text-editing actions:
+
+```text
+Копировать
+Вставить
+Выделить всё
+```
+
+2. быстрый одиночный tap по левой/правой TopBar-кнопке иногда приводит к двойной activation:
+
+```text
+open → immediately close
+```
+
+или другому эффекту, эквивалентному двум последовательным toggle.
+
+Это две независимые проблемы и должны иметь отдельные regression tests, но закрываются одним Android interaction stage.
+
+---
+
+## 32R.1. Native text action mode для ExpressionEditor
+
+### Архитектурный invariant
+
+`ExpressionEditor` использует настоящий:
+
+```text
+<input type="text">
+```
+
+но `ExpressionModel` остаётся source of truth для:
+
+- tokens;
+- cursor;
+- selection;
+- atomic identifiers;
+- `Ans` identity;
+- mathematical serialization.
+
+Native input остаётся DOM/input adapter и event channel.
+
+Эту архитектуру не менять.
+
+### Вероятный root cause
+
+Текущий touch path `ExpressionEditor` безусловно перехватывает native pointer behavior примерно так:
+
+```text
+pointerdown
+→ preventDefault()
+→ focus()
+→ custom cursor placement
+→ setPointerCapture()
+→ custom drag selection
+```
+
+Из-за этого Android/WebView может не получать normal native touch-selection lifecycle editable input.
+
+Long press распознаётся как взаимодействие с editable field, но стандартный text selection/action mode формируется некорректно, поэтому ожидаемые:
+
+```text
+Copy
+Paste
+Select all
+```
+
+могут не появиться.
+
+До fix подтвердить фактическую event sequence на physical Android.
+
+### Требуемое Android-поведение
+
+При long press по обычному expression:
+
+```text
+12+34
+```
+
+должно быть возможно использовать стандартные Android/WebView actions:
+
+```text
+Копировать
+Вставить
+Выделить всё
+```
+
+когда соответствующее действие применимо.
+
+Внешний вид, порядок и дополнительные system actions Android не являются частью product contract.
+
+### Copy
+
+Copy работает с выбранным editor text.
+
+Representative source:
+
+```text
+2+√9
+sin(30)
+π+e
+```
+
+Нельзя превращать отображаемое numeric значение `Ans` в mathematical source.
+
+Сохраняется invariant:
+
+```text
+Ans identity != displayed numeric text
+```
+
+Если selection включает `Ans`, выбрать и документировать безопасную semantics, сохраняющую structured-reference boundary.
+
+### Paste
+
+System/native Paste не имеет права обходить:
+
+```text
+ClipboardParser
+```
+
+Обязательный путь:
+
+```text
+clipboard text
+→ ClipboardParser
+→ filtered ExpressionToken[]
+→ ExpressionModel
+```
+
+Нельзя позволить native mutation `input.value` стать mathematical source без фильтрации.
+
+### Select all
+
+System Select all должен синхронизироваться в logical selection всего expression.
+
+Atomic tokens остаются atomic.
+
+### Native selection handles
+
+Если Android handles создают offsets внутри:
+
+```text
+sin
+cos
+log
+Ans
+```
+
+logical mapping обязан snap'ить границы к whole-token boundaries.
+
+### IME invariant
+
+Main BigCalc expression editor по-прежнему не открывает Android software keyboard.
+
+Сохраняется:
+
+```text
+inputmode="none"
+```
+
+и существующая foreground/lifecycle IME suppression.
+
+Settings text inputs по-прежнему используют обычную Android keyboard.
+
+Не решать context-menu bug удалением `inputmode="none"`.
+
+### Запрещённые workaround
+
+Не использовать:
+
+```text
+readonly
+disabled
+```
+
+для main expression input.
+
+Не вводить custom fake Android clipboard menu, пока не доказано, что native WebView ActionMode невозможно совместить с:
+
+```text
+structured ExpressionModel
+no Android IME
+atomic selection
+filtered Paste
+```
+
+### Предпочтительное направление
+
+Исследовать минимальное восстановление native touch-selection lifecycle.
+
+Особенно проверить необходимость/область действия:
+
+```text
+event.preventDefault()
+setPointerCapture()
+touch-action: none
+```
+
+для touch/pen внутри expression input.
+
+Допустимо разделить behavior по:
+
+```text
+mouse
+touch
+pen
+```
+
+если logical editor semantics остаётся общей.
+
+После native selection изменения:
+
+```text
+selectionStart
+selectionEnd
+selectionDirection
+```
+
+должны синхронизироваться через существующий mapping в `ExpressionModel`.
+
+---
+
+## 32R.2. Exactly-once activation для TopBar buttons
+
+### Regression
+
+На физическом Android быстрый одиночный tap по:
+
+```text
+Calculator Drawer
+Overflow Menu
+```
+
+иногда выглядит как double activation.
+
+Проверить также:
+
+```text
+History
+```
+
+поскольку она использует тот же press helper.
+
+### Вероятный root cause
+
+После Stage 27 `bindButtonPress` может активировать action на:
+
+```text
+pointerup
+```
+
+а затем получить follow-up compatibility/synthetic:
+
+```text
+click
+```
+
+и активировать action второй раз.
+
+Текущая de-duplication logic не должна предполагать, что:
+
+```text
+pointer-generated click → MouseEvent.detail != 0
+keyboard click          → MouseEvent.detail == 0
+```
+
+является Android/WebView invariant.
+
+Отдельно проверить реальный physical sequence:
+
+```text
+pointerdown
+pointerup
+click(detail = 0)
+```
+
+после уже выполненного pointerup action.
+
+### Нормативное правило
+
+Один physical pointer press даёт:
+
+```text
+exactly one semantic activation
+```
+
+независимо от наличия и `detail` follow-up compatibility click.
+
+### Два быстрых реальных tap
+
+Не исправлять temporal debounce:
+
+```text
+ignore events for 200–300 ms
+```
+
+Два самостоятельных tap остаются двумя actions:
+
+```text
+tap 1 → open
+tap 2 → close
+```
+
+Нужно дедуплицировать только:
+
+```text
+one pointer interaction
++
+its compatibility click
+```
+
+### Mouse / keyboard
+
+Сохранить:
+
+```text
+mouse click → one activation
+Enter       → one activation
+Space       → one activation
+```
+
+Не определять event source только через `MouseEvent.detail`.
+
+### Preferred direction
+
+Исследовать event-source-aware press model.
+
+Например:
+
+```text
+touch / pen → pointer lifecycle owns activation
+mouse       → native click
+keyboard    → semantic button click
+```
+
+или другой механизм linking compatibility click к завершённому pointer sequence.
+
+Не менять navigation toggle semantics ради masking duplicate activation.
+
+---
+
+## 32R.3. HistorySwipeGesture arbitration
+
+TopBar одновременно участвует в:
+
+```text
+ButtonPress
++
+HistorySwipeGesture
+```
+
+Сохранить:
+
+```text
+stationary tap
+→ только action кнопки
+```
+
+и:
+
+```text
+vertical swipe from TopBar button
+→ History opens
+→ исходная button action не выполняется
+```
+
+Pointer cancel/drag не вызывает ordinary button action.
+
+---
+
+## 32R.4. Android diagnostic trace
+
+До финального fix записать реальную sequence событий на physical Android/WebView.
+
+Минимум для:
+
+```text
+drawer-toggle
+overflow-toggle
+history-toggle
+expression-input
+```
+
+Логировать где применимо:
+
+```text
+pointerdown
+pointermove
+pointerup
+pointercancel
+touchstart
+touchend
+click
+contextmenu
+select
+selectionchange
+```
+
+и metadata:
+
+```text
+pointerType
+button
+buttons
+MouseEvent.detail
+timeStamp
+isTrusted
+selectionStart
+selectionEnd
+selectionDirection
+activeElement
+```
+
+Diagnostic instrumentation не оставлять в production без необходимости.
+
+---
+
+## 32R.5. Automated tests — ExpressionEditor
+
+Добавить минимум:
+
+1. native selection синхронизируется в `ExpressionModel`;
+2. partial selection внутри atomic identifier snap'ится ко всему identifier;
+3. Select all выбирает все logical tokens;
+4. Copy обычного selected expression даёт ожидаемый text;
+5. Paste продолжает идти через `ClipboardParser`;
+6. unsupported clipboard chars продолжают фильтроваться;
+7. `√` сохраняется при copy/paste;
+8. `Ans` display digits не превращаются в source;
+9. tap/cursor positioning не регрессирует;
+10. drag selection не регрессирует;
+11. physical keyboard arrows/Shift/Ctrl+A не регрессируют;
+12. history-open editing lock сохраняется.
+
+Browser tests проверяют model/DOM contract. Native Android ActionMode окончательно подтверждается physical-device gate.
+
+---
+
+## 32R.6. Automated tests — ButtonPress
+
+### Pointer + normal compatibility click
+
+```text
+pointerdown
+pointerup
+click(detail=1)
+→ one activation total
+```
+
+### Pointer + zero-detail compatibility click
+
+Критический regression:
+
+```text
+pointerdown
+pointerup
+click(detail=0)
+→ one activation total
+```
+
+Не моделировать genuine keyboard activation только числом `detail=0`, если новая реализация использует более надёжный source distinction.
+
+### No compatibility click
+
+```text
+pointerdown
+pointerup
+→ one activation
+```
+
+### Two separate quick taps
+
+```text
+pointerdown A
+pointerup A
+compat click A
+
+pointerdown B
+pointerup B
+compat click B
+
+→ exactly two activations
+```
+
+### Cancel / drag
+
+```text
+pointercancel → 0
+drag cancellation → 0
+```
+
+### Mouse / keyboard
+
+```text
+mouse click → 1
+Enter → 1
+Space → 1
+```
+
+---
+
+## 32R.7. Navigation regression tests
+
+Для:
+
+```text
+drawer-toggle
+overflow-toggle
+history-toggle
+```
+
+один touch-like sequence:
+
+```text
+closed → open
+```
+
+а не:
+
+```text
+closed → open → closed
+```
+
+Два самостоятельных sequence:
+
+```text
+closed → open → closed
+```
+
+Также проверить:
+
+- `aria-expanded`;
+- navigation stack;
+- browser Back;
+- Android Back;
+- popup/drawer close actions.
+
+---
+
+## 32R.8. Existing regression gates
+
+Обязательно:
+
+```text
+npm run check
+npm run check:app
+npm run build:app
+npm run android:build:debug
+```
+
+При доступном Android device:
+
+```text
+npm run test:android:smoke
+npm run test:android:lifecycle
+npm run test:android:stage27
+```
+
+Если создаётся отдельный Stage 32R Android probe — добавить отдельный npm script и checklist.
+
+---
+
+## 32R.9. Physical-device validation
+
+### A. Expression context menu
+
+На main expression editor:
+
+```text
+12+34
+```
+
+проверить:
+
+1. Long press.
+2. Standard Select all.
+3. Selection.
+4. Copy.
+5. AC.
+6. Long press.
+7. Paste.
+8. Исходное expression восстановлено.
+
+Повторить для:
+
+```text
+sin(30)
+√(2+3)
+```
+
+Проверить:
+
+- Android IME не появляется;
+- visual selection соответствует logical selection;
+- identifier остаётся atomic;
+- Paste фильтруется;
+- live calculation работает.
+
+Повторить после:
+
+```text
+background → foreground
+```
+
+### B. Fast TopBar taps
+
+Выполнить минимум по 10 быстрых одиночных tap на:
+
+```text
+Calculator Drawer
+Overflow Menu
+History
+```
+
+Каждый tap меняет state ровно один раз.
+
+Затем выполнить реальные пары:
+
+```text
+tap
+tap
+```
+
+Ожидается:
+
+```text
+open
+close
+```
+
+без debounce suppression второго tap.
+
+### C. Stage 27 long hold
+
+Повторить representative:
+
+```text
+hold → release
+```
+
+Ожидается одна activation.
+
+### D. Swipe arbitration
+
+Проверить:
+
+```text
+vertical swipe from TopBar button
+→ History opens
+→ исходная button action не выполняется
+```
+
+---
+
+## Definition of Done
+
+Stage 32R завершён, когда:
+
+1. подтверждён root cause Android expression context-menu issue;
+2. long press expression даёт standard Copy/Paste/Select all, когда они применимы;
+3. main editor не открывает Android IME;
+4. `ExpressionModel` остаётся source of truth;
+5. atomic identifier/Ans invariants сохранены;
+6. Paste остаётся через `ClipboardParser`;
+7. `Ans` displayed number не превращается в mathematical source;
+8. tap/cursor/drag/keyboard editor interaction не регрессировали;
+9. один быстрый touch по Drawer даёт одну activation;
+10. один быстрый touch по Overflow даёт одну activation;
+11. один быстрый touch по History даёт одну activation;
+12. follow-up compatibility click не вызывает duplicate activation независимо от `MouseEvent.detail`;
+13. два отдельных быстрых tap остаются двумя actions;
+14. mouse/Enter/Space semantics сохранены;
+15. History swipe arbitration сохранён;
+16. Stage 27 long-hold behavior сохранён;
+17. automated App regressions проходят;
+18. Android smoke/lifecycle/Stage27 проходят;
+19. physical expression context-menu check пройден;
+20. physical TopBar fast-tap check пройден.
+
+Итоговый отчёт должен отдельно зафиксировать:
+
+- фактическую Android event sequence для context menu;
+- event sequence, вызывавшую duplicate activation;
+- изменения `preventDefault` / pointer capture / `touch-action`;
+- новый принцип pointer/click de-duplication;
+- почему IME остаётся подавленной;
+- automated results;
+- physical-device results.
+
+---
+
 # ЭТАП 33. Documentation, public version и full remediation regression
 
 ## Цель
@@ -1199,7 +1906,9 @@ CORE_PUBLIC_API_VERSION
 - clipboard принимает `√`;
 - editor root token обычный односимвольный token;
 - ordinary long-press/release не теряет button action;
-- `⌫` остаётся специальной hold-autorepeat key.
+- `⌫` остаётся специальной hold-autorepeat key;
+- long press main expression поддерживает standard Copy/Paste/Select all без открытия Android IME;
+- TopBar touch activation exactly-once: compatibility click не дублирует pointer action.
 
 Также исправить ранее выявленные stale UI examples/wording, если они противоречат уже принятой production semantics.
 
@@ -1236,7 +1945,7 @@ App по-прежнему не импортирует Core internals.
 
 ## 33.7. `APP_IMPLEMENTATION_PLAN.md`
 
-Добавить Stages 27–33 после Stage 26 и обновить dependency chain:
+Добавить Stages 27–33, включая Stage 32R, после Stage 26 и обновить dependency chain:
 
 ```text
 26 App architecture freeze
@@ -1252,6 +1961,8 @@ App по-прежнему не импортирует Core internals.
 31 Core √ syntax
     ↓
 32 App √ integration
+    ↓
+32R Android editor/TopBar interaction stabilization
     ↓
 33 Documentation/API regression closure
     ↓
@@ -1296,7 +2007,7 @@ npm run build:app
 npm run android:build:debug
 ```
 
-и все отдельные suites Stages 27–32.
+и все отдельные suites Stages 27–32R.
 
 ## Physical-device acceptance matrix
 
@@ -1315,6 +2026,12 @@ npm run android:build:debug
 10. √(40!)
 11. paste √(2+3)
 12. save/history/restore expression with √
+13. expression long press → Copy/Paste/Select all, IME hidden
+14. 10× quick single tap Drawer → exactly one toggle per tap
+15. 10× quick single tap Overflow → exactly one toggle per tap
+16. 10× quick single tap History → exactly one toggle per tap
+17. two separate quick taps remain two actions
+18. TopBar vertical swipe opens History without button activation
 ```
 
 ## Architecture audit
@@ -1339,7 +2056,7 @@ npm run android:build:debug
 4. UI_SPEC описывает реальное root insertion behavior без скобок;
 5. APP_ARCHITECTURE_FREEZE не утверждает устаревшую current Core version;
 6. AGENTS отражает post-freeze change discipline;
-7. APP_IMPLEMENTATION_PLAN содержит Stages 27–33;
+7. APP_IMPLEMENTATION_PLAN содержит Stages 27–33 и отдельный Stage 32R;
 8. core implementation history не переписана задним числом;
 9. README/syntax reference обновлены;
 10. `npm run check` проходит;
@@ -1374,6 +2091,9 @@ Core √ operator
     ↓
 Stage 32
 App √ integration
+    ↓
+Stage 32R
+Android editor/context-menu + TopBar exactly-once interaction
     ↓
 Stage 33
 Docs + API 1.3 + full regression

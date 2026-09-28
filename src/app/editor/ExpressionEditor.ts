@@ -28,6 +28,9 @@ export class ExpressionEditor {
   #suppressCompositionInput = false;
   #pointerAnchor: number | null = null;
   #restoreFocusAfterForeground = false;
+  readonly #onDocumentSelectionChange = (): void => {
+    if (document.activeElement === this.input) this.#onNativeSelection();
+  };
 
   constructor(options: ExpressionEditorOptions) {
     this.#onChange = options.onChange;
@@ -95,6 +98,7 @@ export class ExpressionEditor {
 
   dispose(): void {
     this.#backspaceRepeater.stop();
+    document.removeEventListener("selectionchange", this.#onDocumentSelectionChange);
   }
 
   setHistoryOpen(open: boolean): void {
@@ -152,6 +156,7 @@ export class ExpressionEditor {
   }
 
   #bindEvents(): void {
+    document.addEventListener("selectionchange", this.#onDocumentSelectionChange);
     this.input.addEventListener("keydown", (event) => {
       this.#onKeyDown(event);
     });
@@ -320,6 +325,9 @@ export class ExpressionEditor {
   }
 
   #onPointerDown(event: PointerEvent): void {
+    // Android's editable text ActionMode needs the native touch/pen lifecycle.
+    // Mouse keeps the visual track's token-boundary hit testing.
+    if (event.pointerType !== "mouse") return;
     event.preventDefault();
     this.input.focus();
     const position = this.#positionAt(event.clientX);

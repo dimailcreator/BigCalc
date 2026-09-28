@@ -776,7 +776,8 @@ button {
 }
 
 .main-display {
-  touch-action: none;
+  /* Keep vertical swipes in app while allowing native horizontal text selection. */
+  touch-action: pan-x;
   display: flex;
   flex-direction: column;
   justify-content: end;

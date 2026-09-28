@@ -6,6 +6,88 @@ interface TrackedPointer {
   readonly y: number;
 }
 
+interface PendingPointerClick {
+  readonly press: ButtonPressState;
+  readonly pointerType: string;
+  readonly x: number;
+  readonly y: number;
+}
+
+/** A pointer click may be retargeted to a newly opened overlay's scrim. */
+class PointerClickCoordinator {
+  #pending: PendingPointerClick | null = null;
+
+  constructor(document: Document) {
+    document.addEventListener(
+      "pointerdown",
+      () => {
+        this.#pending?.press.beginKeyboardActivation();
+        this.#pending = null;
+      },
+      { capture: true }
+    );
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+          this.#pending?.press.beginKeyboardActivation();
+          this.#pending = null;
+        }
+      },
+      { capture: true }
+    );
+    document.addEventListener(
+      "click",
+      (event) => {
+        const pending = this.#pending;
+        if (pending === null) return;
+        this.#pending = null;
+        if (!this.#belongsToPointer(event, pending)) {
+          pending.press.beginKeyboardActivation();
+          return;
+        }
+        pending.press.acceptClick();
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      },
+      { capture: true }
+    );
+  }
+
+  record(press: ButtonPressState, event: PointerEvent): void {
+    this.#pending = {
+      press,
+      pointerType: event.pointerType,
+      x: event.clientX,
+      y: event.clientY
+    };
+  }
+
+  #belongsToPointer(event: MouseEvent, pending: PendingPointerClick): boolean {
+    if (event instanceof PointerEvent && event.pointerType === pending.pointerType) return true;
+    const capabilities = (
+      event as MouseEvent & {
+        sourceCapabilities?: { firesTouchEvents?: boolean };
+      }
+    ).sourceCapabilities;
+    if (pending.pointerType === "touch" && capabilities?.firesTouchEvents === true) return true;
+    if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) <= 12) return true;
+    // Older WebViews can dispatch a MouseEvent without pointer provenance.
+    return event.detail > 0;
+  }
+}
+
+const coordinators = new WeakMap<Document, PointerClickCoordinator>();
+
+function coordinatorFor(document: Document): PointerClickCoordinator {
+  let coordinator = coordinators.get(document);
+  if (coordinator === undefined) {
+    coordinator = new PointerClickCoordinator(document);
+    coordinators.set(document, coordinator);
+  }
+  return coordinator;
+}
+
 /** One pointer press and its possible follow-up click; keyboard clicks remain independent. */
 export class ButtonPressState {
   #pointer: TrackedPointer | null = null;
@@ -46,8 +128,13 @@ export class ButtonPressState {
     return true;
   }
 
-  acceptClick(detail: number): boolean {
-    if (detail !== 0 && this.#suppressPointerClick) {
+  /** A key event identifies a new keyboard activation after any pointer press. */
+  beginKeyboardActivation(): void {
+    this.#suppressPointerClick = false;
+  }
+
+  acceptClick(): boolean {
+    if (this.#suppressPointerClick) {
       this.#suppressPointerClick = false;
       return false;
     }
@@ -69,6 +156,7 @@ export function bindButtonPress(
   options: ButtonPressOptions = {}
 ): void {
   const press = new ButtonPressState();
+  const coordinator = coordinatorFor(button.ownerDocument);
   button.classList.add("press-control");
 
   const stop = (id: number): void => {
@@ -85,7 +173,10 @@ export function bindButtonPress(
     options.onPointerStart?.();
   });
   button.addEventListener("pointermove", (event) => {
-    if (press.move(event.pointerId, event.clientX, event.clientY)) options.onPointerStop?.();
+    if (press.move(event.pointerId, event.clientX, event.clientY)) {
+      coordinator.record(press, event);
+      options.onPointerStop?.();
+    }
   });
   button.addEventListener("pointerup", (event) => {
     if (!press.tracks(event.pointerId)) return;
@@ -97,17 +188,25 @@ export function bindButtonPress(
       event.clientY >= bounds.top &&
       event.clientY <= bounds.bottom;
     const shouldActivate = press.end(event.pointerId, event.clientX, event.clientY, inside);
+    coordinator.record(press, event);
     options.onPointerStop?.();
     if (shouldActivate && options.activateOnPointerUp !== false) activate();
   });
   button.addEventListener("pointercancel", (event) => {
+    if (press.tracks(event.pointerId)) coordinator.record(press, event);
     stop(event.pointerId);
   });
   button.addEventListener("lostpointercapture", (event) => {
+    if (press.tracks(event.pointerId)) coordinator.record(press, event);
     stop(event.pointerId);
   });
+  button.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+      press.beginKeyboardActivation();
+    }
+  });
   button.addEventListener("click", (event) => {
-    if (!press.acceptClick(event.detail)) {
+    if (!press.acceptClick()) {
       event.preventDefault();
       event.stopImmediatePropagation();
       return;
