@@ -2,16 +2,16 @@
   color-scheme: dark;
 
   /* Dark theme (default). */
-  --bc-bg: #090b10;
-  --bc-surface-main: #11151d;
-  --bc-surface-card: #151a22;
-  --bc-surface-popup: #171b24;
-  --bc-surface-control: #202630;
-  --bc-surface-control-soft: #202631;
-  --bc-surface-control-active: #374258;
+  --bc-bg: #0b0b0d;
+  --bc-surface-main: #141416;
+  --bc-surface-card: #19191c;
+  --bc-surface-popup: #1b1b1e;
+  --bc-surface-control: #242427;
+  --bc-surface-control-soft: #252528;
+  --bc-surface-control-active: #3a3a40;
 
-  --bc-key-normal: #1b202a;
-  --bc-key-special: #2a3040;
+  --bc-key-normal: #1f1f22;
+  --bc-key-special: #303034;
 
   --bc-text-primary: #f6f3fb;
   --bc-text-primary-soft: #f3f1f7;
@@ -49,16 +49,16 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bc-bg: #f7f8fc;
+  --bc-bg: #f8f8fa;
   --bc-surface-main: #ffffff;
-  --bc-surface-card: #f1f3f8;
+  --bc-surface-card: #f3f3f5;
   --bc-surface-popup: #ffffff;
-  --bc-surface-control: #e8ebf2;
-  --bc-surface-control-soft: #edf0f6;
-  --bc-surface-control-active: #d7deea;
+  --bc-surface-control: #ebebee;
+  --bc-surface-control-soft: #efeff2;
+  --bc-surface-control-active: #dcdce1;
 
-  --bc-key-normal: #eceff5;
-  --bc-key-special: #dfe5ef;
+  --bc-key-normal: #eeeef1;
+  --bc-key-special: #e3e3e7;
 
   --bc-text-primary: #17191e;
   --bc-text-primary-soft: #202229;
@@ -68,16 +68,16 @@
   --bc-text-disabled: #959ba6;
   --bc-text-history-meta: #a3a8b1;
 
-  --bc-border-subtle: rgba(20, 25, 35, 0.045);
-  --bc-border-normal: rgba(20, 25, 35, 0.065);
-  --bc-border-popup: rgba(20, 25, 35, 0.09);
+  --bc-border-subtle: rgba(24, 24, 28, 0.045);
+  --bc-border-normal: rgba(24, 24, 28, 0.065);
+  --bc-border-popup: rgba(24, 24, 28, 0.09);
 
   --bc-scrim: rgba(0, 0, 0, 0.28);
   --bc-scrim-timeout: rgba(0, 0, 0, 0.36);
 
-  --bc-shadow-drawer: 18px 0 48px rgba(25, 32, 48, 0.14);
-  --bc-shadow-popup: 0 18px 46px rgba(25, 32, 48, 0.16);
-  --bc-shadow-dialog: 0 18px 55px rgba(25, 32, 48, 0.18);
+  --bc-shadow-drawer: 18px 0 48px rgba(20, 20, 24, 0.14);
+  --bc-shadow-popup: 0 18px 46px rgba(20, 20, 24, 0.16);
+  --bc-shadow-dialog: 0 18px 55px rgba(20, 20, 24, 0.18);
 
   --bc-error: #b3261e;
 }
