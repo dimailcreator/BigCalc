@@ -1,29 +1,35 @@
 :root {
   color-scheme: dark;
 
+  /*
+   * Palette hue. Surfaces and neutral text keep their hierarchy, while their
+   * hue follows the selected color palette.
+   */
+  --bc-theme-hue: 268;
+
   /* Dark theme (default). */
-  --bc-bg: #0b0b0d;
-  --bc-surface-main: #141416;
-  --bc-surface-card: #19191c;
-  --bc-surface-popup: #1b1b1e;
-  --bc-surface-control: #242427;
-  --bc-surface-control-soft: #252528;
-  --bc-surface-control-active: #3a3a40;
+  --bc-bg: hsl(var(--bc-theme-hue) 12% 5%);
+  --bc-surface-main: hsl(var(--bc-theme-hue) 12% 9%);
+  --bc-surface-card: hsl(var(--bc-theme-hue) 12% 11%);
+  --bc-surface-popup: hsl(var(--bc-theme-hue) 12% 12%);
+  --bc-surface-control: hsl(var(--bc-theme-hue) 13% 16%);
+  --bc-surface-control-soft: hsl(var(--bc-theme-hue) 13% 16.5%);
+  --bc-surface-control-active: hsl(var(--bc-theme-hue) 16% 28%);
 
-  --bc-key-normal: #1f1f22;
-  --bc-key-special: #303034;
+  --bc-key-normal: hsl(var(--bc-theme-hue) 12% 14%);
+  --bc-key-special: hsl(var(--bc-theme-hue) 16% 21%);
 
-  --bc-text-primary: #f6f3fb;
-  --bc-text-primary-soft: #f3f1f7;
-  --bc-text-secondary: #a8adb8;
-  --bc-text-muted: #8f96a3;
-  --bc-text-history-expression: #929aa8;
-  --bc-text-disabled: #747b88;
-  --bc-text-history-meta: #5f6672;
+  --bc-text-primary: hsl(var(--bc-theme-hue) 22% 97%);
+  --bc-text-primary-soft: hsl(var(--bc-theme-hue) 16% 96%);
+  --bc-text-secondary: hsl(var(--bc-theme-hue) 9% 69%);
+  --bc-text-muted: hsl(var(--bc-theme-hue) 9% 60%);
+  --bc-text-history-expression: hsl(var(--bc-theme-hue) 9% 61%);
+  --bc-text-disabled: hsl(var(--bc-theme-hue) 8% 50%);
+  --bc-text-history-meta: hsl(var(--bc-theme-hue) 8% 40%);
 
-  --bc-border-subtle: rgba(255, 255, 255, 0.04);
-  --bc-border-normal: rgba(255, 255, 255, 0.045);
-  --bc-border-popup: rgba(255, 255, 255, 0.055);
+  --bc-border-subtle: hsl(var(--bc-theme-hue) 18% 96% / 0.04);
+  --bc-border-normal: hsl(var(--bc-theme-hue) 18% 96% / 0.045);
+  --bc-border-popup: hsl(var(--bc-theme-hue) 18% 96% / 0.055);
 
   --bc-scrim: rgba(0, 0, 0, 0.5);
   --bc-scrim-timeout: rgba(0, 0, 0, 0.56);
@@ -49,45 +55,46 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bc-bg: #f8f8fa;
-  --bc-surface-main: #ffffff;
-  --bc-surface-card: #f3f3f5;
-  --bc-surface-popup: #ffffff;
-  --bc-surface-control: #ebebee;
-  --bc-surface-control-soft: #efeff2;
-  --bc-surface-control-active: #dcdce1;
+  --bc-bg: hsl(var(--bc-theme-hue) 18% 98%);
+  --bc-surface-main: hsl(var(--bc-theme-hue) 18% 100%);
+  --bc-surface-card: hsl(var(--bc-theme-hue) 15% 96%);
+  --bc-surface-popup: hsl(var(--bc-theme-hue) 18% 100%);
+  --bc-surface-control: hsl(var(--bc-theme-hue) 16% 93%);
+  --bc-surface-control-soft: hsl(var(--bc-theme-hue) 16% 95%);
+  --bc-surface-control-active: hsl(var(--bc-theme-hue) 18% 87%);
 
-  --bc-key-normal: #eeeef1;
-  --bc-key-special: #e3e3e7;
+  --bc-key-normal: hsl(var(--bc-theme-hue) 15% 94%);
+  --bc-key-special: hsl(var(--bc-theme-hue) 18% 90%);
 
-  --bc-text-primary: #17191e;
-  --bc-text-primary-soft: #202229;
-  --bc-text-secondary: #5e6470;
-  --bc-text-muted: #747b87;
-  --bc-text-history-expression: #68707c;
-  --bc-text-disabled: #959ba6;
-  --bc-text-history-meta: #a3a8b1;
+  --bc-text-primary: hsl(var(--bc-theme-hue) 10% 12%);
+  --bc-text-primary-soft: hsl(var(--bc-theme-hue) 9% 15%);
+  --bc-text-secondary: hsl(var(--bc-theme-hue) 8% 40%);
+  --bc-text-muted: hsl(var(--bc-theme-hue) 8% 49%);
+  --bc-text-history-expression: hsl(var(--bc-theme-hue) 8% 45%);
+  --bc-text-disabled: hsl(var(--bc-theme-hue) 7% 62%);
+  --bc-text-history-meta: hsl(var(--bc-theme-hue) 7% 68%);
 
-  --bc-border-subtle: rgba(24, 24, 28, 0.045);
-  --bc-border-normal: rgba(24, 24, 28, 0.065);
-  --bc-border-popup: rgba(24, 24, 28, 0.09);
+  --bc-border-subtle: hsl(var(--bc-theme-hue) 12% 15% / 0.045);
+  --bc-border-normal: hsl(var(--bc-theme-hue) 12% 15% / 0.065);
+  --bc-border-popup: hsl(var(--bc-theme-hue) 12% 15% / 0.09);
 
   --bc-scrim: rgba(0, 0, 0, 0.28);
   --bc-scrim-timeout: rgba(0, 0, 0, 0.36);
 
-  --bc-shadow-drawer: 18px 0 48px rgba(20, 20, 24, 0.14);
-  --bc-shadow-popup: 0 18px 46px rgba(20, 20, 24, 0.16);
-  --bc-shadow-dialog: 0 18px 55px rgba(20, 20, 24, 0.18);
+  --bc-shadow-drawer: 18px 0 48px hsl(var(--bc-theme-hue) 10% 10% / 0.14);
+  --bc-shadow-popup: 0 18px 46px hsl(var(--bc-theme-hue) 10% 10% / 0.16);
+  --bc-shadow-dialog: 0 18px 55px hsl(var(--bc-theme-hue) 10% 10% / 0.18);
 
   --bc-error: #b3261e;
 }
 
 /*
- * Accent palettes are independent of light/dark mode.
+ * Accent palettes also set the hue used by neutral surfaces and text.
  * Omitting data-palette keeps the default lavender palette above.
  */
 
 :root[data-palette="lavender"] {
+  --bc-theme-hue: 268;
   --bc-key-ac: #294a7e;
   --bc-key-equals: #dfc8ff;
   --bc-caret: #b9d1ff;
@@ -96,6 +103,7 @@
 }
 
 :root[data-palette="blue"] {
+  --bc-theme-hue: 215;
   --bc-key-ac: #1f5284;
   --bc-key-equals: #aed3ff;
   --bc-caret: #98caff;
@@ -104,6 +112,7 @@
 }
 
 :root[data-palette="teal"] {
+  --bc-theme-hue: 165;
   --bc-key-ac: #1f5a4d;
   --bc-key-equals: #a6ebd0;
   --bc-caret: #9ae6cf;
@@ -112,6 +121,7 @@
 }
 
 :root[data-palette="amber"] {
+  --bc-theme-hue: 42;
   --bc-key-ac: #69481c;
   --bc-key-equals: #ffdca0;
   --bc-caret: #ffd285;
@@ -120,6 +130,7 @@
 }
 
 :root[data-palette="rose"] {
+  --bc-theme-hue: 338;
   --bc-key-ac: #6f344e;
   --bc-key-equals: #ffc5d9;
   --bc-caret: #ffb4cf;
