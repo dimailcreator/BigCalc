@@ -1,5 +1,7 @@
 :root {
   color-scheme: dark;
+
+  /* Dark theme (default). */
   --bc-bg: #090b10;
   --bc-surface-main: #11151d;
   --bc-surface-card: #151a22;
@@ -7,10 +9,10 @@
   --bc-surface-control: #202630;
   --bc-surface-control-soft: #202631;
   --bc-surface-control-active: #374258;
+
   --bc-key-normal: #1b202a;
   --bc-key-special: #2a3040;
-  --bc-key-ac: #294a7e;
-  --bc-key-equals: #dfc8ff;
+
   --bc-text-primary: #f6f3fb;
   --bc-text-primary-soft: #f3f1f7;
   --bc-text-secondary: #a8adb8;
@@ -18,15 +20,109 @@
   --bc-text-history-expression: #929aa8;
   --bc-text-disabled: #747b88;
   --bc-text-history-meta: #5f6672;
-  --bc-caret: #b9d1ff;
-  --bc-accent-foreground: #251833;
-  --bc-ac-foreground: #e4eeff;
+
   --bc-border-subtle: rgba(255, 255, 255, 0.04);
   --bc-border-normal: rgba(255, 255, 255, 0.045);
   --bc-border-popup: rgba(255, 255, 255, 0.055);
+
   --bc-scrim: rgba(0, 0, 0, 0.5);
   --bc-scrim-timeout: rgba(0, 0, 0, 0.56);
+
   --bc-shadow-drawer: 18px 0 48px rgba(0, 0, 0, 0.32);
   --bc-shadow-popup: 0 18px 46px rgba(0, 0, 0, 0.38);
   --bc-shadow-dialog: 0 18px 55px rgba(0, 0, 0, 0.42);
+
+  --bc-error: #ffb7b7;
+
+  /* Lavender palette (default). */
+  --bc-key-ac: #294a7e;
+  --bc-key-equals: #dfc8ff;
+  --bc-caret: #b9d1ff;
+  --bc-accent-foreground: #251833;
+  --bc-ac-foreground: #e4eeff;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bc-bg: #f7f8fc;
+  --bc-surface-main: #ffffff;
+  --bc-surface-card: #f1f3f8;
+  --bc-surface-popup: #ffffff;
+  --bc-surface-control: #e8ebf2;
+  --bc-surface-control-soft: #edf0f6;
+  --bc-surface-control-active: #d7deea;
+
+  --bc-key-normal: #eceff5;
+  --bc-key-special: #dfe5ef;
+
+  --bc-text-primary: #17191e;
+  --bc-text-primary-soft: #202229;
+  --bc-text-secondary: #5e6470;
+  --bc-text-muted: #747b87;
+  --bc-text-history-expression: #68707c;
+  --bc-text-disabled: #959ba6;
+  --bc-text-history-meta: #a3a8b1;
+
+  --bc-border-subtle: rgba(20, 25, 35, 0.045);
+  --bc-border-normal: rgba(20, 25, 35, 0.065);
+  --bc-border-popup: rgba(20, 25, 35, 0.09);
+
+  --bc-scrim: rgba(0, 0, 0, 0.28);
+  --bc-scrim-timeout: rgba(0, 0, 0, 0.36);
+
+  --bc-shadow-drawer: 18px 0 48px rgba(25, 32, 48, 0.14);
+  --bc-shadow-popup: 0 18px 46px rgba(25, 32, 48, 0.16);
+  --bc-shadow-dialog: 0 18px 55px rgba(25, 32, 48, 0.18);
+
+  --bc-error: #b3261e;
+}
+
+/*
+ * Accent palettes are independent of light/dark mode.
+ * Omitting data-palette keeps the default lavender palette above.
+ */
+
+:root[data-palette="lavender"] {
+  --bc-key-ac: #294a7e;
+  --bc-key-equals: #dfc8ff;
+  --bc-caret: #b9d1ff;
+  --bc-accent-foreground: #251833;
+  --bc-ac-foreground: #e4eeff;
+}
+
+:root[data-palette="blue"] {
+  --bc-key-ac: #1f5284;
+  --bc-key-equals: #aed3ff;
+  --bc-caret: #98caff;
+  --bc-accent-foreground: #102a43;
+  --bc-ac-foreground: #eaf4ff;
+}
+
+:root[data-palette="teal"] {
+  --bc-key-ac: #1f5a4d;
+  --bc-key-equals: #a6ebd0;
+  --bc-caret: #9ae6cf;
+  --bc-accent-foreground: #0a3025;
+  --bc-ac-foreground: #e7fff6;
+}
+
+:root[data-palette="amber"] {
+  --bc-key-ac: #69481c;
+  --bc-key-equals: #ffdca0;
+  --bc-caret: #ffd285;
+  --bc-accent-foreground: #3a2800;
+  --bc-ac-foreground: #fff4db;
+}
+
+:root[data-palette="rose"] {
+  --bc-key-ac: #6f344e;
+  --bc-key-equals: #ffc5d9;
+  --bc-caret: #ffb4cf;
+  --bc-accent-foreground: #461526;
+  --bc-ac-foreground: #ffe9f1;
 }
