@@ -1,32 +1,595 @@
 :root {
   color-scheme: dark;
-  --bc-bg: #090b10;
-  --bc-surface-main: #11151d;
-  --bc-surface-card: #151a22;
-  --bc-surface-popup: #171b24;
-  --bc-surface-control: #202630;
-  --bc-surface-control-soft: #202631;
-  --bc-surface-control-active: #374258;
-  --bc-key-normal: #1b202a;
-  --bc-key-special: #2a3040;
-  --bc-key-ac: #294a7e;
-  --bc-key-equals: #dfc8ff;
-  --bc-text-primary: #f6f3fb;
-  --bc-text-primary-soft: #f3f1f7;
-  --bc-text-secondary: #a8adb8;
-  --bc-text-muted: #8f96a3;
-  --bc-text-history-expression: #929aa8;
-  --bc-text-disabled: #747b88;
-  --bc-text-history-meta: #5f6672;
-  --bc-caret: #b9d1ff;
-  --bc-accent-foreground: #251833;
-  --bc-ac-foreground: #e4eeff;
-  --bc-border-subtle: rgba(255, 255, 255, 0.04);
-  --bc-border-normal: rgba(255, 255, 255, 0.045);
-  --bc-border-popup: rgba(255, 255, 255, 0.055);
+
+  /*
+   * Palette hue. Surfaces and neutral text keep their hierarchy, while their
+   * hue follows the selected color palette.
+   */
+  --bc-theme-hue: 268;
+
+  /* Dark theme (default). */
+  --bc-bg: hsl(var(--bc-theme-hue) 12% 5%);
+  --bc-surface-main: hsl(var(--bc-theme-hue) 12% 9%);
+  --bc-surface-card: hsl(var(--bc-theme-hue) 12% 11%);
+  --bc-surface-popup: hsl(var(--bc-theme-hue) 12% 12%);
+  --bc-surface-control: hsl(var(--bc-theme-hue) 13% 16%);
+  --bc-surface-control-soft: hsl(var(--bc-theme-hue) 13% 16.5%);
+  --bc-surface-control-active: hsl(var(--bc-theme-hue) 16% 28%);
+
+  --bc-key-normal: hsl(var(--bc-theme-hue) 12% 14%);
+  --bc-key-special: hsl(var(--bc-theme-hue) 16% 21%);
+
+  --bc-text-primary: hsl(var(--bc-theme-hue) 22% 97%);
+  --bc-text-primary-soft: hsl(var(--bc-theme-hue) 16% 96%);
+  --bc-text-secondary: hsl(var(--bc-theme-hue) 9% 69%);
+  --bc-text-muted: hsl(var(--bc-theme-hue) 9% 60%);
+  --bc-text-history-expression: hsl(var(--bc-theme-hue) 9% 61%);
+  --bc-text-disabled: hsl(var(--bc-theme-hue) 8% 50%);
+  --bc-text-history-meta: hsl(var(--bc-theme-hue) 8% 40%);
+
+  --bc-border-subtle: hsl(var(--bc-theme-hue) 18% 96% / 0.04);
+  --bc-border-normal: hsl(var(--bc-theme-hue) 18% 96% / 0.045);
+  --bc-border-popup: hsl(var(--bc-theme-hue) 18% 96% / 0.055);
+
   --bc-scrim: rgba(0, 0, 0, 0.5);
   --bc-scrim-timeout: rgba(0, 0, 0, 0.56);
+
   --bc-shadow-drawer: 18px 0 48px rgba(0, 0, 0, 0.32);
   --bc-shadow-popup: 0 18px 46px rgba(0, 0, 0, 0.38);
   --bc-shadow-dialog: 0 18px 55px rgba(0, 0, 0, 0.42);
+
+  --bc-error: #ffb7b7;
+
+  /* Lavender palette (default). */
+  --bc-key-ac: #294a7e;
+  --bc-key-equals: #dfc8ff;
+  --bc-caret: #b9d1ff;
+  --bc-accent-foreground: #251833;
+  --bc-ac-foreground: #e4eeff;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bc-bg: hsl(var(--bc-theme-hue) 18% 98%);
+  --bc-surface-main: hsl(var(--bc-theme-hue) 18% 100%);
+  --bc-surface-card: hsl(var(--bc-theme-hue) 15% 96%);
+  --bc-surface-popup: hsl(var(--bc-theme-hue) 18% 100%);
+  --bc-surface-control: hsl(var(--bc-theme-hue) 16% 93%);
+  --bc-surface-control-soft: hsl(var(--bc-theme-hue) 16% 95%);
+  --bc-surface-control-active: hsl(var(--bc-theme-hue) 18% 87%);
+
+  --bc-key-normal: hsl(var(--bc-theme-hue) 15% 94%);
+  --bc-key-special: hsl(var(--bc-theme-hue) 18% 90%);
+
+  --bc-text-primary: hsl(var(--bc-theme-hue) 10% 12%);
+  --bc-text-primary-soft: hsl(var(--bc-theme-hue) 9% 15%);
+  --bc-text-secondary: hsl(var(--bc-theme-hue) 8% 40%);
+  --bc-text-muted: hsl(var(--bc-theme-hue) 8% 49%);
+  --bc-text-history-expression: hsl(var(--bc-theme-hue) 8% 45%);
+  --bc-text-disabled: hsl(var(--bc-theme-hue) 7% 62%);
+  --bc-text-history-meta: hsl(var(--bc-theme-hue) 7% 68%);
+
+  --bc-border-subtle: hsl(var(--bc-theme-hue) 12% 15% / 0.045);
+  --bc-border-normal: hsl(var(--bc-theme-hue) 12% 15% / 0.065);
+  --bc-border-popup: hsl(var(--bc-theme-hue) 12% 15% / 0.09);
+
+  --bc-scrim: rgba(0, 0, 0, 0.28);
+  --bc-scrim-timeout: rgba(0, 0, 0, 0.36);
+
+  --bc-shadow-drawer: 18px 0 48px hsl(var(--bc-theme-hue) 10% 10% / 0.14);
+  --bc-shadow-popup: 0 18px 46px hsl(var(--bc-theme-hue) 10% 10% / 0.16);
+  --bc-shadow-dialog: 0 18px 55px hsl(var(--bc-theme-hue) 10% 10% / 0.18);
+
+  --bc-error: #b3261e;
+}
+
+/*
+ * Accent palettes also set the hue used by neutral surfaces and text.
+ * Omitting data-palette keeps the default lavender palette above.
+ */
+
+:root[data-palette="lavender"] {
+  --bc-theme-hue: 268;
+  --bc-key-ac: #294a7e;
+  --bc-key-equals: #dfc8ff;
+  --bc-caret: #b9d1ff;
+  --bc-accent-foreground: #251833;
+  --bc-ac-foreground: #e4eeff;
+}
+
+:root[data-palette="blue"] {
+  --bc-theme-hue: 215;
+  --bc-key-ac: #1f5284;
+  --bc-key-equals: #aed3ff;
+  --bc-caret: #98caff;
+  --bc-accent-foreground: #102a43;
+  --bc-ac-foreground: #eaf4ff;
+}
+
+:root[data-palette="teal"] {
+  --bc-theme-hue: 165;
+  --bc-key-ac: #1f5a4d;
+  --bc-key-equals: #a6ebd0;
+  --bc-caret: #9ae6cf;
+  --bc-accent-foreground: #0a3025;
+  --bc-ac-foreground: #e7fff6;
+}
+
+:root[data-palette="amber"] {
+  --bc-theme-hue: 42;
+  --bc-key-ac: #69481c;
+  --bc-key-equals: #ffdca0;
+  --bc-caret: #ffd285;
+  --bc-accent-foreground: #3a2800;
+  --bc-ac-foreground: #fff4db;
+}
+
+:root[data-palette="rose"] {
+  --bc-theme-hue: 338;
+  --bc-key-ac: #6f344e;
+  --bc-key-equals: #ffc5d9;
+  --bc-caret: #ffb4cf;
+  --bc-accent-foreground: #461526;
+  --bc-ac-foreground: #ffe9f1;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ============================================================
+ * BigCalc — experimental Liquid Glass palette
+ *
+ * Usage:
+ *   <html data-theme="dark" data-palette="liquid-glass">
+ *   <html data-theme="light" data-palette="liquid-glass">
+ *
+ * Load after base.css.
+ * ============================================================ */
+
+
+/* ============================================================
+ * Shared Liquid Glass configuration
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"] {
+  --bc-theme-hue: 215;
+
+  --bc-liquid-blur: 28px;
+  --bc-liquid-key-blur: 16px;
+
+  --bc-liquid-saturation: 155%;
+  --bc-liquid-key-saturation: 140%;
+
+  --bc-liquid-highlight: rgba(255, 255, 255, 0.14);
+  --bc-liquid-highlight-strong: rgba(255, 255, 255, 0.22);
+
+  /*
+   * Accent colors.
+   * They stay intentionally cool and slightly translucent.
+   */
+  --bc-key-ac: rgba(76, 132, 210, 0.55);
+  --bc-key-equals: rgba(218, 231, 255, 0.78);
+
+  --bc-caret: #c9dcff;
+
+  --bc-accent-foreground: #17243a;
+  --bc-ac-foreground: #f3f7ff;
+}
+
+
+/* ============================================================
+ * Dark Liquid Glass
+ * ============================================================ */
+
+:root[data-theme="dark"][data-palette="liquid-glass"] {
+  color-scheme: dark;
+
+  /*
+   * Main screen remains highly transparent so that the wallpaper
+   * participates in the interface.
+   */
+
+  --bc-bg: hsl(220 26% 6% / 0.26);
+  --bc-liquid-bg-image: url("liq.png");
+
+  --bc-surface-main: hsl(220 22% 14% / 0.42);
+  --bc-surface-card: hsl(220 20% 16% / 0.38);
+  --bc-surface-popup: hsl(220 20% 15% / 0.52);
+
+  --bc-surface-control: hsl(220 18% 22% / 0.42);
+  --bc-surface-control-soft: hsl(220 18% 22% / 0.34);
+  --bc-surface-control-active: hsl(218 25% 37% / 0.60);
+
+  --bc-key-normal: hsl(220 18% 18% / 0.42);
+  --bc-key-special: hsl(220 20% 27% / 0.46);
+
+  --bc-text-primary: rgba(250, 250, 255, 0.98);
+  --bc-text-primary-soft: rgba(248, 248, 255, 0.94);
+  --bc-text-secondary: rgba(225, 229, 239, 0.73);
+  --bc-text-muted: rgba(215, 221, 233, 0.58);
+
+  --bc-text-history-expression: rgba(220, 225, 237, 0.62);
+  --bc-text-disabled: rgba(210, 216, 230, 0.46);
+  --bc-text-history-meta: rgba(205, 212, 226, 0.36);
+
+  --bc-border-subtle: rgba(255, 255, 255, 0.08);
+  --bc-border-normal: rgba(255, 255, 255, 0.11);
+  --bc-border-popup: rgba(255, 255, 255, 0.16);
+
+  --bc-scrim: rgba(5, 8, 15, 0.40);
+  --bc-scrim-timeout: rgba(5, 8, 15, 0.48);
+
+  --bc-shadow-drawer:
+    18px 0 60px rgba(0, 0, 0, 0.38);
+
+  --bc-shadow-popup:
+    0 22px 54px rgba(0, 0, 0, 0.34);
+
+  --bc-shadow-dialog:
+    0 24px 70px rgba(0, 0, 0, 0.40);
+
+  --bc-error: #ffb8c0;
+
+  --bc-liquid-page-overlay:
+    linear-gradient(
+      180deg,
+      rgba(4, 7, 14, 0.18) 0%,
+      rgba(5, 8, 15, 0.32) 55%,
+      rgba(4, 6, 12, 0.48) 100%
+    );
+
+  --bc-liquid-glass-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.025),
+    0 10px 30px rgba(0, 0, 0, 0.14);
+
+  --bc-liquid-key-highlight:
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+}
+
+
+/* ============================================================
+ * Light Liquid Glass
+ * ============================================================ */
+
+:root[data-theme="light"][data-palette="liquid-glass"] {
+  color-scheme: light;
+
+  --bc-bg: hsl(210 40% 98% / 0.16);
+  --bc-liquid-bg-image: url("liq_light.png");
+
+  --bc-surface-main: hsl(0 0% 100% / 0.40);
+  --bc-surface-card: hsl(0 0% 100% / 0.44);
+  --bc-surface-popup: hsl(0 0% 100% / 0.58);
+
+  --bc-surface-control: hsl(210 25% 96% / 0.50);
+  --bc-surface-control-soft: hsl(210 25% 97% / 0.42);
+  --bc-surface-control-active: hsl(213 26% 88% / 0.62);
+
+  --bc-key-normal: hsl(0 0% 100% / 0.45);
+  --bc-key-special: hsl(214 25% 92% / 0.50);
+
+  --bc-text-primary: rgba(20, 24, 31, 0.94);
+  --bc-text-primary-soft: rgba(24, 28, 36, 0.90);
+  --bc-text-secondary: rgba(43, 50, 61, 0.70);
+  --bc-text-muted: rgba(54, 63, 76, 0.58);
+
+  --bc-text-history-expression: rgba(47, 56, 70, 0.64);
+  --bc-text-disabled: rgba(62, 70, 82, 0.46);
+  --bc-text-history-meta: rgba(65, 74, 88, 0.38);
+
+  --bc-border-subtle: rgba(255, 255, 255, 0.38);
+  --bc-border-normal: rgba(255, 255, 255, 0.52);
+  --bc-border-popup: rgba(255, 255, 255, 0.66);
+
+  --bc-key-ac: rgba(82, 137, 213, 0.62);
+  --bc-key-equals: rgba(224, 235, 255, 0.82);
+
+  --bc-caret: #477ac3;
+
+  --bc-accent-foreground: #173052;
+  --bc-ac-foreground: #ffffff;
+
+  --bc-scrim: rgba(25, 35, 50, 0.20);
+  --bc-scrim-timeout: rgba(25, 35, 50, 0.28);
+
+  --bc-shadow-drawer:
+    18px 0 60px rgba(25, 35, 50, 0.16);
+
+  --bc-shadow-popup:
+    0 22px 54px rgba(25, 35, 50, 0.15);
+
+  --bc-shadow-dialog:
+    0 24px 70px rgba(25, 35, 50, 0.18);
+
+  --bc-error: #a92832;
+
+  --bc-liquid-highlight: rgba(255, 255, 255, 0.56);
+  --bc-liquid-highlight-strong: rgba(255, 255, 255, 0.78);
+
+  --bc-liquid-page-overlay:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(235, 242, 252, 0.08) 45%,
+      rgba(225, 234, 247, 0.20) 100%
+    );
+
+  --bc-liquid-glass-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+    0 10px 30px rgba(37, 51, 72, 0.10);
+
+  --bc-liquid-key-highlight:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(80, 95, 120, 0.08);
+}
+
+
+/* ============================================================
+ * Wallpaper
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"] body {
+  position: relative;
+  background: transparent;
+}
+
+
+
+:root[data-palette="liquid-glass"] body::before {
+  position: fixed;
+  z-index: 0;
+  inset: -3%;
+  content: "";
+
+  background-image: var(--bc-liquid-bg-image);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+
+  filter:
+    saturate(1.14)
+    contrast(1.03);
+
+  transform: scale(1.03);
+
+  pointer-events: none;
+}
+
+:root[data-palette="liquid-glass"] body::after {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  content: "";
+
+  background: var(--bc-liquid-page-overlay);
+
+  pointer-events: none;
+}
+
+:root[data-palette="liquid-glass"] #app {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+
+
+/* ============================================================
+ * Full-screen surfaces
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"] :is(
+  .settings-screen,
+  .about-screen
+) {
+  background: var(--bc-bg);
+
+  -webkit-backdrop-filter:
+    blur(8px)
+    saturate(120%);
+
+  backdrop-filter:
+    blur(8px)
+    saturate(120%);
+}
+
+
+/* ============================================================
+ * Main glass surfaces
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"] :is(
+  .settings-card,
+  .about-hero,
+  .about-card,
+  .history-card,
+  .calculator-drawer,
+  .overflow-menu,
+  .timeout-dialog
+) {
+  -webkit-backdrop-filter:
+    blur(var(--bc-liquid-blur))
+    saturate(var(--bc-liquid-saturation));
+
+  backdrop-filter:
+    blur(var(--bc-liquid-blur))
+    saturate(var(--bc-liquid-saturation));
+
+  box-shadow: var(--bc-liquid-glass-shadow);
+}
+
+
+/* ============================================================
+ * Smaller controls
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"] :is(
+  .settings-segments,
+  .settings-numeric,
+  .about-version
+) {
+  -webkit-backdrop-filter:
+    blur(18px)
+    saturate(145%);
+
+  backdrop-filter:
+    blur(18px)
+    saturate(145%);
+
+  box-shadow:
+    inset 0 1px 0 var(--bc-liquid-highlight);
+}
+
+
+/* ============================================================
+ * Calculator keys
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"] :is(
+  .keyboard-key-normal,
+  .keyboard-key-special,
+  .keyboard-key-ac,
+  .keyboard-key-equals
+) {
+  -webkit-backdrop-filter:
+    blur(var(--bc-liquid-key-blur))
+    saturate(var(--bc-liquid-key-saturation));
+
+  backdrop-filter:
+    blur(var(--bc-liquid-key-blur))
+    saturate(var(--bc-liquid-key-saturation));
+
+  box-shadow: var(--bc-liquid-key-highlight);
+}
+
+
+/*
+ * Slight glossy reflection on keys.
+ */
+
+:root[data-palette="liquid-glass"] .keyboard-key {
+  overflow: hidden;
+}
+
+:root[data-palette="liquid-glass"] .keyboard-key:not(.keyboard-key-mode)::before {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 7%;
+  left: 7%;
+
+  height: 42%;
+
+  border-radius: inherit;
+
+  content: "";
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--bc-liquid-highlight),
+      transparent
+    );
+
+  opacity: 0.42;
+
+  pointer-events: none;
+}
+
+:root[data-palette="liquid-glass"] .keyboard-key > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* ============================================================
+ * Selected / active states
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"]
+.settings-segment[aria-pressed="true"] {
+  box-shadow:
+    inset 0 1px 0 var(--bc-liquid-highlight-strong),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+
+  -webkit-backdrop-filter:
+    blur(22px)
+    saturate(155%);
+
+  backdrop-filter:
+    blur(22px)
+    saturate(155%);
+}
+
+
+/* ============================================================
+ * History-expanded display
+ * ============================================================ */
+
+:root[data-palette="liquid-glass"]
+.calculator-shell[data-history-open="true"]
+.main-display {
+  background:
+    color-mix(
+      in srgb,
+      var(--bc-surface-main) 68%,
+      transparent
+    );
+
+  -webkit-backdrop-filter:
+    blur(5px)
+    saturate(140%);
+
+  backdrop-filter:
+    blur(5px)
+    saturate(140%);
+}
+
+
+/* ============================================================
+ * Reduced transparency accessibility
+ * ============================================================ */
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-palette="liquid-glass"] {
+    --bc-surface-main: hsl(var(--bc-theme-hue) 14% 16% / 0.94);
+    --bc-surface-card: hsl(var(--bc-theme-hue) 14% 18% / 0.94);
+    --bc-surface-popup: hsl(var(--bc-theme-hue) 14% 17% / 0.96);
+    --bc-surface-control: hsl(var(--bc-theme-hue) 14% 24% / 0.94);
+    --bc-key-normal: hsl(var(--bc-theme-hue) 13% 20% / 0.94);
+    --bc-key-special: hsl(var(--bc-theme-hue) 15% 27% / 0.94);
+  }
+
+  :root[data-theme="light"][data-palette="liquid-glass"] {
+    --bc-surface-main: rgba(250, 250, 252, 0.96);
+    --bc-surface-card: rgba(247, 248, 250, 0.96);
+    --bc-surface-popup: rgba(252, 252, 253, 0.97);
+    --bc-surface-control: rgba(239, 242, 247, 0.96);
+    --bc-key-normal: rgba(244, 246, 249, 0.96);
+    --bc-key-special: rgba(233, 237, 243, 0.96);
+  }
 }
