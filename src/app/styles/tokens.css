@@ -176,14 +176,6 @@
 :root[data-palette="liquid-glass"] {
   --bc-theme-hue: 215;
 
-  /*
-   * Replace this URL with any image.
-   * The seeded Picsum URL is only for quick testing.
-   */
-  --bc-liquid-bg-image:
-    /*url("https://i.pinimg.com/originals/65/47/cf/6547cf53717c0499c42a61a1baceb48d.png");*/
-    url("liq.png");
-
   --bc-liquid-blur: 28px;
   --bc-liquid-key-blur: 16px;
 
@@ -218,7 +210,9 @@
    * Main screen remains highly transparent so that the wallpaper
    * participates in the interface.
    */
+
   --bc-bg: hsl(220 26% 6% / 0.26);
+  --bc-liquid-bg-image: url("liq.png");
 
   --bc-surface-main: hsl(220 22% 14% / 0.42);
   --bc-surface-card: hsl(220 20% 16% / 0.38);
@@ -285,6 +279,7 @@
   color-scheme: light;
 
   --bc-bg: hsl(210 40% 98% / 0.16);
+  --bc-liquid-bg-image: url("liq_light.png");
 
   --bc-surface-main: hsl(0 0% 100% / 0.40);
   --bc-surface-card: hsl(0 0% 100% / 0.44);
@@ -362,6 +357,8 @@
   position: relative;
   background: transparent;
 }
+
+
 
 :root[data-palette="liquid-glass"] body::before {
   position: fixed;
