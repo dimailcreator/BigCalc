@@ -22,6 +22,7 @@ import type { NavigationEntry } from "./navigation/NavigationController.js";
 import { AboutScreen, CalculatorDrawer, OverflowMenu } from "./navigation/NavigationSurfaces.js";
 import { createBrowserRepositories } from "./persistence/ApplicationRepositories.js";
 import { SettingsScreen } from "./settings/SettingsScreen.js";
+import { AppearanceController } from "./settings/AppearanceController.js";
 import type { AppSettings, EvaluationSettingsSnapshot } from "./state/AppState.js";
 import { NumberViewport } from "./viewport/NumberViewport.js";
 import { initialViewportPrecisionDemand } from "./viewport/NumberViewportModel.js";
@@ -34,13 +35,15 @@ if (appRoot === null) {
   throw new Error("BigCalc application root was not found");
 }
 
+const repositories = createBrowserRepositories();
+const initialSettings = repositories.settings.load();
+const appearance = new AppearanceController(document.documentElement);
+appearance.apply(initialSettings);
 const shell = document.createElement("main");
 const header = document.createElement("header");
 const heading = document.createElement("h1");
 const display = document.createElement("section");
 const calculationClient = createBrowserCalculationClient();
-const repositories = createBrowserRepositories();
-const initialSettings = repositories.settings.load();
 let currentInertia = initialSettings.numberScrollInertia;
 const appearanceSettings = {
   theme: initialSettings.theme,
