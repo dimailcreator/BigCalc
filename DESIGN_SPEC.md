@@ -57,7 +57,7 @@ DESIGN_SPEC.md
 
 # 2. Общий visual direction
 
-BigCalc использует собственный тёмный интерфейс.
+BigCalc по умолчанию использует собственный тёмный интерфейс с lavender palette. Stage 34 добавляет независимые dark/light themes и шесть palettes; все production colors берутся из `tokens.css` (§3.1).
 
 Основные характеристики:
 
@@ -118,7 +118,7 @@ Production implementation должна использовать централи
 
 Обычные palette selectors задают `H`: lavender — `268`, blue — `215`, teal — `165`, amber — `42`, rose — `338`. Они также задают собственные accents для `AC`, `=`, caret и соответствующих foreground colors. Light theme использует существующие overrides в `tokens.css`: светлые surfaces, тёмный текст и сохранённую иерархию controls. Liquid Glass имеет отдельные существующие overrides для прозрачных surfaces, wallpaper и glass effects; обычные HSL-формулы таблицы не подменяют эти overrides.
 
-Stage 34A сохраняет визуальное состояние приложения на входе в Stage 34. Согласование этой таблицы и design tests с hue-dependent baseline не меняет production colors, прозрачный TopBar, группы клавиш, layout или контрастную иерархию surfaces. Runtime/scoped appearance относится к Stage 34B; полное описание нового Settings UI — к Stage 34E.
+Stage 34 сохраняет визуальный baseline приложения на входе в этот этап для dark/lavender/medium. Согласование этой таблицы и design tests с hue-dependent baseline не меняет production colors, прозрачный TopBar, группы клавиш, layout или контрастную иерархию surfaces. Root и local preview scopes используют один `tokens.css`; Liquid Glass effects ограничены своим scope и не меняют соседний normal preview. Settings appearance описан в §29.1.
 
 Допускаются локальные очень близкие оттенки внутри существующей surface hierarchy, если они уже заданы design tokens. Изменение production palette values и добавление новых accent colors требуют отдельного design decision.
 
@@ -1251,7 +1251,7 @@ History закрывается способом, установленным `UI_
 Settings — full-screen surface:
 
 ```text
-background: #090b10
+background: var(--bc-bg)
 ```
 
 Transition при открытии:
@@ -1265,6 +1265,8 @@ duration: 180ms ease
 ---
 
 ## 26.1. Settings top bar
+
+Settings colors и состояния controls следуют выбранным theme/palette tokens (§3.1). Цветовые примеры базового dark design в §26–29 не переопределяют фактические значения `tokens.css`; размеры этих controls не зависят от display size.
 
 Height:
 
@@ -1499,6 +1501,36 @@ font-size: 12.5px
 line-height: 1.4
 color: #747b88
 ```
+
+---
+
+## 29.1. Оформление — Stage 34
+
+После `Интерфейс` расположен раздел `Оформление` с одной card:
+
+```text
+[ preview dark ] [ preview light ]
+● ● ● ● ● ●
+○  Увеличенный
+●  Средний
+○  Уменьшенный
+```
+
+Оба previews видны одновременно и используют текущую palette. Каждый — `cloneNode(true)` реального live `.calculator-shell`, с whitelist только `.top-bar`, `.main-display`, `.calculator-keyboard` и их видимой внутренней structure. History, drawer, overflow, Settings/About, module screens, timeout, scrims и hidden layers не попадают в clone. При открытии Settings над History preview показывает основной calculator layout, не изменяя live History.
+
+Snapshot сохраняет production layout и typography на момент capture и уменьшается одним uniform scale с исходным aspect ratio. Width/height/font/layout lengths фиксируются при открытии; colors, wallpaper, filters и highlights продолжают приходить из локальных production tokens. Resize меняет только uniform scale; закрытие освобождает clones/observers, повторное открытие снимает новый snapshot. Theme/palette switch не пересоздаёт clone. Fake drawing, отдельные preview color tables, второй App/Worker/viewport instance недопустимы.
+
+Clone и viewport — inert, `aria-hidden`, без действий, focus, Tab stops, pointer events, duplicate IDs или autofocus. Отдельная overlay button выбирает theme и предоставляет accessible name `Тёмная тема`/`Светлая тема`, `aria-pressed`, selected border и focus-visible. Изображённые calculator controls не интерактивны.
+
+Шесть круглых swatches без видимого текста расположены в одном ряду: lavender, blue, teal, amber, rose, Liquid Glass. Touch target — 44×44px; accessible radiogroup `Цветовая палитра` имеет программно доступный selected state, roving tabindex и Arrow/Home/End navigation. Обычные colors задаёт `--bc-palette-preview` выбранного scope; Liquid Glass swatch светло-серый (`rgb(217, 217, 217)`) без wallpaper. Его wallpaper/effects видны в двух полноценных dark/light previews, изолированных от root и друг от друга.
+
+Ниже — три настоящих `<input type="radio">`, radio слева в full-row label, с порядком и mapping из `UI_SPEC.md §39.3`. Радиокнопка — 20×20px, строка — не менее 48px, подпись — 16px. Группа `Размер текста` поддерживает native keyboard selection и focus-visible.
+
+Display presets задают шесть semantic tokens: `--bc-font-expression`, `--bc-font-result`, `--bc-font-history-expression`, `--bc-font-history-result`, `--bc-font-history-open-expression`, `--bc-font-history-open-result`. Medium сохраняет текущие CSS formulas и short-height overrides. Small использует 80%, large 120%; compact large expression/result имеют caps 55px/34px для сохранения существующей 142px History-open geometry в проверенной viewport matrix. History expression сохраняет 44px min target, padding и ellipsis, History result — usable-width containment с допуском ≤1 CSS px.
+
+Для длинного числа на одной width действует `largeSlots < mediumSlots < smallSlots` в main result, lone Ans и History. Slot count измеряется по реальному `1ch` probe после изменения font metrics; hardcoded offsets запрещены. Global zoom/scale калькулятора не применяется. Keyboard labels/grid/buttons, TopBar, drawer/overflow, Settings/dialogs/icons и safe-area rules сохраняют свои размеры. Preview uniform scale служит только passive theme snapshot.
+
+Settings content остаётся vertically scrollable: обе previews, шесть swatches, три radio rows, numeric fields и Back доступны на 360×640, 360×800, 390×844, 412×915 и 768×1024 без horizontal overflow. Два Liquid Glass previews должны оставаться responsive при scroll, theme/palette switches и повторном открытии.
 
 ---
 
@@ -2103,7 +2135,7 @@ AppShell
 
 Design implementation считается соответствующей `DESIGN_SPEC.md`, если:
 
-1. Основной screen использует нормативную dark palette.
+1. Основной screen использует tokens выбранных theme/palette; default — dark/lavender.
 2. Top bar прозрачный.
 3. Expression/result имеют заданную visual hierarchy.
 4. NumberViewport не показывает физическое субсимвольное смещение digits.
@@ -2112,8 +2144,8 @@ Design implementation считается соответствующей `DESIGN_
 7. Calculator keyboard состоит из четырёх колонок.
 8. Compact/expanded layouts помещаются в portrait viewport.
 9. Key groups визуально различаются согласно tokens.
-10. `=` остаётся primary lavender accent.
-11. `AC` остаётся blue accent.
+10. `=` остаётся primary action с accent выбранной palette; default accent — lavender.
+11. `AC` остаётся отдельной accent group; default accent — blue.
 12. Top mode row не имеет permanent key backgrounds.
 13. Drawer соответствует ограничению `min(82vw, 360px)`.
 14. Hidden `+ Добавить калькулятор` имеет готовый design, но не отображается в v1.
@@ -2138,7 +2170,7 @@ Design implementation считается соответствующей `DESIGN_
 
 # 47. Design freeze и дальнейшие изменения
 
-Этот Draft 1 фиксирует дизайн первой Android-версии достаточно подробно для написания `APP_IMPLEMENTATION_PLAN.md` и начала production implementation.
+Базовый дизайн первой Android-версии и принятый Stage 34 appearance scope зафиксированы для production implementation в `APP_IMPLEMENTATION_PLAN.md` и `STAGE_34_IMPLEMENTATION_PLAN.md`.
 
 После начала реализации допускаются локальные изменения:
 

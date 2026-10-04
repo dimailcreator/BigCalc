@@ -1,10 +1,10 @@
 # BigCalc App Implementation Plan
 
 **Файл:** `APP_IMPLEMENTATION_PLAN.md`  
-**Статус:** Stages 0–33 implemented; Stage 33 gate and physical-device matrix passed on SM-A576B (2026-09-28)
+**Статус:** Stages 0–34 implemented; Stage 34 integration gate and physical-device matrix passed on SM-A576B (2026-10-04); Stage 35 unblocked
 **Базовая ветка:** `main`  
 **Базовое состояние репозитория:** после `d4cc0a1` (`prepare for APP_IMPLEMENTATION`) и `f28c4fb` (`Prettier`)  
-**Основание:** `CORE_SPEC.md`, текущий public Core API, `UI_SPEC.md`, `DESIGN_SPEC.md`, `POST_STAGE_26_REMEDIATION_PLAN.md`, `prototype.html`
+**Основание:** `CORE_SPEC.md`, текущий public Core API, `UI_SPEC.md`, `DESIGN_SPEC.md`, `POST_STAGE_26_REMEDIATION_PLAN.md`, `STAGE_34_IMPLEMENTATION_PLAN.md`, `prototype.html`
 **Область:** application layer, Web UI, Web Worker, persistence, Capacitor/Android host, тестирование и release pipeline BigCalc.
 
 ---
@@ -3406,6 +3406,36 @@ Public Core version 1.3.0, Core/UI/API docs, app plans и README согласо�
 
 ---
 
+# Stage 34. Persistent appearance and integration acceptance
+
+Scope и Definition of Done каждого подэтапа находятся в `STAGE_34_IMPLEMENTATION_PLAN.md`; baseline и Android acceptance 34D зафиксированы в `docs/STAGE34D_VERIFICATION.md`, итоговый integration gate — в `docs/STAGE34_VERIFICATION.md`.
+
+## Stage 34A. Appearance settings model and persistence
+
+AppSettings содержит независимые theme/palette/displaySize с defaults dark/lavender/medium. Missing fields старого v1 settings документа получают defaults; mathematical settings сохраняются. Application schema version и Core/Worker contracts не изменены. Current hue-dependent `tokens.css` сохранён как visual baseline; устаревшие фиксированные assertions согласованы с ним.
+
+## Stage 34B. Runtime appearance and scoped Liquid Glass
+
+Appearance применяется до calculator mount. Root и local preview scopes используют единый `tokens.css`; normal/Liquid Glass effects, wallpaper и reduced-transparency поведение изолированы по scope. Presentation switch сохраняет calculation session.
+
+## Stage 34C. Theme/palette Settings UI and real DOM previews
+
+Два одновременно видимых real calculator DOM snapshots с visible whitelist, sanitization, inertness и uniform scale выбирают theme. Шесть swatches выбирают palette; изменения немедленно сохраняют полный settings snapshot.
+
+## Stage 34D. Display size and NumberViewport density
+
+Три native radio rows выбирают large/medium/small. Шесть display typography tokens сохраняют medium baseline и protected shell/keyboard geometry. Font-sensitive probe гарантирует NumberViewport remeasure, естественную slot density и refinement того же handle. Browser regression и native ActionMode/hidden IME на SM-A576B пройдены.
+
+## Stage 34E. Integration regression, Android and documentation
+
+**Статус:** implemented; full integration gate и physical Android acceptance пройдены 2026-10-04. Результаты, test counts, device metrics и APK SHA-256 находятся в `docs/STAGE34_VERIFICATION.md`.
+
+Обязательный gate: 36 state/apply/persistence combinations, representative visual matrix, cross-setting preservation, passive preview/Liquid scope regression, Stage 32R/32S, responsive Settings/calculator, Android theme/palette/size, restart/lifecycle/IME, Core/App/Android builds и existing Android smoke suites. `test:android:stage34` автоматизирует production WebView acceptance; native ActionMode и visual quality проверяются отдельно на устройстве. UI/DESIGN specs и verification report отражают финальную реализацию.
+
+Stage 34 закрыт: 34E DoD и документированный integration gate выполнены. Stage 35 разблокирован; его реализация не входит в Stage 34.
+
+---
+
 # 7. Зависимости этапов
 
 Основная цепочка:
@@ -3488,6 +3518,18 @@ Public Core version 1.3.0, Core/UI/API docs, app plans и README согласо�
 32S History geometry/editor caret stabilization
     ↓
 33 Documentation/API regression closure
+    ↓
+34A Appearance persistence
+    ↓
+34B Runtime/scoped appearance and Liquid Glass
+    ↓
+34C Settings previews and palettes
+    ↓
+34D Display size and viewport density
+    ↓
+34E Integration/Android/documentation closure
+    ↓
+35 Further product development (unblocked by completed 34E acceptance)
     ↓
 Further product development
 ```

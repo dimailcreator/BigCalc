@@ -1428,6 +1428,9 @@ angle mode
 factorial mode
 soft timeout
 number scroll inertia
+theme
+palette
+display size
 ```
 
 Текущие defaults:
@@ -1437,6 +1440,9 @@ angleMode = deg
 factorialMode = fac
 softTimeout = 5 seconds
 numberScrollInertia = 1,6×
+theme = dark
+palette = lavender
+displaySize = medium
 ```
 
 `numberScrollInertia` изменяет только чувствительность/инерцию swipe по NumberViewport и не меняет правило дискретных digit positions.
@@ -1452,6 +1458,30 @@ numberScrollInertia = 1,6×
 ```text
 expanded keyboard state
 ```
+
+---
+
+## 39.3. Оформление
+
+Три независимые persistent App/UI settings:
+
+```ts
+theme: "dark" | "light";
+palette: "lavender" | "blue" | "teal" | "amber" | "rose" | "liquid-glass";
+displaySize: "small" | "medium" | "large";
+```
+
+Theme выбирается одной из двух одновременно видимых calculator previews; выбранная theme программно доступна. Palette выбирается в отдельной группе из шести swatches в порядке lavender, blue, teal, amber, rose, liquid-glass. Liquid Glass — шестая palette той же группы; она поддерживает обе themes и добавляет соответствующие wallpaper, прозрачные surfaces, backdrop/filter effects и glass highlights. Reduced-transparency preference сохраняет читаемость; behavior и mathematical semantics не меняются.
+
+Display size выбирается настоящими radio inputs в порядке `Увеличенный` (`large`), `Средний` (`medium`), `Уменьшенный` (`small`). Radio расположен слева; вся строка активирует выбор.
+
+Любой выбор применяется и сохраняется немедленно. Theme change сохраняет palette/size, palette change сохраняет theme/size, size change сохраняет theme/palette. Все существующие mathematical settings, timeout и inertia сохраняются при appearance change; их изменение, в свою очередь, сохраняет appearance. Полный settings snapshot восстанавливается после reload, process recreation и Android force-stop, с appearance, применённым до создания calculator DOM.
+
+Appearance не входит в `EvaluationSettingsSnapshot`, Worker protocol или Core contracts. Theme/palette не пересоздают calculation handle. Size change может только запросить дополнительные verified digits через refinement существующей session; create/cancel/dispose из-за appearance запрещены.
+
+Size меняет только main expression/result, lone Ans, History expression/result и compact History-open display. `medium` сохраняет baseline на входе в Stage 34. Keyboard, TopBar, drawer/overflow, Settings, dialogs, icons и safe-area geometry/font sizes не масштабируются. NumberViewport получает slot count из реальной usable width и `1ch` metrics; увеличение glyphs уменьшает число visible slots, уменьшение glyphs увеличивает его. Font change гарантирует remeasure даже без resize внешнего output. Editor token/caret model, native selection/clipboard и Android IME suppression сохраняются.
+
+Persistence использует прежний application schema version 1: в старых корректных v1 settings отсутствующие appearance fields получают defaults без потери остальных settings. Неизвестные сохранённые values не интерпретируются как новые themes/palettes/sizes; действуют существующие validation/future-schema protections.
 
 ---
 
