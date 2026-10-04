@@ -8,7 +8,10 @@ describe("application state contracts", () => {
       angleMode: "degrees",
       factorialMode: "integer",
       maxCalculationTimeMs: 5_000,
-      numberScrollInertia: 1.6
+      numberScrollInertia: 1.6,
+      theme: "dark",
+      palette: "lavender",
+      displaySize: "medium"
     });
   });
 

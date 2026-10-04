@@ -9,6 +9,67 @@ async function openSettings(page) {
   await page.getByRole("menuitem", { name: "Настройки" }).click();
 }
 
+test("existing settings callbacks preserve saved appearance through changes and restart", async ({
+  page
+}) => {
+  const appearance = { theme: "light", palette: "liquid-glass", displaySize: "large" };
+  let expected = {
+    schemaVersion: 1,
+    angleMode: "degrees",
+    factorialMode: "integer",
+    maxCalculationTimeMs: 5000,
+    numberScrollInertia: 1.6,
+    ...appearance
+  };
+  await page.addInitScript((settings) => {
+    if (globalThis.sessionStorage.getItem("stage34a-seeded") !== null) return;
+    globalThis.localStorage.setItem("bigcalc.app.settings.v1", JSON.stringify(settings));
+    globalThis.sessionStorage.setItem("stage34a-seeded", "true");
+  }, expected);
+  await page.reload({ waitUntil: "networkidle" });
+  const expectSaved = async (changes) => {
+    expected = { ...expected, ...changes };
+    expect(
+      await page.evaluate(() =>
+        JSON.parse(globalThis.localStorage.getItem("bigcalc.app.settings.v1"))
+      )
+    ).toEqual(expected);
+  };
+
+  await page.getByRole("button", { name: "Режим углов: градусы" }).click();
+  await expectSaved({ angleMode: "radians" });
+  await page.getByRole("button", { name: "Режим факториала: только целые" }).click();
+  await expectSaved({ factorialMode: "gamma" });
+  await openSettings(page);
+  const screen = page.getByRole("region", { name: "Настройки калькулятора" });
+  await screen
+    .getByRole("group", { name: "Углы" })
+    .getByRole("button", { name: "Градусы" })
+    .click();
+  await expectSaved({ angleMode: "degrees" });
+  await screen
+    .getByRole("group", { name: "Факториал" })
+    .getByRole("button", { name: "Только целые" })
+    .click();
+  await expectSaved({ factorialMode: "integer" });
+  await screen.getByRole("textbox", { name: "Лимит непрерывного вычисления, секунды" }).fill("2,5");
+  await expectSaved({ maxCalculationTimeMs: 2500 });
+  await screen.getByRole("textbox", { name: "Инерция прокрутки чисел" }).fill("2,4");
+  await expectSaved({ numberScrollInertia: 2.4 });
+  await screen.getByRole("button", { name: "Назад к калькулятору" }).click();
+
+  await page.reload({ waitUntil: "networkidle" });
+  await expectSaved({});
+  await openSettings(page);
+  await expect(
+    screen.getByRole("textbox", { name: "Лимит непрерывного вычисления, секунды" })
+  ).toHaveValue("2,5");
+  await expect(screen.getByRole("textbox", { name: "Инерция прокрутки чисел" })).toHaveValue("2,4");
+  await screen.getByRole("button", { name: "Назад к калькулятору" }).click();
+  await page.getByRole("button", { name: "Режим углов: градусы" }).click();
+  await expectSaved({ angleMode: "radians" });
+});
+
 test("settings modes recalculate immediately, sync with keyboard, and survive restart", async ({
   page
 }) => {

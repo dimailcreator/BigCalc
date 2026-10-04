@@ -22,6 +22,7 @@ import type { NavigationEntry } from "./navigation/NavigationController.js";
 import { AboutScreen, CalculatorDrawer, OverflowMenu } from "./navigation/NavigationSurfaces.js";
 import { createBrowserRepositories } from "./persistence/ApplicationRepositories.js";
 import { SettingsScreen } from "./settings/SettingsScreen.js";
+import type { AppSettings, EvaluationSettingsSnapshot } from "./state/AppState.js";
 import { NumberViewport } from "./viewport/NumberViewport.js";
 import { initialViewportPrecisionDemand } from "./viewport/NumberViewportModel.js";
 import "./styles/tokens.css";
@@ -41,6 +42,11 @@ const calculationClient = createBrowserCalculationClient();
 const repositories = createBrowserRepositories();
 const initialSettings = repositories.settings.load();
 let currentInertia = initialSettings.numberScrollInertia;
+const appearanceSettings = {
+  theme: initialSettings.theme,
+  palette: initialSettings.palette,
+  displaySize: initialSettings.displaySize
+};
 const history = new CalculationHistory();
 history.restore(repositories.history.load());
 const resultOutput = new NumberViewport({
@@ -175,7 +181,7 @@ const settingsScreen = new SettingsScreen({
     expressionOutput.setInertia(value);
     historyPanel.setInertia(value);
     saveSettings();
-    settingsScreen.sync({ ...controller.state.settings, numberScrollInertia: value });
+    settingsScreen.sync(currentAppSettings());
   }
 });
 const aboutScreen = new AboutScreen(() => {
@@ -462,7 +468,7 @@ function render(state: LiveCalculatorViewState): void {
     angleMode: degrees ? "degrees" : "radians",
     factorialMode: state.settings.factorialMode
   });
-  settingsScreen.sync({ ...state.settings, numberScrollInertia: currentInertia });
+  settingsScreen.sync(currentAppSettings(state.settings));
 }
 
 function renderNavigation(
@@ -515,9 +521,16 @@ function renderNavigation(
   }
 }
 
+function currentAppSettings(
+  evaluationSettings: EvaluationSettingsSnapshot = controller.state.settings
+): AppSettings {
+  return {
+    ...evaluationSettings,
+    numberScrollInertia: currentInertia,
+    ...appearanceSettings
+  };
+}
+
 function saveSettings(): void {
-  repositories.settings.save({
-    ...controller.state.settings,
-    numberScrollInertia: currentInertia
-  });
+  repositories.settings.save(currentAppSettings());
 }

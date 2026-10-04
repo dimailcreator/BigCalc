@@ -49,10 +49,11 @@ test("calculator layout and key groups stay usable across portrait sizes", async
     expect(geometry.keyboard.bottom).toBeLessThanOrEqual(height);
     expect(geometry.display.bottom).toBeLessThanOrEqual(geometry.keyboard.top + 1);
     expect(geometry.expressionFontSize).toBeGreaterThan(geometry.resultFontSize);
-    expect(geometry.rootBackground).toBe("rgb(9, 11, 16)");
+    // Entry baseline for Stage 34: dark lavender, H = 268 in tokens.css.
+    expect(geometry.rootBackground).toBe("rgb(13, 11, 14)");
     expect(geometry.topBackground).toBe("rgba(0, 0, 0, 0)");
     expect(geometry.keyColors).toEqual([
-      "rgb(27, 32, 42)",
+      "rgb(35, 31, 40)",
       "rgb(41, 74, 126)",
       "rgb(223, 200, 255)",
       "rgba(0, 0, 0, 0)"
@@ -82,7 +83,7 @@ test("history keeps a card and current display visible with its saved modes", as
   await expect(page.locator(".calculator-keyboard")).toBeHidden();
   expect(
     await card.evaluate((element) => globalThis.getComputedStyle(element).backgroundColor)
-  ).toBe("rgb(17, 21, 29)");
+  ).toBe("rgb(23, 20, 26)");
 });
 
 test("reduced motion removes layout and navigation transitions", async ({ page }) => {

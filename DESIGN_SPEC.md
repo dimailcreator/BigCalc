@@ -87,33 +87,40 @@ Production implementation должна использовать централи
 
 ## 3.1. Color tokens
 
-| Token                     | Значение                              | Назначение                                         |
+Текущий визуальный baseline использует hue-dependent palettes. Единый источник фактических цветов — `src/app/styles/tokens.css`: neutral surfaces и text зависят от hue выбранной palette, а theme задаёт их saturation/lightness и контрастную иерархию. Прежние фиксированные hex neutral colors не являются нормативными значениями этой модели.
+
+В таблице ниже `H` означает `var(--bc-theme-hue)`. Значения описывают существующий dark baseline; default palette — lavender, `H = 268`.
+
+| Token                     | Dark baseline                         | Назначение                                         |
 | ------------------------- | ------------------------------------- | -------------------------------------------------- |
-| `background`              | `#090b10`                             | Основной фон приложения                            |
-| `surface-main`            | `#11151d`                             | Drawer, history cards                              |
-| `surface-card`            | `#151a22`                             | Settings/About cards                               |
-| `surface-popup`           | `#171b24`                             | Popup menu, timeout dialog                         |
-| `surface-control`         | `#202630` / `#202631`                 | Controls, segmented background, secondary surfaces |
-| `surface-control-active`  | `#374258`                             | Активный segmented control                         |
-| `key-normal`              | `#1b202a`                             | Обычные calculator keys                            |
-| `key-special`             | `#2a3040`                             | Operators и special keys                           |
-| `key-ac`                  | `#294a7e`                             | `AC`                                               |
-| `key-equals`              | `#dfc8ff`                             | `=` и primary accent action                        |
-| `text-primary`            | `#f6f3fb`                             | Основной текст                                     |
-| `text-primary-soft`       | `#f3f1f7`                             | Заголовки/cards                                    |
-| `text-secondary`          | `#a8adb8`                             | Result, dialog descriptions                        |
-| `text-muted`              | `#8f96a3`                             | Secondary labels/descriptions                      |
-| `text-history-expression` | `#929aa8`                             | Expression в истории                               |
-| `text-disabled`           | `#747b88`                             | Footnotes и tertiary text                          |
-| `text-history-meta`       | `#5f6672`                             | Meta history entry                                 |
-| `caret`                   | `#b9d1ff`                             | Cursor/caret и focus accent                        |
+| `background`              | `hsl(H 12% 5%)`                       | Основной фон приложения                            |
+| `surface-main`            | `hsl(H 12% 9%)`                       | Drawer, history cards                              |
+| `surface-card`            | `hsl(H 12% 11%)`                      | Settings/About cards                               |
+| `surface-popup`           | `hsl(H 12% 12%)`                      | Popup menu, timeout dialog                         |
+| `surface-control`         | `hsl(H 13% 16%)`                      | Controls, segmented background, secondary surfaces |
+| `surface-control-soft`    | `hsl(H 13% 16.5%)`                    | Мягкие secondary controls                          |
+| `surface-control-active`  | `hsl(H 16% 28%)`                      | Активный segmented control                         |
+| `key-normal`              | `hsl(H 12% 14%)`                      | Обычные calculator keys                            |
+| `key-special`             | `hsl(H 16% 21%)`                      | Operators и special keys                           |
+| `key-ac`                  | `#294a7e`                             | `AC`, lavender baseline                            |
+| `key-equals`              | `#dfc8ff`                             | `=` и primary accent action, lavender baseline     |
+| `text-primary`            | `hsl(H 22% 97%)`                      | Основной текст                                     |
+| `text-primary-soft`       | `hsl(H 16% 96%)`                      | Заголовки/cards                                    |
+| `text-secondary`          | `hsl(H 9% 69%)`                       | Result, dialog descriptions                        |
+| `text-muted`              | `hsl(H 9% 60%)`                       | Secondary labels/descriptions                      |
+| `text-history-expression` | `hsl(H 9% 61%)`                       | Expression в истории                               |
+| `text-disabled`           | `hsl(H 8% 50%)`                       | Footnotes и tertiary text                          |
+| `text-history-meta`       | `hsl(H 8% 40%)`                       | Meta history entry                                 |
+| `caret`                   | `#b9d1ff`                             | Cursor/caret и focus accent, lavender baseline     |
 | `equals-foreground`       | `#251833`                             | Текст на лавандовом accent                         |
-| `ac-foreground`           | `#e4eeff`                             | Текст `AC`                                         |
+| `ac-foreground`           | `#e4eeff`                             | Текст `AC`, lavender baseline                      |
 | `overlay`                 | `rgba(0,0,0,0.50)`–`rgba(0,0,0,0.56)` | Modal/drawer scrim                                 |
 
-Допускаются локальные очень близкие оттенки внутри одной surface hierarchy, если они уже заданы этой спецификацией.
+Обычные palette selectors задают `H`: lavender — `268`, blue — `215`, teal — `165`, amber — `42`, rose — `338`. Они также задают собственные accents для `AC`, `=`, caret и соответствующих foreground colors. Light theme использует существующие overrides в `tokens.css`: светлые surfaces, тёмный текст и сохранённую иерархию controls. Liquid Glass имеет отдельные существующие overrides для прозрачных surfaces, wallpaper и glass effects; обычные HSL-формулы таблицы не подменяют эти overrides.
 
-Произвольное добавление новых accent colors без отдельного design decision не допускается.
+Stage 34A сохраняет визуальное состояние приложения на входе в Stage 34. Согласование этой таблицы и design tests с hue-dependent baseline не меняет production colors, прозрачный TopBar, группы клавиш, layout или контрастную иерархию surfaces. Runtime/scoped appearance относится к Stage 34B; полное описание нового Settings UI — к Stage 34E.
+
+Допускаются локальные очень близкие оттенки внутри существующей surface hierarchy, если они уже заданы design tokens. Изменение production palette values и добавление новых accent colors требуют отдельного design decision.
 
 ---
 

@@ -4,6 +4,7 @@ import {
   NumberScrollInertiaStore
 } from "../settings/NumberScrollInertiaStore.js";
 import { isAcceptedNumberScrollInertia } from "../settings/SettingsValues.js";
+import { isAppPalette, isAppTheme, isDisplaySize } from "../settings/AppearanceSettings.js";
 import { DEFAULT_APP_SETTINGS } from "../state/AppState.js";
 import type { AppSettings } from "../state/AppState.js";
 import { APPLICATION_SCHEMA_VERSION } from "./contracts.js";
@@ -33,7 +34,13 @@ export class LocalSettingsRepository implements SettingsRepository {
   }
 
   save(settings: AppSettings): boolean {
-    if (parseSettings(settings) === null) return false;
+    if (
+      parseSettings(settings) === null ||
+      !isAppTheme(settings.theme) ||
+      !isAppPalette(settings.palette) ||
+      !isDisplaySize(settings.displaySize)
+    )
+      return false;
     try {
       const existing = this.#storage.getItem(SETTINGS_STORAGE_KEY);
       if (existing !== null) {
@@ -56,7 +63,10 @@ export class LocalSettingsRepository implements SettingsRepository {
           angleMode: settings.angleMode,
           factorialMode: settings.factorialMode,
           maxCalculationTimeMs: settings.maxCalculationTimeMs,
-          numberScrollInertia: settings.numberScrollInertia
+          numberScrollInertia: settings.numberScrollInertia,
+          theme: settings.theme,
+          palette: settings.palette,
+          displaySize: settings.displaySize
         })
       );
       return true;
@@ -86,20 +96,30 @@ export class LocalSettingsRepository implements SettingsRepository {
 
 function parseSettings(value: unknown): AppSettings | null {
   if (!isRecord(value)) return null;
+  // Missing additive fields are valid in pre-Stage-34 v1 documents; invalid values are not.
+  const theme = "theme" in value ? value.theme : DEFAULT_APP_SETTINGS.theme;
+  const palette = "palette" in value ? value.palette : DEFAULT_APP_SETTINGS.palette;
+  const displaySize = "displaySize" in value ? value.displaySize : DEFAULT_APP_SETTINGS.displaySize;
   if (
     (value.angleMode !== "degrees" && value.angleMode !== "radians") ||
     (value.factorialMode !== "integer" && value.factorialMode !== "gamma") ||
     typeof value.maxCalculationTimeMs !== "number" ||
     !Number.isFinite(value.maxCalculationTimeMs) ||
     value.maxCalculationTimeMs < 0 ||
-    !isAcceptedNumberScrollInertia(value.numberScrollInertia)
+    !isAcceptedNumberScrollInertia(value.numberScrollInertia) ||
+    !isAppTheme(theme) ||
+    !isAppPalette(palette) ||
+    !isDisplaySize(displaySize)
   )
     return null;
   return Object.freeze({
     angleMode: value.angleMode,
     factorialMode: value.factorialMode,
     maxCalculationTimeMs: value.maxCalculationTimeMs,
-    numberScrollInertia: value.numberScrollInertia
+    numberScrollInertia: value.numberScrollInertia,
+    theme,
+    palette,
+    displaySize
   });
 }
 

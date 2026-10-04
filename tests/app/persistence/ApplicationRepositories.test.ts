@@ -51,19 +51,27 @@ describe("application repositories", () => {
     expect(storage.items.size).toBe(0);
     expect(
       first.settings.save({
+        ...DEFAULT_APP_SETTINGS,
         angleMode: "radians",
         factorialMode: "gamma",
         maxCalculationTimeMs: 2400,
-        numberScrollInertia: 2.25
+        numberScrollInertia: 2.25,
+        theme: "light",
+        palette: "liquid-glass",
+        displaySize: "small"
       })
     ).toBe(true);
     expect(first.history.save([entry])).toBe(true);
     const restarted = createApplicationRepositories(storage);
     expect(restarted.settings.load()).toEqual({
+      ...DEFAULT_APP_SETTINGS,
       angleMode: "radians",
       factorialMode: "gamma",
       maxCalculationTimeMs: 2400,
-      numberScrollInertia: 2.25
+      numberScrollInertia: 2.25,
+      theme: "light",
+      palette: "liquid-glass",
+      displaySize: "small"
     });
     expect(restarted.history.load()).toEqual([entry]);
     const raw = [...storage.items.values()].join(" ");
@@ -78,6 +86,7 @@ describe("application repositories", () => {
     new NumberScrollInertiaStore(storage).save(2.5);
     const migrated = createApplicationRepositories(storage).settings.load();
     expect(migrated).toEqual({
+      ...DEFAULT_APP_SETTINGS,
       angleMode: "radians",
       factorialMode: "gamma",
       maxCalculationTimeMs: 5000,
@@ -86,7 +95,10 @@ describe("application repositories", () => {
     expect(JSON.parse(storage.getItem(SETTINGS_STORAGE_KEY) ?? "null")).toMatchObject({
       schemaVersion: 1,
       angleMode: "radians",
-      numberScrollInertia: 2.5
+      numberScrollInertia: 2.5,
+      theme: "dark",
+      palette: "lavender",
+      displaySize: "medium"
     });
     new MathModeStore(storage).save({ angleMode: "degrees", factorialMode: "integer" });
     expect(createApplicationRepositories(storage).settings.load()).toEqual(migrated);

@@ -3,6 +3,7 @@ import { createInitialCalculatorUiState } from "./CalculatorState.js";
 import type { CalculationHistoryEntry } from "../history/CalculationHistory.js";
 import type { UiState } from "./UiState.js";
 import { DEFAULT_UI_STATE } from "./UiState.js";
+import type { AppPalette, AppTheme, DisplaySize } from "../settings/AppearanceSettings.js";
 
 export interface EvaluationSettingsSnapshot {
   readonly angleMode: "radians" | "degrees";
@@ -12,6 +13,9 @@ export interface EvaluationSettingsSnapshot {
 
 export interface AppSettings extends EvaluationSettingsSnapshot {
   readonly numberScrollInertia: number;
+  readonly theme: AppTheme;
+  readonly palette: AppPalette;
+  readonly displaySize: DisplaySize;
 }
 
 export type HistoryEntry = CalculationHistoryEntry;
@@ -35,7 +39,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   angleMode: "degrees",
   factorialMode: "integer",
   maxCalculationTimeMs: 5_000,
-  numberScrollInertia: 1.6
+  numberScrollInertia: 1.6,
+  theme: "dark",
+  palette: "lavender",
+  displaySize: "medium"
 });
 
 export function createInitialAppState(): AppState {
