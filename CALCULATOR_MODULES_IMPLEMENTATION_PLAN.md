@@ -1,6 +1,6 @@
 # BigCalc — Calculator Modules Implementation Plan
 
-**Статус:** Accepted; Stages 0–1 complete (2026-10-04); Stage 2 unblocked
+**Статус:** Accepted; Stages 0–2 complete (2026-10-04); Stage 3 unblocked
 
 **Новая фаза:** bundled calculator development
 
@@ -657,6 +657,33 @@ future schema protection preserved
 11. Module/persistence tests pass.
 12. Full App checks pass.
 13. Stage 3 разблокирован.
+
+---
+
+## Stage 2 verification — 2026-10-04
+
+Entry HEAD: `a8595b5257437635cd972d0234523bbd59e8d41a` (`BigCalc CM 1`), clean working tree. Stage 1 dependency подтверждена verification report и сохранёнными 99 domain tests.
+
+Добавлены `src/app/modules/bmi/BmiState.ts`, `src/app/modules/bmi/BmiCalculatorModule.ts` и `tests/app/modules/bmi/BmiCalculatorModule.test.ts`. BMI source state содержит только `heightText`/`weightText`; defaults пусты. `restoreState` создаёт новый source object. Result, category и validation вычисляются из текущих/restored input texts через pure Stage 1 model по требованию, без persistent или runtime cache derived data.
+
+BMI definition использует existing `defineCalculatorModule`, module ID `bmi`, title `ИМТ`, четыре заданных field descriptors и persistence declaration revision 1. Обе serialization boundaries выбирают только две строки; deserialize отвергает malformed DTO и отбрасывает посторонние derived/runtime properties. Existing `CalculatorStateRepository` и `bigcalc.app.calculator-state.v1` используются без изменения `APPLICATION_SCHEMA_VERSION`, repository, Host, navigation, Core или Worker contracts.
+
+Production view ещё отсутствует, `installedModules.ts` не изменён. Host/state integration tests используют явно test-only screen adapter через существующий `createView` hook, как existing framework tests; production stub и BMI-specific host branch не добавлены. Stage 3/4 не начаты.
+
+28 новых tests покрывают fresh independent state, descriptors/revision/schema, runtime retention, save on deactivate/host disposal, restore после recreation Host/repository, recomputation (`29,996 → 30 + Избыточная масса`), исключение computed/runtime properties, игнорирование stale saved output, preservation empty/incomplete/invalid source texts, malformed DTO/documents, revision mismatch, сохранность другого module, future BMI revision record и отказ overwrite future application schema при flush/deactivate/dispose.
+
+Первый полный App gate после успешного Core gate завершился с одним 30-second timeout в первом accessibility test при `locator.boundingBox` видимой кнопки `Калькуляторы`; остальные 175 browser tests прошли. Повторный полный `npm run check:app` прошёл все 176 browser tests и production build. Production browser code, test expectations и timeouts не менялись.
+
+| Gate                           | Результат                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Targeted BMI unit/module tests | Passed: 127 tests (99 domain + 28 module/persistence)                                             |
+| `npm run typecheck:app`        | Passed                                                                                            |
+| Targeted Prettier / ESLint     | Passed                                                                                            |
+| `npm run check`                | Passed: formatting, lint, typecheck, 404 Core tests, 14 benchmark tests, build и public API audit |
+| `npm run check:app`            | Passed: App typecheck, 331 unit tests (30 files), 176 Chromium browser tests и production build   |
+| `git diff --check`             | Passed                                                                                            |
+
+Stage 2 закрыт: все 13 DoD items выполнены, обязательные Core/App gates прошли. Architecture/spec conflicts и blocking failures не остались. Следующий допустимый этап — Stage 3 (BMI module view); он разблокирован, но не начат.
 
 ---
 
