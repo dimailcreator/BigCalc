@@ -217,12 +217,12 @@ export class SettingsScreen {
     });
     appearanceCard.append(previews, palettes, displaySizes);
     content.append(
+      appearanceTitle,
+      appearanceCard,
       calculationsTitle,
       calculations,
       interfaceTitle,
       interfaceCard,
-      appearanceTitle,
-      appearanceCard,
       footnote
     );
     this.root.append(top, content);
