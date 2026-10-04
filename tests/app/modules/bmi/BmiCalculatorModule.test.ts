@@ -42,7 +42,7 @@ function createHost(storage: StoragePort) {
     ...bmiCalculatorDefinition,
     createView(state) {
       captured.state = state;
-      // Test-only screen adapter; production BMI view belongs to Stage 3.
+      // Observe state without requiring a DOM in these persistence unit tests.
       return { root: {} as HTMLElement };
     }
   });
@@ -89,10 +89,10 @@ describe("BMI module state and persistence", () => {
     expect(first).not.toBe(second);
     expect(deriveState(first).result).toEqual({ status: "unavailable" });
     const storage = new MemoryStorage();
-    const runtime = bmiCalculatorModule.createRuntime(new LocalCalculatorStateRepository(storage));
-    expect(runtime.root).toBeNull();
+    expect(typeof bmiCalculatorDefinition.createView).toBe("function");
+    const runtime = createHost(storage);
     expect(storage.items.size).toBe(0);
-    runtime.dispose();
+    runtime.host.dispose();
   });
 
   it("retains runtime inputs across activation and saves before deactivation completes", () => {

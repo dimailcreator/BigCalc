@@ -444,6 +444,7 @@
   :scope[data-palette="liquid-glass"]
     :is(
       .settings-card,
+      .bmi-result,
       .about-hero,
       .about-card,
       .history-card,
@@ -462,7 +463,8 @@
  * Smaller controls
  * ============================================================ */
 
-  :scope[data-palette="liquid-glass"] :is(.settings-segments, .settings-numeric, .about-version) {
+  :scope[data-palette="liquid-glass"]
+    :is(.settings-segments, .settings-numeric, .about-version, .bmi-input-control) {
     -webkit-backdrop-filter: blur(18px) saturate(145%);
 
     backdrop-filter: blur(18px) saturate(145%);

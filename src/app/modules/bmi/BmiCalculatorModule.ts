@@ -2,6 +2,7 @@ import { defineCalculatorModule } from "../CalculatorModule.js";
 import type { CalculatorModule } from "../CalculatorModule.js";
 import { bmiStatePersistence, createBmiState, serializeBmiState } from "./BmiState.js";
 import type { BmiState, PersistedBmiStateV1 } from "./BmiState.js";
+import { BmiCalculatorView } from "./BmiCalculatorView.js";
 
 export const bmiCalculatorDefinition: CalculatorModule<BmiState, PersistedBmiStateV1> = {
   id: "bmi",
@@ -13,6 +14,7 @@ export const bmiCalculatorDefinition: CalculatorModule<BmiState, PersistedBmiSta
     { id: "category", role: "output", label: "Категория" }
   ],
   createState: () => createBmiState(),
+  createView: (state) => new BmiCalculatorView(state),
   persistence: bmiStatePersistence,
   restoreState: (saved) => createBmiState(saved.heightText, saved.weightText),
   serializePersistentState: serializeBmiState

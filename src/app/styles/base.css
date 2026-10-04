@@ -67,6 +67,10 @@ button {
   overflow-y: auto;
 }
 
+.calculator-shell[data-primary-active="false"] {
+  min-height: 0;
+}
+
 .calculator-shell[data-history-open="true"] .calculator-keyboard {
   display: none;
 }

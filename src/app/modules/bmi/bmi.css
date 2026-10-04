@@ -1,0 +1,100 @@
+.bmi-calculator {
+  min-width: 0;
+  color: var(--bc-text-primary);
+}
+
+.bmi-content {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 620px);
+  margin: 0 auto;
+  padding: 18px 14px max(28px, env(safe-area-inset-bottom));
+  gap: 24px;
+}
+
+.bmi-field {
+  min-width: 0;
+}
+
+.bmi-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--bc-text-primary-soft);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.bmi-input-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 14px;
+  border: 1px solid var(--bc-border-normal);
+  border-radius: 16px;
+  background: var(--bc-surface-control);
+  gap: 12px;
+}
+
+.bmi-input-control input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: 10px 0;
+  border: 0;
+  outline: 0;
+  color: var(--bc-text-primary);
+  background: transparent;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bmi-input-control:has(input:focus-visible) {
+  outline: 2px solid var(--bc-caret);
+  outline-offset: 2px;
+}
+
+.bmi-input-control:has(input[aria-invalid="true"]) {
+  border-color: var(--bc-error);
+}
+
+.bmi-unit,
+.bmi-result-label,
+.bmi-result-category,
+.bmi-result-message {
+  color: var(--bc-text-secondary);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.bmi-input-error {
+  margin: 8px 0 0;
+  color: var(--bc-error);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.bmi-result {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--bc-border-normal);
+  border-radius: 24px;
+  background: var(--bc-surface-card);
+  overflow-wrap: anywhere;
+}
+
+.bmi-result p {
+  margin: 0;
+}
+
+.bmi-result .bmi-result-number {
+  margin: 8px 0;
+  font-size: 44px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.bmi-result-message {
+  padding-top: 8px;
+}

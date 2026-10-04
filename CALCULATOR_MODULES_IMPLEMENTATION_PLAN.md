@@ -1,6 +1,6 @@
 # BigCalc — Calculator Modules Implementation Plan
 
-**Статус:** Accepted; Stages 0–2 complete (2026-10-04); Stage 3 unblocked
+**Статус:** Accepted; Stages 0–3 complete (2026-10-04); Stage 4 unblocked
 
 **Новая фаза:** bundled calculator development
 
@@ -795,6 +795,35 @@ theme token inheritance
 17. Accessibility passes.
 18. Full App checks pass.
 19. Stage 4 разблокирован.
+
+---
+
+## Stage 3 verification — 2026-10-04
+
+Entry HEAD: `93f6004de65c9c34012ac42d86c36dfa0fc8a695` (`BigCalc CM 2`), clean working tree. Stage 2 dependency подтверждена verification report, source review и повторным запуском всех 127 BMI domain/module tests.
+
+Добавлены `BmiCalculatorView.ts` и `bmi.css`; existing BMI definition подключает production view через `createView`. Два native labelled text inputs используют decimal inputMode, autocomplete off и spellcheck false; units и inline errors связаны через `aria-describedby`. Input events обновляют только source texts и немедленно derive/render validation/result, не переписывая input value или selection. Empty/incomplete states не получают error; invalid inputs очищают прежние number/category. Status region с polite/atomic announcement содержит отдельно число и текст категории, включая raw-BMI rounding boundary. Restore render и dispose/listener cleanup покрыты browser tests.
+
+CSS использует semantic tokens, bounded 620px portrait form, tabular number typography и focus-visible. BMI card/control включены в существующие scoped Liquid Glass selectors; nested normal scope и reduced-transparency fallback сохраняются. Generic secondary-shell CSS снимает 520px primary minimum height, чтобы при IME-sized viewport module scrolling оставался внутренним. Frozen module contracts, Core, Worker, navigation и `installedModules.ts` не изменены; Stage 4 не начат.
+
+App-test type environment дополнен existing `vite/client` declarations для импортируемого module CSS. Persistence unit tests продолжают использовать test-only view adapter без DOM; прежняя Stage 2 assertion об отсутствии view заменена проверкой production view declaration. Test-only HTML/JS fixture монтирует настоящий BMI registration через existing Host/Surface, без production installation или тестового кода в App runtime.
+
+28 новых browser tests покрывают inputs/units, empty state, instant calculation/source serialization, шесть категорий и boundaries, comma/dot, rounding `29,996 → 30 + Избыточная масса`, validation обеих fields, stale output clearing, source/selection retention, Tab/focus, accessible result, restore, unrepresentable result, responsive matrix, IME-sized 360×300 scrolling и extreme number containment, обе themes/все palettes, displaySize stability, scoped Liquid Glass/reduced transparency и disposal. Responsive и representative appearance screenshots сохраняются как test artifacts для visual review.
+
+Visual review всех пяти portrait screenshots и четырёх representative appearances (`dark/lavender`, `light/blue`, `dark/liquid-glass`, `light/liquid-glass`) пройден: readable labels/units, visible focus, separate number/category, centered bounded tablet form, отсутствие overflow или broken surfaces.
+
+Первый полный App gate прошёл 203 browser tests, но последний existing Stage 34 Liquid Glass performance test зафиксировал maximum frame gap `1116,6 ms` при пороге `< 1000 ms`. Первый отдельный повтор остановился по 30-second timeout, следующий прошёл с `166,6 ms`. Итоговый повторный полный `npm run check:app` прошёл все 204 browser tests, production build и тот же performance test с `149,9 ms`. Code, thresholds, assertions и timeouts между этими прогонами не менялись. Диагностический снимок host: около 3,4 GB RAM / 650 MB свободно; transient timing failures не использованы как основание менять product или tests.
+
+| Gate                                         | Результат                                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Stage 2 dependency / targeted BMI unit tests | Passed: 127 tests                                                                                     |
+| `npm run typecheck:app` / targeted ESLint    | Passed                                                                                                |
+| Targeted BMI browser tests                   | Passed: 28 tests                                                                                      |
+| `npm run check`                              | Passed: formatting, lint, typecheck, 404 Core tests, 14 benchmark tests, build и public API audit     |
+| `npm run check:app`                          | Passed: App typecheck, 331 unit tests (30 files), 204 Chromium browser tests и production build       |
+| Visual review / `git diff --check`           | Passed: 5 portrait screenshots + 4 representative appearances; tracked и new files whitespace checked |
+
+Stage 3 закрыт: все 19 DoD items выполнены, обязательные Core/App gates и visual review прошли. Architecture/spec conflicts и blocking failures не остались. Следующий допустимый этап — Stage 4 (production registration и App integration); он разблокирован, но не начат.
 
 ---
 

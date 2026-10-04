@@ -2,7 +2,7 @@
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "skipLibCheck": true,
-    "types": ["node", "vitest"]
+    "types": ["node", "vitest", "vite/client"]
   },
   "include": ["tests/app/**/*.test.ts"],
   "exclude": ["dist-app", "node_modules", "test-results"]
