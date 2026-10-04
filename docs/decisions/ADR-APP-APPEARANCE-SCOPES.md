@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for Stage 34B in `STAGE_34_IMPLEMENTATION_PLAN.md`. The Stage 34A hue-dependent CSS baseline remains the source of visual values.
+Accepted for Stages 34B and 34C in `STAGE_34_IMPLEMENTATION_PLAN.md`. The Stage 34A hue-dependent CSS baseline remains the source of visual values.
 
 ## Decision
 
@@ -16,8 +16,20 @@ Native CSS scoping is available in Chromium 118 and later, as documented by [Chr
 
 The reduced-transparency rules match the specificity of the dark/light Liquid Glass overrides. This fixes the existing dark rule losing to the theme-specific palette rule; the predefined reduced-transparency values are retained for both root and local scopes.
 
-`data-display-size` is applied but changes no typography or geometry until Stage 34D. Settings controls and production DOM previews remain Stage 34C work. Core settings, Worker DTOs, schema version, and calculation lifecycle contracts are unchanged.
+`data-display-size` is applied but changes no typography or geometry until Stage 34D. Core settings, Worker DTOs, schema version, and calculation lifecycle contracts are unchanged.
+
+## Stage 34C: Settings controls and passive previews
+
+Settings appends an `Оформление` section with two simultaneous theme previews and a six-choice palette radiogroup. The group uses roving tabindex, arrow keys, Home/End, and native button activation. All controls use the established `bindButtonPress` path. Changes apply root appearance immediately, update the presentation state, save the complete `currentAppSettings()` snapshot, and synchronize selection without touching the calculation controller.
+
+`CalculatorThemePreview` uses `cloneNode(true)` on the live shell. Its direct-child whitelist retains only the real TopBar, main display, and calculator keyboard. The clone keeps their original grid-track positions; the removed history slot does not shift the remaining children. Only the clone receives the existing primary-screen flags, so opening Settings above History still shows a main-screen preview while preserving the live history layout and navigation state. Hidden descendants, duplicate IDs, and autofocus are removed. The clone and its viewport are inert and hidden from accessibility; descendants have no Tab stops or pointer events. A separate sibling overlay button supplies the theme label and pressed state.
+
+The snapshot uses the source shell's full dimensions and production CSS. Resolved layout and typography lengths are captured once, preserving proportions when Settings or the viewport resizes. No palette colors, wallpaper, filters, shadows, or highlights are captured in inline styles: both previews continue to use the same scoped CSS as the app. ResizeObserver updates only the wrapper's uniform scale. Opening Settings creates fresh snapshots, palette/theme switches preserve their DOM identity, and closing Settings clears them and disconnects observers. Application disposal also releases the observers.
+
+Swatches use `--bc-palette-preview` from their own palette scope, with no color values in TypeScript. Ordinary palettes resolve their existing equals accent; Liquid Glass uses a light-gray token and suppresses wallpaper on the swatch itself. Actual glass appearance, including dark/light wallpapers, is shown by the full preview scopes. Existing production color values remain unchanged.
 
 ## Evidence
 
 `tests/app/appearance.spec.js` verifies startup/reload ordering, idempotent attribute writes, ordinary palettes in both themes, adjacent and nested scope isolation, the four normal/glass combinations, local/root wallpaper, reduced transparency, unchanged display-size geometry, and zero additional Worker create/cancel/dispose commands after presentation changes. Existing design and settings tests preserve the Stage 34A baseline and persistence guarantees.
+
+`tests/app/settings-appearance.spec.js` verifies all 12 theme/palette combinations with selection, immediate full-snapshot persistence, and reload; real content and structure capture; clone identity and reopening; History entry; inertness and keyboard navigation; zero additional calculation lifecycle commands; normal/glass isolation in actual Settings previews; uniform geometry and reachable 44px palette targets across the five prescribed viewport sizes; and ResizeObserver scaling and disposal. The existing Settings keyboard order and numeric/mathematical behavior are retained.

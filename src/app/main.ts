@@ -161,6 +161,19 @@ const historyPanel = new HistoryPanel({
 });
 const settingsScreen = new SettingsScreen({
   settings: initialSettings,
+  calculator: shell,
+  onTheme(theme) {
+    appearance.apply({ ...appearanceSettings, theme });
+    appearanceSettings.theme = theme;
+    saveSettings();
+    settingsScreen.sync(currentAppSettings());
+  },
+  onPalette(palette) {
+    appearance.apply({ ...appearanceSettings, palette });
+    appearanceSettings.palette = palette;
+    saveSettings();
+    settingsScreen.sync(currentAppSettings());
+  },
   onBack() {
     navigation.back();
   },
@@ -396,6 +409,7 @@ const lifecycle = new ApplicationLifecycle(
   },
   () => {
     editor.dispose();
+    settingsScreen.dispose();
     moduleHost.dispose();
     resultOutput.dispose();
     expressionOutput.dispose();

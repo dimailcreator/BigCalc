@@ -43,6 +43,7 @@
   /* Lavender palette (default). */
   --bc-key-ac: #294a7e;
   --bc-key-equals: #dfc8ff;
+  --bc-palette-preview: var(--bc-key-equals);
   --bc-caret: #b9d1ff;
   --bc-accent-foreground: #251833;
   --bc-ac-foreground: #e4eeff;
@@ -166,6 +167,7 @@
 
 :is(:root, .bc-theme-scope)[data-palette="liquid-glass"] {
   --bc-theme-hue: 215;
+  --bc-palette-preview: hsl(0 0% 85%);
 
   --bc-liquid-blur: 28px;
   --bc-liquid-key-blur: 16px;

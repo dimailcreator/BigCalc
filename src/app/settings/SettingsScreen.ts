@@ -1,6 +1,9 @@
 import type { AppSettings } from "../state/AppState.js";
 import { bindButtonPress } from "../interaction/ButtonPress.js";
 import { createNavigationIcon } from "../navigation/NavigationIcon.js";
+import { AppearanceController } from "./AppearanceController.js";
+import { CalculatorThemePreview } from "./CalculatorThemePreview.js";
+import type { AppPalette, AppTheme } from "./AppearanceSettings.js";
 import {
   formatSettingNumber,
   parseNumberScrollInertia,
@@ -9,6 +12,9 @@ import {
 
 export interface SettingsScreenOptions {
   readonly settings: AppSettings;
+  readonly calculator: HTMLElement;
+  readonly onTheme: (theme: AppTheme) => void;
+  readonly onPalette: (palette: AppPalette) => void;
   readonly onBack: () => void;
   readonly onAngleMode: (mode: AppSettings["angleMode"]) => void;
   readonly onFactorialMode: (mode: AppSettings["factorialMode"]) => void;
@@ -23,11 +29,15 @@ export class SettingsScreen {
   readonly #factorialButtons: readonly HTMLButtonElement[];
   readonly #timeoutInput: HTMLInputElement;
   readonly #inertiaInput: HTMLInputElement;
+  readonly #calculator: HTMLElement;
+  readonly #previews: readonly CalculatorThemePreview[];
+  readonly #paletteButtons: readonly HTMLButtonElement[];
   #settings: AppSettings;
   #open = false;
 
   constructor(options: SettingsScreenOptions) {
     this.#settings = options.settings;
+    this.#calculator = options.calculator;
     this.root = document.createElement("section");
     this.root.className = "settings-screen";
     this.root.setAttribute("aria-label", "Настройки калькулятора");
@@ -114,7 +124,79 @@ export class SettingsScreen {
     footnote.className = "settings-footnote";
     footnote.textContent =
       "Изменения применяются сразу. Режим углов и факториала также синхронизируются с переключателями на клавиатуре.";
-    content.append(calculationsTitle, calculations, interfaceTitle, interfaceCard, footnote);
+    const appearanceTitle = sectionTitle("Оформление");
+    const appearanceCard = document.createElement("div");
+    appearanceCard.className = "settings-card settings-appearance";
+    const previews = document.createElement("div");
+    previews.className = "settings-theme-previews";
+    const themes: readonly AppTheme[] = ["dark", "light"];
+    this.#previews = themes.map((theme) => new CalculatorThemePreview(theme, options.onTheme));
+    previews.append(...this.#previews.map((preview) => preview.root));
+    const palettes = document.createElement("div");
+    palettes.className = "settings-palettes";
+    palettes.setAttribute("role", "radiogroup");
+    palettes.setAttribute("aria-label", "Цветовая палитра");
+    const choices: readonly (readonly [AppPalette, string])[] = [
+      ["lavender", "Лавандовая"],
+      ["blue", "Синяя"],
+      ["teal", "Бирюзовая"],
+      ["amber", "Янтарная"],
+      ["rose", "Розовая"],
+      ["liquid-glass", "Liquid Glass"]
+    ];
+    this.#paletteButtons = choices.map(([palette, name]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "settings-palette bc-theme-scope";
+      button.setAttribute("role", "radio");
+      button.setAttribute("aria-label", name);
+      new AppearanceController(button).apply({ ...options.settings, palette });
+      bindButtonPress(button, () => {
+        options.onPalette(palette);
+      });
+      palettes.append(button);
+      return button;
+    });
+    palettes.addEventListener("keydown", (event) => {
+      const index = this.#paletteButtons.indexOf(event.target as HTMLButtonElement);
+      if (index < 0) return;
+      let next: number;
+      switch (event.key) {
+        case "ArrowRight":
+        case "ArrowDown":
+          next = (index + 1) % choices.length;
+          break;
+        case "ArrowLeft":
+        case "ArrowUp":
+          next = (index + choices.length - 1) % choices.length;
+          break;
+        case "Home":
+          next = 0;
+          break;
+        case "End":
+          next = choices.length - 1;
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+      const choice = choices[next];
+      const button = this.#paletteButtons[next];
+      if (choice !== undefined && button !== undefined) {
+        options.onPalette(choice[0]);
+        button.focus();
+      }
+    });
+    appearanceCard.append(previews, palettes);
+    content.append(
+      calculationsTitle,
+      calculations,
+      interfaceTitle,
+      interfaceCard,
+      appearanceTitle,
+      appearanceCard,
+      footnote
+    );
     this.root.append(top, content);
     this.sync(options.settings);
   }
@@ -124,20 +206,33 @@ export class SettingsScreen {
   }
 
   setOpen(open: boolean): void {
+    if (this.#open === open) return;
     this.#open = open;
     this.root.dataset.open = String(open);
     this.root.inert = !open;
     this.root.setAttribute("aria-hidden", String(!open));
     if (open) {
+      for (const preview of this.#previews) preview.capture(this.#calculator);
       this.sync(this.#settings);
       requestAnimationFrame(() => {
         if (this.#open) this.#back.focus();
       });
-    }
+    } else for (const preview of this.#previews) preview.clear();
+  }
+
+  dispose(): void {
+    for (const preview of this.#previews) preview.dispose();
   }
 
   sync(settings: AppSettings): void {
     this.#settings = settings;
+    for (const preview of this.#previews) preview.sync(settings);
+    for (const button of this.#paletteButtons) {
+      const selected = button.dataset.palette === settings.palette;
+      button.setAttribute("aria-checked", String(selected));
+      button.tabIndex = selected ? 0 : -1;
+      button.dataset.theme = settings.theme;
+    }
     for (const button of this.#angleButtons) {
       button.setAttribute("aria-pressed", String(button.dataset.value === settings.angleMode));
     }
