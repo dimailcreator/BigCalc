@@ -149,6 +149,15 @@ test("keyboard alone opens Settings and About and activates a mode", async ({ pa
   const settings = page.getByRole("region", { name: "Настройки калькулятора" });
   await expect(settings).toBeVisible();
   await expect(settings.getByRole("button", { name: "Назад к калькулятору" })).toBeFocused();
+  // Appearance precedes calculation settings in DESIGN_SPEC §29.1.
+  for (const name of ["Тёмная тема", "Светлая тема"]) {
+    await page.keyboard.press("Tab");
+    await expect(settings.getByRole("button", { name, exact: true })).toBeFocused();
+  }
+  for (const name of ["Лавандовая", "Средний"]) {
+    await page.keyboard.press("Tab");
+    await expect(settings.getByRole("radio", { name, exact: true })).toBeFocused();
+  }
   await page.keyboard.press("Tab");
   await expect(settings.getByRole("button", { name: "Градусы" })).toBeFocused();
   await page.keyboard.press("Tab");

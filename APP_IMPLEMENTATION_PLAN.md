@@ -1,7 +1,7 @@
 # BigCalc App Implementation Plan
 
 **Файл:** `APP_IMPLEMENTATION_PLAN.md`  
-**Статус:** Stages 0–34 implemented; Stage 34 integration gate and physical-device matrix passed on SM-A576B (2026-10-04); Stage 35 unblocked
+**Статус:** Base application phase complete through Stage 34; Stage 34 integration gate and physical-device matrix passed on SM-A576B (2026-10-04)
 **Базовая ветка:** `main`  
 **Базовое состояние репозитория:** после `d4cc0a1` (`prepare for APP_IMPLEMENTATION`) и `f28c4fb` (`Prettier`)  
 **Основание:** `CORE_SPEC.md`, текущий public Core API, `UI_SPEC.md`, `DESIGN_SPEC.md`, `POST_STAGE_26_REMEDIATION_PLAN.md`, `STAGE_34_IMPLEMENTATION_PLAN.md`, `prototype.html`
@@ -12,6 +12,8 @@
 # 1. Назначение плана
 
 Этот документ задаёт **порядок реализации Android-приложения BigCalc после первоначального freeze математического Core API**. Этапы 27–33 документируют отдельную post-freeze remediation; они не переписывают историю этапов 0–26.
+
+Базовая application phase завершена по Stage 34 включительно. Этот план сохраняется как история base App. Дальнейшая разработка bundled calculators описана в [CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md), с собственной нумерацией начиная со Stage 0.
 
 Он отвечает на вопросы:
 
@@ -3432,7 +3434,7 @@ Appearance применяется до calculator mount. Root и local preview s
 
 Обязательный gate: 36 state/apply/persistence combinations, representative visual matrix, cross-setting preservation, passive preview/Liquid scope regression, Stage 32R/32S, responsive Settings/calculator, Android theme/palette/size, restart/lifecycle/IME, Core/App/Android builds и existing Android smoke suites. `test:android:stage34` автоматизирует production WebView acceptance; native ActionMode и visual quality проверяются отдельно на устройстве. UI/DESIGN specs и verification report отражают финальную реализацию.
 
-Stage 34 закрыт: 34E DoD и документированный integration gate выполнены. Stage 35 разблокирован; его реализация не входит в Stage 34.
+Stage 34 закрыт: 34E DoD и документированный integration gate выполнены. Следующая фаза bundled calculator development начинается со Stage 0 в [CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md).
 
 ---
 

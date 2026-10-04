@@ -2223,3 +2223,51 @@ HTML/CSS prototype
 - swipe-down history остаётся;
 - number-scroll inertia остаётся настройкой;
 - secondary timeout action называется `Отменить`.
+
+---
+
+# 49. Secondary calculator layout и ИМТ v1
+
+## 49.1. Shared shell
+
+Secondary calculator размещается внутри existing `.calculator-module-screen` под общим прозрачным TopBar и занимает доступную область primary display/keyboard. TopBar показывает title активного module и сохраняет Drawer/overflow actions. На secondary screen History button и primary calculator keyboard скрыты; module не добавляет собственный TopBar, History или keyboard layout. Shell, navigation overlays и safe-area geometry остаются общими.
+
+Module content использует вертикальную portrait-компоновку. При нехватке высоты, в том числе при открытой Android IME, scrolling происходит внутри module surface (`overflow-y: auto`), с `min-height: 0`; fields и result остаются достижимыми. Горизонтальный page overflow не допускается. На wide portrait/tablet content центрируется и ограничивается по модели остальных form screens (`max-width: 620px`), без отдельного desktop/landscape layout.
+
+## 49.2. ИМТ form и result
+
+Shared TopBar уже показывает `ИМТ`; второй внутренний screen title не нужен. Последовательность content:
+
+```text
+Рост
+[                       ] см
+
+Вес
+[                       ] кг
+
+┌─────────────────────────┐
+│ ИМТ                     │
+│ 23,15                   │
+│ Норма                   │
+└─────────────────────────┘
+```
+
+Это conceptual layout, а не обязательная DOM structure. Visible native field labels расположены над соответствующими inputs; units рядом с control или в связанном field context. Обычная label фокусирует input; optional description label/dialog interaction из UI_SPEC §43.1 применяется при наличии объявленного description control и не подменяет native input label.
+
+Input controls имеют мягкие rounded corners и общую visual hierarchy form controls. Контент разделяется понятными вертикальными промежутками; labels/units/errors не перекрывают input text. Inline error находится рядом с соответствующим field, использует error token и остаётся читаемым текстом. Empty/incomplete state не выглядит как ошибка и не показывает прежний result как актуальный.
+
+В result surface label `ИМТ` задаёт контекст, число имеет наибольший visual weight, категория располагается отдельно ниже с secondary emphasis. Result formatting и категории определены в UI_SPEC §43.5. Число использует tabular numeric typography (§4.2); category допускает перенос строки на узких экранах. Категория всегда представлена текстом, без category-specific red/green как единственного signal. Result не содержит кнопки расчёта, медицинских рекомендаций или графиков.
+
+## 49.3. Tokens и appearance
+
+BMI styles используют существующие semantic `--bc-*` tokens и global `data-theme`/`data-palette`, без отдельных dark/light/palette tables. Background/surfaces берутся из `--bc-bg`, `--bc-surface-card` и `--bc-surface-control`; labels/input/result — из primary/secondary text tokens; borders/errors — из существующих border/error tokens. Radius language, typography и focus-visible соответствуют остальному App. Native keyboard navigation и touch targets около 44px или больше сохраняются.
+
+Поддерживаются обе themes (`dark`, `light`) и все palettes (`lavender`, `blue`, `teal`, `amber`, `rose`, `liquid-glass`). Liquid Glass использует существующие scoped wallpaper/effects/tokens и reduced-transparency fallback; BMI surfaces при необходимости включаются в generic glass selectors без копирования glass values или изменения соседних normal scopes.
+
+В BMI v1 `displaySize` не применяется к BMI controls/result: typography и geometry стабильны при small/medium/large и не используют масштабируемые main expression/result display tokens. Theme/palette updates применяются сразу и не сбрасывают inputs.
+
+## 49.4. Проверка layout
+
+Обязательная portrait matrix: `360×640`, `360×800`, `390×844`, `412×915`, `768×1024`. Проверяются отсутствие horizontal page overflow, достижимость обоих inputs/result при маленькой высоте и IME, safe areas, visible focus и читаемые labels/units/errors/result/category.
+
+Browser coverage проверяет наследование tokens; representative integration appearance включает dark/lavender, light/blue, dark/liquid-glass и light/liquid-glass. Physical Android acceptance проверяет обычные и Liquid Glass surfaces в обеих themes, открытие native BMI IME и сохранение IME suppression primary BigCalc expression. Полная ручная Stage 34 appearance matrix для Stage 0 не требуется при зелёном automated baseline.

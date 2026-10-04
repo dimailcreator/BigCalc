@@ -1595,11 +1595,76 @@ Keyboard остаётся частью общей application UI architecture.
 
 ---
 
+## 43.5. ИМТ — первый secondary bundled calculator
+
+BMI v1 регистрируется с `id = bmi`, `title = ИМТ` через `defineCalculatorModule(...)` и `installedModules.ts`. Existing `CalculatorModuleHost`, navigation registrations и `CalculatorModuleSurface` управляют его lifecycle и mounting без BMI-specific веток в AppShell, NavigationController, Host или Surface; frozen module ADR сохраняется.
+
+Drawer получает пункты `BigCalc` и `ИМТ` из общих registrations; BigCalc остаётся первым/primary. Shared TopBar показывает title активного calculator. На ИМТ скрыты History button и primary BigCalc keyboard. ИМТ не имеет собственной History, custom calculator keyboard или кнопки `Рассчитать`/`=`. Settings, About, Drawer и Android Back используют существующую navigation stack (§41), без специального перехода Back в BigCalc.
+
+### 43.5.1. Поля и ввод
+
+| Field ID   | Role   | Видимая label | Единица |
+| ---------- | ------ | ------------- | ------- |
+| `height`   | input  | Рост          | см      |
+| `weight`   | input  | Вес           | кг      |
+| `bmi`      | output | ИМТ           | —       |
+| `category` | output | Категория     | —       |
+
+Два native HTML inputs используют `type="text"`, `inputMode="decimal"`, `autocomplete="off"`, `spellcheck=false`. Каждый имеет visible label, programmatic name и доступно связанный контекст единиц; placeholder не заменяет label. На Android для BMI fields открывается обычная IME. IME suppression основного expression editor сохраняется.
+
+Принимаются целые и десятичные записи с запятой или точкой: `180`, `180,5`, `180.5`. Scientific notation и thousands separators не входят в обязательный input syntax. Оба значения должны быть finite и строго больше нуля; произвольные физиологические min/max limits не вводятся.
+
+| Input state | Поведение                                                          |
+| ----------- | ------------------------------------------------------------------ |
+| empty       | Нет результата, без агрессивной error state                        |
+| incomplete  | Нет результата, без агрессивной error state; например `180,`       |
+| invalid     | Inline validation error, `aria-invalid=true`, связанный error text |
+| valid       | Автоматический расчёт, если второе поле также valid                |
+
+Input event сохраняет исходный текст поля и сразу пересчитывает validation/result. Input не нормализуется и не переформатируется на каждом keypress; cursor/selection не ломаются. При переходе любого поля в empty/incomplete/invalid прежние число и категория перестают отображаться как текущий результат.
+
+### 43.5.2. Расчёт, категории и форматирование
+
+Формула: `BMI = weightKg / heightMeters²`, эквивалентно `weightKg × 10000 / heightCm²`. Это module-local domain calculation; BMI v1 не использует BigCalc Core, Worker или CalculationHandle и не запускает основной calculation lifecycle при редактировании BMI inputs.
+
+Категория определяется по **неокруглённому** BMI:
+
+| BMI                 | Категория            |
+| ------------------- | -------------------- |
+| `< 18,5`            | Недостаточная масса  |
+| `18,5 ≤ BMI < 25,0` | Норма                |
+| `25,0 ≤ BMI < 30,0` | Избыточная масса     |
+| `30,0 ≤ BMI < 35,0` | Ожирение I степени   |
+| `35,0 ≤ BMI < 40,0` | Ожирение II степени  |
+| `≥ 40,0`            | Ожирение III степени |
+
+Число отображается с максимум двумя знаками после запятой, без ненужных trailing zeroes и grouping separators; decimal separator всегда запятая, независимо от browser/Node locale. Примеры: `23.154… → 23,15`, `25 → 25`, `18.5 → 18,5`. Formatter и classifier получают raw BMI отдельно: `29.996… → 30`, но категория остаётся `Избыточная масса`.
+
+Число является primary result, категория — отдельным secondary result. Accessible result передаёт оба, например `ИМТ: 23,15. Категория: Норма.` Категория не передаётся только цветом. BMI v1 показывает только число и категорию из таблицы, без медицинских рекомендаций, дополнительных диагнозов, imperial units, возраста/пола, графиков или BMI history.
+
+### 43.5.3. Состояние и global appearance
+
+Default input texts пусты, результат отсутствует. Switching BigCalc → ИМТ → BigCalc сохраняет состояния обоих calculators; возврат к ИМТ восстанавливает его inputs и derived result. Persistent BMI subset определён в §44.1.
+
+ИМТ наследует global `theme` и `palette` (§39.3): изменения применяются немедленно и сохраняют input texts. В BMI v1 `displaySize` не масштабирует typography/geometry BMI form controls и result; small/medium/large сохраняют их размеры. Layout определён в DESIGN_SPEC §49.
+
+---
+
 # 44. Persistence дополнительных calculators
 
 Persistently сохраняются только те части состояния calculator module, которые сам module объявил сохраняемыми.
 
 Остальное состояние может быть session-only.
+
+---
+
+## 44.1. Persistent BMI state v1
+
+BMI использует существующий `CalculatorStateRepository`, документ `bigcalc.app.calculator-state.v1` и declaration `moduleId = bmi`, `revision = 1`. Общий `APPLICATION_SCHEMA_VERSION` не повышается.
+
+Persistent source of truth — только строки `heightText` и `weightText`. Parsed values, raw/formatted BMI, category и validation являются derived state; focus/selection, DOM references и runtime handles также не сохраняются. После restore число и категория пересчитываются из input texts.
+
+Malformed persisted data и unknown module revision безопасно дают defaults через существующий repository/host contract; данные других modules и future-schema protection сохраняются. Active calculator не обязан persist'иться: после restart приложение может открыться на BigCalc, но при переходе в ИМТ восстанавливаются BMI inputs и пересчитывается result/category.
 
 ---
 
