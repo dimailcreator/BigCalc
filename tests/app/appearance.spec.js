@@ -317,7 +317,7 @@ test("reduced transparency is independent for root and local Liquid Glass themes
   expect((await scopeStyles(page, "#scope-normal")).keyFilter).toBe("none");
 });
 
-test("theme, palette and size datasets preserve the calculation handle and current geometry", async ({
+test("theme, palette and size datasets preserve the calculation handle and shell geometry", async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -351,8 +351,6 @@ test("theme, palette and size datasets preserve the calculation handle and curre
         ".calculator-shell",
         ".top-bar",
         ".main-display",
-        ".expression-editor",
-        ".main-display > .result-output",
         ".calculator-keyboard",
         ".keyboard-key-normal"
       ].map((selector) => {

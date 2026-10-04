@@ -62,6 +62,8 @@ export class NumberViewport {
       this.#onResize();
     });
     this.#resizeObserver.observe(this.root);
+    // Font changes may leave the output's fixed width/height unchanged (History).
+    this.#resizeObserver.observe(this.#probe);
     this.root.addEventListener("pointerdown", (event) => {
       this.#onPointerDown(event);
     });

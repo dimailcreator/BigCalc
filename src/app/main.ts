@@ -174,6 +174,12 @@ const settingsScreen = new SettingsScreen({
     saveSettings();
     settingsScreen.sync(currentAppSettings());
   },
+  onDisplaySize(displaySize) {
+    appearance.apply({ ...appearanceSettings, displaySize });
+    appearanceSettings.displaySize = displaySize;
+    saveSettings();
+    settingsScreen.sync(currentAppSettings());
+  },
   onBack() {
     navigation.back();
   },

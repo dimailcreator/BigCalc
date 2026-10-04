@@ -81,11 +81,11 @@ button {
 }
 
 .calculator-shell[data-history-open="true"] .expression-editor {
-  font-size: clamp(34px, 10vw, 52px);
+  font-size: var(--bc-font-history-open-expression);
 }
 
 .calculator-shell[data-history-open="true"] .main-display > .result-output {
-  font-size: clamp(22px, 6vw, 31px);
+  font-size: var(--bc-font-history-open-result);
 }
 
 .timeout-overlay {
@@ -500,6 +500,40 @@ button {
   display: none;
 }
 
+.settings-display-sizes {
+  min-width: 0;
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+}
+.settings-display-sizes legend {
+  padding: 0 12px 6px;
+  color: var(--bc-text-muted);
+  font-size: 13px;
+}
+.settings-display-size {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 12px;
+  gap: 12px;
+  color: var(--bc-text-primary-soft);
+  font-size: 16px;
+  cursor: pointer;
+}
+.settings-display-size input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--bc-caret);
+}
+.settings-display-size:has(input:focus-visible) {
+  outline: 2px solid var(--bc-caret);
+  outline-offset: -2px;
+}
+
 .calculator-drawer-layer,
 .overflow-layer {
   position: fixed;
@@ -814,7 +848,7 @@ button {
   border-radius: 9px;
   color: var(--bc-text-history-expression);
   background: transparent;
-  font-size: 15px;
+  font-size: var(--bc-font-history-expression);
   line-height: 20px;
   text-align: right;
   text-overflow: ellipsis;
@@ -826,7 +860,7 @@ button {
   padding: 3px 7px;
   border-radius: 11px;
   color: var(--bc-text-primary-soft);
-  font-size: clamp(24px, 6.8vw, 32px);
+  font-size: var(--bc-font-history-result);
   line-height: 32px;
   cursor: pointer;
 }
@@ -871,7 +905,7 @@ button {
   min-height: max(44px, 1.2em);
   border-radius: 10px;
   color: var(--bc-text-primary);
-  font-size: clamp(42px, 12.2vw, 68px);
+  font-size: var(--bc-font-expression);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.025em;
@@ -987,7 +1021,7 @@ button {
   min-height: 1.16em;
   overflow: hidden;
   color: var(--bc-text-secondary);
-  font-size: clamp(26px, 7.1vw, 38px);
+  font-size: var(--bc-font-result);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1.16;
@@ -1216,14 +1250,6 @@ button {
     flex-basis: 44px;
     width: 44px;
     height: 44px;
-  }
-
-  .expression-editor {
-    font-size: clamp(34px, 9vw, 48px);
-  }
-
-  .result-output {
-    font-size: clamp(21px, 5.7vw, 28px);
   }
 
   .main-display {

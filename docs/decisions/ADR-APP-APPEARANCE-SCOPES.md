@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for Stages 34B and 34C in `STAGE_34_IMPLEMENTATION_PLAN.md`. The Stage 34A hue-dependent CSS baseline remains the source of visual values.
+Accepted for Stages 34B, 34C and 34D in `STAGE_34_IMPLEMENTATION_PLAN.md`. The Stage 34A hue-dependent CSS baseline remains the source of visual values.
 
 ## Decision
 
@@ -16,7 +16,7 @@ Native CSS scoping is available in Chromium 118 and later, as documented by [Chr
 
 The reduced-transparency rules match the specificity of the dark/light Liquid Glass overrides. This fixes the existing dark rule losing to the theme-specific palette rule; the predefined reduced-transparency values are retained for both root and local scopes.
 
-`data-display-size` is applied but changes no typography or geometry until Stage 34D. Core settings, Worker DTOs, schema version, and calculation lifecycle contracts are unchanged.
+`data-display-size` selects display typography beginning with Stage 34D. Core settings, Worker DTOs, schema version, and calculation lifecycle contracts are unchanged.
 
 ## Stage 34C: Settings controls and passive previews
 
@@ -30,6 +30,8 @@ Swatches use `--bc-palette-preview` from their own palette scope, with no color 
 
 ## Evidence
 
-`tests/app/appearance.spec.js` verifies startup/reload ordering, idempotent attribute writes, ordinary palettes in both themes, adjacent and nested scope isolation, the four normal/glass combinations, local/root wallpaper, reduced transparency, unchanged display-size geometry, and zero additional Worker create/cancel/dispose commands after presentation changes. Existing design and settings tests preserve the Stage 34A baseline and persistence guarantees.
+Stage 34D adds native radio rows and six display typography tokens. The existing NumberViewport ResizeObserver also watches its font-sensitive `1ch` probe, guaranteeing remeasurement without introducing a new viewport API, slot-count correction, or mathematical setting. Main, lone Ans and History all use this mechanism. The medium baseline, compact History caps, regression coverage and validation results are recorded in [Stage 34D verification](../STAGE34D_VERIFICATION.md).
+
+`tests/app/appearance.spec.js` verifies startup/reload ordering, idempotent attribute writes, ordinary palettes in both themes, adjacent and nested scope isolation, the four normal/glass combinations, local/root wallpaper, reduced transparency, unchanged shell geometry, and zero additional Worker create/cancel/dispose commands after presentation changes. Existing design and settings tests preserve the Stage 34A baseline and persistence guarantees.
 
 `tests/app/settings-appearance.spec.js` verifies all 12 theme/palette combinations with selection, immediate full-snapshot persistence, and reload; real content and structure capture; clone identity and reopening; History entry; inertness and keyboard navigation; zero additional calculation lifecycle commands; normal/glass isolation in actual Settings previews; uniform geometry and reachable 44px palette targets across the five prescribed viewport sizes; and ResizeObserver scaling and disposal. The existing Settings keyboard order and numeric/mathematical behavior are retained.

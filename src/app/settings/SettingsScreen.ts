@@ -3,7 +3,7 @@ import { bindButtonPress } from "../interaction/ButtonPress.js";
 import { createNavigationIcon } from "../navigation/NavigationIcon.js";
 import { AppearanceController } from "./AppearanceController.js";
 import { CalculatorThemePreview } from "./CalculatorThemePreview.js";
-import type { AppPalette, AppTheme } from "./AppearanceSettings.js";
+import type { AppPalette, AppTheme, DisplaySize } from "./AppearanceSettings.js";
 import {
   formatSettingNumber,
   parseNumberScrollInertia,
@@ -15,6 +15,7 @@ export interface SettingsScreenOptions {
   readonly calculator: HTMLElement;
   readonly onTheme: (theme: AppTheme) => void;
   readonly onPalette: (palette: AppPalette) => void;
+  readonly onDisplaySize: (size: DisplaySize) => void;
   readonly onBack: () => void;
   readonly onAngleMode: (mode: AppSettings["angleMode"]) => void;
   readonly onFactorialMode: (mode: AppSettings["factorialMode"]) => void;
@@ -32,6 +33,7 @@ export class SettingsScreen {
   readonly #calculator: HTMLElement;
   readonly #previews: readonly CalculatorThemePreview[];
   readonly #paletteButtons: readonly HTMLButtonElement[];
+  readonly #displaySizeInputs: readonly HTMLInputElement[];
   #settings: AppSettings;
   #open = false;
 
@@ -187,7 +189,33 @@ export class SettingsScreen {
         button.focus();
       }
     });
-    appearanceCard.append(previews, palettes);
+    const displaySizes = document.createElement("fieldset");
+    displaySizes.className = "settings-display-sizes";
+    displaySizes.setAttribute("role", "radiogroup");
+    displaySizes.setAttribute("aria-label", "Размер текста");
+    const sizeLegend = document.createElement("legend");
+    sizeLegend.textContent = "Размер текста";
+    displaySizes.append(sizeLegend);
+    const sizes: readonly (readonly [DisplaySize, string])[] = [
+      ["large", "Увеличенный"],
+      ["medium", "Средний"],
+      ["small", "Уменьшенный"]
+    ];
+    this.#displaySizeInputs = sizes.map(([size, caption]) => {
+      const label = document.createElement("label");
+      label.className = "settings-display-size";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "display-size";
+      input.value = size;
+      input.addEventListener("change", () => {
+        if (input.checked) options.onDisplaySize(size);
+      });
+      label.append(input, document.createTextNode(caption));
+      displaySizes.append(label);
+      return input;
+    });
+    appearanceCard.append(previews, palettes, displaySizes);
     content.append(
       calculationsTitle,
       calculations,
@@ -226,6 +254,8 @@ export class SettingsScreen {
 
   sync(settings: AppSettings): void {
     this.#settings = settings;
+    for (const input of this.#displaySizeInputs)
+      input.checked = input.value === settings.displaySize;
     for (const preview of this.#previews) preview.sync(settings);
     for (const button of this.#paletteButtons) {
       const selected = button.dataset.palette === settings.palette;
