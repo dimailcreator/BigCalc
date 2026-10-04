@@ -1,6 +1,6 @@
 # BigCalc — Calculator Modules Implementation Plan
 
-**Статус:** Accepted; Stage 0 complete (2026-10-04); Stage 1 unblocked
+**Статус:** Accepted; Stages 0–1 complete (2026-10-04); Stage 2 unblocked
 
 **Новая фаза:** bundled calculator development
 
@@ -562,6 +562,32 @@ values immediately below boundaries
 15. Unit tests pass.
 16. Full checks pass.
 17. Stage 2 разблокирован.
+
+---
+
+## Stage 1 verification — 2026-10-04
+
+Entry HEAD: `9d0a6250a84a2d932bc7bf5b2c1a9b4fb45f49c8` (`BigCalc CM 0`), clean working tree. Stage 0 dependency подтверждена его verification report, принятыми UI/DESIGN sections и повторным regression gate.
+
+Добавлены `src/app/modules/bmi/BmiModel.ts` и `tests/app/modules/bmi/BmiModel.test.ts`. Pure API: `parseBmiInput`, `calculateBmi`, `classifyBmi`, `formatBmi`, `deriveBmiResult`. Parser различает empty/incomplete/invalid/valid, принимает decimal comma/dot, отвергает nonpositive/non-finite values и не вводит физиологических limits. Domain calculation использует metric formula с последовательным делением на рост в метрах, избегая overflow/underflow промежуточного квадрата. Непредставимый результат возвращается как module-local invalid result, без `NaN`, `Infinity` или фиктивного нулевого BMI в output.
+
+Category определяется только по raw BMI. Formatter использует явно заданную locale без grouping, максимум два decimal places, trim zeroes и comma output; ambient browser/Node locale не используется. Модель не зависит от Core, Worker, DOM, persistence, navigation или registration. Frozen boundaries и `installedModules.ts` не изменены; Stage 2 state/persistence ещё не добавлены.
+
+99 новых unit tests покрывают integer/comma/dot inputs, empty/incomplete, invalid syntax, nonpositive и overflowing values; metric formula и representable extreme arithmetic; все шесть категорий, exact boundaries 18.5/25/30/35/40 и непосредственно предшествующие им значения; 0/1/2 displayed decimals, отсутствие grouping/scientific notation, недоступный result при неверных inputs и calculation overflow/underflow. Regression `100 cm / 29,996 kg → 30 + Избыточная масса` проверяет весь pipeline, не классифицируя formatted text.
+
+Первый concurrent Core/App run остановлен после 30-second timeout стартового accessibility `beforeEach` (`page.goto`), уже наблюдавшегося в Stage 0. BMI tests и последующие browser scenarios проходили; production browser code не менялся. Итоговый полный App gate прошёл при отдельном запуске после Core gate; test timeouts и expectations не ослаблены.
+
+| Gate                                    | Результат                                                                                                                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Targeted BMI unit tests                 | Passed: 99 tests                                                                                                                                                    |
+| `npm run typecheck:app`                 | Passed                                                                                                                                                              |
+| Targeted Prettier / ESLint              | Passed                                                                                                                                                              |
+| Standalone ES2022 typecheck без DOM lib | Passed: `tsc --ignoreConfig --noEmit --strict --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022 --types node src/app/modules/bmi/BmiModel.ts` |
+| `npm run check`                         | Passed: formatting, lint, typecheck, 404 Core tests, 14 benchmark tests, build и public API audit                                                                   |
+| `npm run check:app`                     | Passed: App typecheck, 303 unit tests (29 files), 176 Chromium browser tests и production build                                                                     |
+| `git diff --check`                      | Passed                                                                                                                                                              |
+
+Stage 1 закрыт: все 17 DoD items выполнены, обязательные Core/App gates прошли. Architecture/spec conflicts и blocking failures не остались. Следующий допустимый этап — Stage 2 (BMI module state и persistence); он разблокирован, но не начат.
 
 ---
 
