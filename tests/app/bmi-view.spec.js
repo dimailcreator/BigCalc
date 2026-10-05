@@ -46,13 +46,11 @@ test("input events immediately calculate accessible separate outputs and save so
 }) => {
   await enterInputs(page);
   await expect(page.locator(".bmi-result-number")).toHaveText("23,15");
-  await expect(page.locator(".bmi-result-category")).toHaveText("Категория: Норма");
+  await expect(page.locator(".bmi-result-category")).toHaveText("Норма");
+  await expect(page.locator(".bmi-result-category")).toHaveAccessibleName("Категория: Норма");
   const result = page.getByRole("status", { name: "Результат ИМТ" });
   await expect(result).toHaveAttribute("aria-live", "polite");
   await expect(result).toHaveAttribute("aria-atomic", "true");
-  await expect(result).toMatchAriaSnapshot(
-    '- status "Результат ИМТ":\n  - paragraph: ИМТ\n  - paragraph: 23,15\n  - paragraph: "Категория: Норма"'
-  );
   const saved = await page.evaluate(() => {
     globalThis.__bmiFixture.host.flush();
     return globalThis.__bmiFixture.saved;
@@ -72,7 +70,9 @@ for (const [weight, result, category] of [
   test(`${weight} kg / 100 cm shows ${result} and ${category} from raw BMI`, async ({ page }) => {
     await enterInputs(page, "100", weight);
     await expect(page.locator(".bmi-result-number")).toHaveText(result);
-    await expect(page.locator(".bmi-result-category")).toHaveText(`Категория: ${category}`);
+    const categoryOutput = page.locator(".bmi-result-category");
+    await expect(categoryOutput).toHaveText(category);
+    await expect(categoryOutput).toHaveAccessibleName(`Категория: ${category}`);
     await expect(page.getByRole("textbox", { name: "Вес", exact: true })).toHaveValue(weight);
   });
 }
@@ -142,7 +142,10 @@ test("restored texts derive fresh output on first view render", async ({ page })
   await expect(page.getByRole("textbox", { name: "Рост", exact: true })).toHaveValue("100");
   await expect(page.getByRole("textbox", { name: "Вес", exact: true })).toHaveValue("29,996");
   await expect(page.locator(".bmi-result-number")).toHaveText("30");
-  await expect(page.locator(".bmi-result-category")).toHaveText("Категория: Избыточная масса");
+  await expect(page.locator(".bmi-result-category")).toHaveText("Избыточная масса");
+  await expect(page.locator(".bmi-result-category")).toHaveAccessibleName(
+    "Категория: Избыточная масса"
+  );
 });
 
 test("an unrepresentable result is readable and never shows special values", async ({ page }) => {

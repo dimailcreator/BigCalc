@@ -1648,6 +1648,10 @@ Default input texts пусты, результат отсутствует. Switc
 
 ИМТ наследует global `theme` и `palette` (§39.3): изменения применяются немедленно и сохраняют input texts. В BMI v1 `displaySize` не масштабирует typography/geometry BMI form controls и result; small/medium/large сохраняют их размеры. Layout определён в DESIGN_SPEC §49.
 
+### 43.5.4. Implementation и acceptance evidence
+
+ИМТ реализован как production bundled calculator. Unit/browser regression и physical Android acceptance выполняются по Stage 5 [calculator modules plan](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md); фактические результаты, device/WebView, IME, Back и restart evidence записываются в [BMI verification report](docs/BMI_CALCULATOR_VERIFICATION.md). Acceptance status не изменяет input, mathematical или persistence semantics этого раздела.
+
 ---
 
 # 44. Persistence дополнительных calculators

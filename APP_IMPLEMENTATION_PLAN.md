@@ -13,7 +13,7 @@
 
 Этот документ задаёт **порядок реализации Android-приложения BigCalc после первоначального freeze математического Core API**. Этапы 27–33 документируют отдельную post-freeze remediation; они не переписывают историю этапов 0–26.
 
-Базовая application phase завершена по Stage 34 включительно. Этот план сохраняется как история base App. Дальнейшая разработка bundled calculators описана в [CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md), с собственной нумерацией начиная со Stage 0.
+Базовая application phase завершена по Stage 34 включительно. Этот план сохраняется как история base App. Дальнейшая разработка bundled calculators описана в [CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md), с собственной нумерацией начиная со Stage 0; implementation/acceptance status первого bundled calculator записывается там и в [verification report](docs/BMI_CALCULATOR_VERIFICATION.md).
 
 Он отвечает на вопросы:
 

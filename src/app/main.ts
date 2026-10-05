@@ -11,6 +11,7 @@ import { HistoryPanel } from "./history/HistoryPanel.js";
 import { bindButtonPress } from "./interaction/ButtonPress.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
 import { ApplicationLifecycle } from "./lifecycle/ApplicationLifecycle.js";
+import { NativeInputLayout } from "./layout/NativeInputLayout.js";
 import { defineCalculatorModule } from "./modules/CalculatorModule.js";
 import { CalculatorModuleHost } from "./modules/CalculatorModuleHost.js";
 import { CalculatorModuleSurface } from "./modules/CalculatorModuleSurface.js";
@@ -407,6 +408,8 @@ if (initialSettings.angleMode === "radians") controller.toggleAngleMode();
 if (initialSettings.factorialMode === "gamma") controller.toggleFactorialMode();
 controller.setMaxCalculationTimeMs(initialSettings.maxCalculationTimeMs);
 
+const nativeInputLayout =
+  Capacitor.getPlatform() === "android" ? new NativeInputLayout(shell) : null;
 const lifecycle = new ApplicationLifecycle(
   () => {
     saveSettings();
@@ -414,6 +417,7 @@ const lifecycle = new ApplicationLifecycle(
     moduleHost.flush();
   },
   () => {
+    nativeInputLayout?.dispose();
     editor.dispose();
     settingsScreen.dispose();
     moduleHost.dispose();

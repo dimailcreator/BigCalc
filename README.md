@@ -21,6 +21,8 @@ log{2+3}(25)
 
 ## Как устроен проект
 
+В Drawer доступны **BigCalc** и **ИМТ**. В ИМТ введите рост в сантиметрах и вес в килограммах: число и категория появятся сразу. Допускаются запятая и точка; `180 / 75` даёт `23,15`, `Норма`. Категория определяется до округления числа. Введённые строки сохраняются при переключении и перезапуске; Android использует обычную decimal IME. ИМТ наследует темы и палитры приложения, включая Liquid Glass, и не имеет собственной истории или клавиатуры.
+
 - `src/core/api.ts` — единственный public entrypoint Core, текущая версия **1.3.0**. [Контракт API](docs/CORE_API.md).
 - `src/app/` — редактор, клавиатура, NumberViewport, History, настройки и Worker transport. Тяжёлое уточнение цифр выполняется в Worker.
 - `android/` — Capacitor host. Debug APK создаётся в `android/app/build/outputs/apk/debug/app-debug.apk`.
@@ -41,9 +43,12 @@ npm run android:build:debug
 
 `npm run check` проверяет Core, публичную границу, форматирование и lint. `npm run check:app` проверяет типы, unit/browser tests и production build приложения. Для Android-сборки нужен установленный Android SDK.
 
+После установки текущего debug APK на подключённое физическое устройство запустите `npm run test:android:bmi`. Команда `npm run test:android:bmi -- --with-regressions` включает Android smoke/lifecycle/Stage 34 и восстанавливает исходные данные приложения после acceptance suite. При нескольких устройствах задайте `ANDROID_SERIAL`. [Отчёт BMI verification](docs/BMI_CALCULATOR_VERIFICATION.md) содержит результаты и ограничения проверки.
+
 ## Планы и решения
 
 - [APP_IMPLEMENTATION_PLAN.md](APP_IMPLEMENTATION_PLAN.md) — этапы приложения и зависимостей.
+- [CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md) — bundled calculators, начиная с ИМТ.
 - [POST_STAGE_26_REMEDIATION_PLAN.md](POST_STAGE_26_REMEDIATION_PLAN.md) — post-freeze remediation 27–33.
 - [Post-freeze Core history](docs/POST_FREEZE_CORE_REMEDIATION.md) — изменения Core после первоначального freeze.
 - [App architecture baseline](docs/APP_ARCHITECTURE_FREEZE.md) — границы приложения после Stage 26.

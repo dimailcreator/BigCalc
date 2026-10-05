@@ -2271,3 +2271,9 @@ BMI styles используют существующие semantic `--bc-*` token
 Обязательная portrait matrix: `360×640`, `360×800`, `390×844`, `412×915`, `768×1024`. Проверяются отсутствие horizontal page overflow, достижимость обоих inputs/result при маленькой высоте и IME, safe areas, visible focus и читаемые labels/units/errors/result/category.
 
 Browser coverage проверяет наследование tokens; representative integration appearance включает dark/lavender, light/blue, dark/liquid-glass и light/liquid-glass. Physical Android acceptance проверяет обычные и Liquid Glass surfaces в обеих themes, открытие native BMI IME и сохранение IME suppression primary BigCalc expression. Полная ручная Stage 34 appearance matrix для Stage 0 не требуется при зелёном automated baseline.
+
+## 49.5. Production acceptance evidence
+
+Production BMI view и representative browser screenshots проверяются вместе с physical Android form/IME и четырьмя appearance states из §49.4. Device/WebView, screenshots, Back, persistence и результаты checks записываются в [BMI verification report](docs/BMI_CALCULATOR_VERIFICATION.md). Visual acceptance не вводит новых tokens, palettes, layout modes или BMI-specific navigation.
+
+Follow-up evidence включает сравнение shared TopBar и Liquid Glass wallpaper до/при/после native IME resize, а также достижимость fields/result обычными native swipes. Generic Android layout correction и regression coverage описаны в том же report.

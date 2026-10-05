@@ -128,6 +128,7 @@ try {
   })()`);
   await waitFor(() => evaluate('document.querySelector(".settings-numeric input")?.value === "0"'));
   await delay(300);
+  await revealSettingsInput('input[aria-label="Лимит непрерывного вычисления, секунды"]');
   const inputCenter = await evaluate(`(() => {
     const r = document.querySelector('input[aria-label="Лимит непрерывного вычисления, секунды"]').getBoundingClientRect();
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
@@ -150,7 +151,15 @@ try {
       cause: error
     });
   }
-  await waitFor(() => evaluate(`innerHeight <= ${initial.innerHeight - 100}`), 5_000);
+  // Native resize arrives before the WebView finishes bringing the focused
+  // field into view. Observe both within the existing resize deadline.
+  await waitFor(
+    () =>
+      evaluate(
+        `innerHeight <= ${initial.innerHeight - 100} && document.querySelector('input[aria-label="Лимит непрерывного вычисления, секунды"]').getBoundingClientRect().bottom <= visualViewport.height`
+      ),
+    5_000
+  );
   results.imeViewport = await evaluate(`(() => ({
     innerHeight,
     viewportHeight: visualViewport.height,
@@ -195,6 +204,7 @@ try {
   );
   results.softwareKeyboardBack = true;
 
+  await revealSettingsInput('input[aria-label="Инерция прокрутки чисел"]');
   const inertiaCenter = await evaluate(`(() => {
     const r = document.querySelector('input[aria-label="Инерция прокрутки чисел"]').getBoundingClientRect();
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
@@ -551,6 +561,19 @@ async function geometry() {
       screenHeight: screen.height
     };
   })()`);
+}
+
+async function revealSettingsInput(selector) {
+  // DESIGN_SPEC §29.1 places Appearance above numeric settings. Native taps
+  // must use reachable coordinates after scrolling the real Settings surface.
+  await evaluate(
+    `document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:"center",behavior:"instant"})`
+  );
+  await waitFor(() =>
+    evaluate(
+      `(() => {const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return r.top>=0 && r.bottom<=innerHeight;})()`
+    )
+  );
 }
 
 async function refreshWebViewScreenY() {

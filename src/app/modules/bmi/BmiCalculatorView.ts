@@ -104,7 +104,9 @@ export class BmiCalculatorView implements CalculatorModuleView {
     this.#category.hidden = !available;
     this.#message.hidden = available;
     this.#number.textContent = available ? result.formattedBmi : "";
-    this.#category.textContent = available ? `Категория: ${result.category}` : "";
+    this.#category.textContent = available ? result.category : "";
+    if (available) this.#category.setAttribute("aria-label", `Категория: ${result.category}`);
+    else this.#category.removeAttribute("aria-label");
     this.#message.textContent =
       result.status === "invalid"
         ? "Результат не может быть представлен. Измените рост или вес."

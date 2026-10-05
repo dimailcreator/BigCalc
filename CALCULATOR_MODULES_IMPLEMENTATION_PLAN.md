@@ -1,6 +1,6 @@
 # BigCalc — Calculator Modules Implementation Plan
 
-**Статус:** Accepted; Stages 0–3 complete (2026-10-04); Stage 4 complete (2026-10-05); Stage 5 unblocked
+**Статус:** Accepted; Stages 0–3 complete (2026-10-04); Stages 4–5 complete (2026-10-05); Stage 6+ unblocked
 
 **Новая фаза:** bundled calculator development
 
@@ -1110,7 +1110,7 @@ CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md
 
 `APP_IMPLEMENTATION_PLAN.md` gets only the phase pointer, not BMI implementation details.
 
-Current About copy says BMI will appear in the future. After BMI ships, update it so implemented functionality is no longer described as future functionality.
+At Stage 5 entry, About copy says BMI will appear in the future. After BMI ships, update it so implemented functionality is no longer described as future functionality.
 
 Create:
 
@@ -1162,6 +1162,41 @@ known limitations
 24. First real bundled calculator milestone closed.
 25. Module architecture is production-proven.
 26. Stage 6+ is unblocked.
+
+---
+
+## Stage 5 verification — 2026-10-05
+
+Entry HEAD: `17deee45c1ab4d589d12e8ef8f6f73e192db4465` (`BigCalc CM 4`), clean tree before Stage 5. Stage 4 dependency подтверждена его report, source review и повторными 127 BMI unit tests. Final commit не создавался; evidence относится к проверенному working tree на этой базе.
+
+About теперь описывает ИМТ как доступный calculator; existing production BMI browser scenario проверяет эту copy. Добавлен `test:android:bmi` / `scripts/android-bmi-acceptance.mjs`: native ADB taps/text/key events, реальные IME/trusted input events, base case, six categories и boundaries, raw vs rounded result, empty/invalid clearing, отсутствие Worker commands и BMI history/keyboard, primary Ans/result retention, shared Back, четыре appearances, source-only persistence и force-stop/reopen. Optional `--with-regressions` запускает existing smoke/lifecycle/Stage 34 под общей entry-storage guard. После suite исходные `bigcalc.*` данные восстанавливаются до App bootstrap и сравниваются со snapshot, в том числе при failure.
+
+Начальные harness runs остановились на primary-result assertion: NumberViewport содержит leading blank slots перед `5`; native taps действительно ввели `2+3` и Core завершил результат. Assertion уточнён через `trim()` с сохранением ожидаемого числа. Existing Android lifecycle test затем выявил устаревшие tap coordinates: после Appearance-first Settings numeric input находился за viewport. Harness теперь сначала scrolls/checks containment для обоих numeric inputs; исходные IME/safe-area/lifecycle assertions и timeouts сохранены. Snapshot restoration прошёл во всех runs. Browser appearance capture дополнительно ждёт `data-open=false` / `opacity=0`, чтобы screenshot не захватывал закрывающиеся Settings; четыре affected cases повторены успешно. Application fixes не потребовались.
+
+Physical acceptance прошла на SM-A576B / Android 16 / WebView 153.0.8010.36 / Samsung HoneyBoard. Проверены base 180/75, восемь category/input cases с шестью категориями и точными thresholds, comma/dot, raw category при rounded `30`, clearing, native IME в обоих inputs, result reachability при IME, четыре appearances, shared Back, primary state/history, source-only persistence и process restart. За BMI editing записано 53 trusted input events и 0 Worker commands. Existing Android smoke/lifecycle/Stage 34 gates прошли в общей storage guard; Stage 34 проверил 36 appearance combinations, maximum Liquid Glass frame gap 299,6ms. Исходные данные устройства восстановлены и проверены.
+
+Android debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 7 482 892 bytes, SHA-256 `9681104a66885db0cfef73295be93cd28387490f3661a0f71f91473f61008124`. Gradle `BUILD SUCCESSFUL in 11s`; APK установлен успешно. Полные результаты, boundary/browser matrix, IME geometry и ограничения записаны в [BMI verification report](docs/BMI_CALCULATOR_VERIFICATION.md).
+
+| Closure gate                                                             | Result                                                                           |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `npm run check`                                                          | Passed: 404 Core + 14 benchmark tests; format/lint/types/build/public API audit  |
+| `npm run check:app` / `npm run build:app`                                | Passed: 331 unit tests / 30 files, 222 browser tests, types and production build |
+| `npm run android:build:debug`                                            | Passed; built and installed debug APK                                            |
+| `test:android:smoke` / `test:android:lifecycle` / `test:android:stage34` | Passed through `test:android:bmi -- --with-regressions`                          |
+| `npm run test:android:bmi`                                               | Passed standalone and with all three Android regression gates                    |
+| Visual review / `git diff --check`                                       | Passed: 9 BMI browser + 6 physical screenshots; clean whitespace checks          |
+
+Обновлены `docs/CALCULATOR_MODULES.md`, README и implementation/acceptance references UI/DESIGN specs без изменения semantics. Base App plan получает только phase/evidence pointer. Core, Worker, module contracts, Host/Surface/navigation algorithms и BMI domain/view не меняются.
+
+Stage 5 закрыт: все 26 DoD items выполнены, first real bundled calculator milestone закрыт, module architecture подтверждена production BMI и physical Android acceptance. Architecture/spec conflicts и blocking failures не остались. Physical coverage ограничена указанным device/WebView/IME. Stage 6+ разблокирован, но не начат.
+
+### Stage 5 follow-up: open IME geometry
+
+Дополнительная physical проверка выявила пропуск initial acceptance: при открытии IME WebView уменьшался 749 → 439 CSS px, сдвигая/сжимая TopBar и масштабируя Liquid Glass wallpaper. Исправление в generic `NativeInputLayout`, его Android bootstrap binding и shared CSS сохраняет panel/background geometry при IME resize; module surface продолжает использовать доступную высоту и native scrolling. BMI semantics, Core/Worker, Host/Surface/navigation algorithms и contracts не меняются.
+
+Добавлены пять browser regression cases и physical geometry checks: оба BMI inputs, нативные свайпы в обе стороны, четыре appearances с IME open/closed и shared chrome comparison. Отдельный physical probe использовал видимые HoneyBoard numeric keys вместо text injection. Android smoke/lifecycle/Stage 34/BMI checks прошли с новой сборкой; исходное storage восстановлено. Lifecycle harness сохраняет assertions и 5s deadline, ожидая focused-field containment после asynchronous native resize.
+
+Full App repeat без concurrent device/screenshot work прошёл после единичного Liquid Glass performance outlier: 331 unit + 227 browser tests, types и production build; maximum frame gap 166,7ms при неизменном лимите 1000ms. Android Stage 34 frame gap 299,6ms. Новый APK: 7 483 676 bytes, SHA-256 `4d3ff3d01bf2a23a86c8d703699c0c9ef4207cd276a8d05d0e61c55668d1efe2`, Gradle 17s, установлен успешно. Десять IME chrome checks прошли; formatter/lint, syntax и diff/scope audit прошли. Core baseline 404 + 14 и API audit сохраняются, Core не менялся. Final evidence и ограничения — в [verification report](docs/BMI_CALCULATOR_VERIFICATION.md). Stage 5 closure подтверждён с расширенной IME coverage; Stage 6+ не начат.
 
 ---
 

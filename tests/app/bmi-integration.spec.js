@@ -27,7 +27,9 @@ async function expectBmi(
   await expect(page.getByRole("textbox", { name: "Рост", exact: true })).toHaveValue(height);
   await expect(page.getByRole("textbox", { name: "Вес", exact: true })).toHaveValue(weight);
   await expect(page.locator(`${screen} .bmi-result-number`)).toHaveText(number);
-  await expect(page.locator(`${screen} .bmi-result-category`)).toHaveText(`Категория: ${category}`);
+  const categoryOutput = page.locator(`${screen} .bmi-result-category`);
+  await expect(categoryOutput).toHaveText(category);
+  await expect(categoryOutput).toHaveAccessibleName(`Категория: ${category}`);
 }
 
 async function openSettings(page) {
@@ -298,6 +300,10 @@ test("Drawer, Settings, About and Back follow the existing navigation stack whil
   await page.getByRole("button", { name: "Меню", exact: true }).click();
   await page.getByRole("menuitem", { name: "О проекте", exact: true }).click();
   await expect(page.getByRole("region", { name: "О проекте BigCalc" })).toBeVisible();
+  await expect(page.locator(".about-card")).toContainText("уже доступен калькулятор ИМТ");
+  await expect(page.locator(".about-card")).not.toContainText(
+    "появятся новые типы калькуляторов: ИМТ"
+  );
   await page.goBack({ waitUntil: "networkidle" });
   await expect(page.getByRole("region", { name: "О проекте BigCalc" })).toBeHidden();
   await expectBmi(page);
@@ -349,6 +355,8 @@ for (const [theme, palette] of [
     await expect(page.getByRole("region", { name: "Настройки калькулятора" })).toBeHidden();
     await expectBmi(page);
     await expect(page.locator(`${live} > .top-bar h1`)).toHaveText("ИМТ");
+    await expect(page.locator(".settings-screen")).toHaveAttribute("data-open", "false");
+    await expect(page.locator(".settings-screen")).toHaveCSS("opacity", "0");
     await page.screenshot({ path: testInfo.outputPath("bmi-production-appearance.png") });
   });
 }

@@ -407,6 +407,13 @@
   z-index: 0;
 }
 
+/* The native IME clips the wallpaper instead of scaling/recentering it. */
+:root[data-palette="liquid-glass"][data-native-input-viewport="held"] body::before {
+  top: var(--bc-input-wallpaper-top, calc(var(--bc-input-viewport-height) * -0.03));
+  bottom: auto;
+  height: var(--bc-input-wallpaper-height, calc(var(--bc-input-viewport-height) * 1.06));
+}
+
 .bc-theme-scope[data-palette="liquid-glass"]::before {
   position: absolute;
   z-index: -2;
