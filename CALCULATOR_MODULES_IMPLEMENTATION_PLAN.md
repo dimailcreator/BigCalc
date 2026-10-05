@@ -1167,7 +1167,9 @@ known limitations
 
 ## Stage 5 verification — 2026-10-05
 
-Entry HEAD: `17deee45c1ab4d589d12e8ef8f6f73e192db4465` (`BigCalc CM 4`), clean tree before Stage 5. Stage 4 dependency подтверждена его report, source review и повторными 127 BMI unit tests. Final commit не создавался; evidence относится к проверенному working tree на этой базе.
+Entry HEAD: `17deee45c1ab4d589d12e8ef8f6f73e192db4465` (`BigCalc CM 4`), clean tree before Stage 5. Stage 4 dependency подтверждена его report, source review и повторными 127 BMI unit tests.
+
+Final Stage 5 commit: `bc551903e145e9c7c94109ec55c4a0eab4632563` (`BigCalc CM 5`). Он включает initial Stage 5 closure и последующий IME follow-up; их verification results записаны отдельно ниже.
 
 About теперь описывает ИМТ как доступный calculator; existing production BMI browser scenario проверяет эту copy. Добавлен `test:android:bmi` / `scripts/android-bmi-acceptance.mjs`: native ADB taps/text/key events, реальные IME/trusted input events, base case, six categories и boundaries, raw vs rounded result, empty/invalid clearing, отсутствие Worker commands и BMI history/keyboard, primary Ans/result retention, shared Back, четыре appearances, source-only persistence и force-stop/reopen. Optional `--with-regressions` запускает existing smoke/lifecycle/Stage 34 под общей entry-storage guard. После suite исходные `bigcalc.*` данные восстанавливаются до App bootstrap и сравниваются со snapshot, в том числе при failure.
 
@@ -1177,7 +1179,7 @@ Physical acceptance прошла на SM-A576B / Android 16 / WebView 153.0.8010
 
 Android debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 7 482 892 bytes, SHA-256 `9681104a66885db0cfef73295be93cd28387490f3661a0f71f91473f61008124`. Gradle `BUILD SUCCESSFUL in 11s`; APK установлен успешно. Полные результаты, boundary/browser matrix, IME geometry и ограничения записаны в [BMI verification report](docs/BMI_CALCULATOR_VERIFICATION.md).
 
-| Closure gate                                                             | Result                                                                           |
+| Initial closure gate                                                     | Result                                                                           |
 | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `npm run check`                                                          | Passed: 404 Core + 14 benchmark tests; format/lint/types/build/public API audit  |
 | `npm run check:app` / `npm run build:app`                                | Passed: 331 unit tests / 30 files, 222 browser tests, types and production build |

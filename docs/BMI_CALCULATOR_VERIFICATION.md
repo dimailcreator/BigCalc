@@ -2,7 +2,9 @@
 
 Date: 2026-10-05 (Europe/Moscow). Stage 5 closed.
 
-Entry commit: `17deee45c1ab4d589d12e8ef8f6f73e192db4465` (`BigCalc CM 4`). The entry tree was clean before Stage 5. No final commit has been created; final evidence describes the working tree based on this entry commit.
+Entry commit: `17deee45c1ab4d589d12e8ef8f6f73e192db4465` (`BigCalc CM 4`). The entry tree was clean before Stage 5.
+
+Final Stage 5 commit: `bc551903e145e9c7c94109ec55c4a0eab4632563` (`BigCalc CM 5`). It includes the initial Stage 5 closure and the subsequent IME follow-up, whose verification results are recorded separately below.
 
 ## Scope and architecture
 
@@ -12,7 +14,7 @@ Stage 5 updates About copy and its existing browser check, adds `scripts/android
 
 ## Automated correctness and browser coverage
 
-Stage 4 dependency: 127 BMI unit tests were repeated successfully (99 model + 28 state/persistence). Stage 5 full regression passed: 404 Core tests, 14 benchmark tests, 331 App unit tests in 30 files, and 222 browser tests, including 18 production BMI integration tests and 28 BMI view tests. The existing About scenario now verifies that BMI is available. Core public API audit passed.
+Stage 4 dependency: 127 BMI unit tests were repeated successfully (99 model + 28 state/persistence). Initial Stage 5 full regression passed: 404 Core tests, 14 benchmark tests, 331 App unit tests in 30 files, and 222 browser tests, including 18 production BMI integration tests and 28 BMI view tests. The existing About scenario now verifies that BMI is available. Core public API audit passed.
 
 Boundary regression includes each exact category threshold (18,5; 25; 30; 35; 40), neighboring inputs, empty/incomplete/invalid input, decimal comma/dot, non-finite/unrepresentable output, formatting without grouping/trailing zeroes, and `100 / 29,996 → 30 / Избыточная масса` from raw BMI.
 
@@ -53,7 +55,7 @@ The table below records the initial Stage 5 closure; follow-up IME acceptance is
 
 Physical acceptance is scoped to the connected device/WebView/IME. It does not prove every Android keyboard, locale, font scale or OS version. BMI v1 retains its accepted scope: cm/kg, six adult categories, module-local numeric calculation, no history/custom keyboard/medical advice. The full Core result guarantees apply to primary BigCalc; BMI is not a verified-digit Core computation.
 
-Stage 5 is closed: all 26 Definition of Done items are satisfied, full gates passed and physical evidence is recorded. The first real bundled-calculator milestone is closed and the existing module architecture is proven through a production calculator. Stage 6+ is unblocked and has not been started. No architecture/spec conflict or blocking failure remains. No final commit was created; these results describe the reviewed working tree based on the entry commit above.
+Stage 5 is closed: all 26 Definition of Done items are satisfied, full gates passed and physical evidence is recorded. The first real bundled-calculator milestone is closed and the existing module architecture is proven through a production calculator. Stage 6+ is unblocked and has not been started. No architecture/spec conflict or blocking failure remains. The initial closure and subsequent IME follow-up are included in the final Stage 5 commit recorded above.
 
 ## Follow-up: open IME geometry — 2026-10-05
 
