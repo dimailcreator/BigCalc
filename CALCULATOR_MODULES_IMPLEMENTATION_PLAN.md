@@ -1,6 +1,6 @@
 # BigCalc — Calculator Modules Implementation Plan
 
-**Статус:** Accepted; Stages 0–3 complete (2026-10-04); Stage 4 unblocked
+**Статус:** Accepted; Stages 0–3 complete (2026-10-04); Stage 4 complete (2026-10-05); Stage 5 unblocked
 
 **Новая фаза:** bundled calculator development
 
@@ -960,6 +960,40 @@ git diff --check
 19. Core/App regressions pass.
 20. Android debug build passes.
 21. Stage 5 разблокирован.
+
+---
+
+## Stage 4 verification — 2026-10-05
+
+Entry HEAD: `3d5d1bb3bf7c92504100c9a536c5f4de46efa83b` (`BigCalc CM 3`), clean working tree. Stage 3 dependency подтверждена verification report, source review, повторными 127 BMI unit tests и 28 view browser tests в targeted regression run.
+
+Production change: `installedModules.ts` импортирует existing `bmiCalculatorModule` и регистрирует его единственным secondary bundled module. Existing `main.ts` оставляет BigCalc первым, existing Host/Surface/navigation автоматически создают Drawer registration, mount, shared title, History/keyboard visibility, switching и persistence. Core, Worker, frozen module contracts, Host, Surface и NavigationController не изменены; BMI-specific AppShell branches не добавлены.
+
+Добавлены 18 production browser integration tests в `tests/app/bmi-integration.spec.js`, использующие обычную App entry page и реальный Worker/repositories; Stage 3 test fixture не используется. Coverage: installed registration/field metadata и surface mount; Drawer order; shared shell visibility; native typing/Backspace/Enter и отсутствие любых Worker commands при BMI edits; сохранение primary expression/result, Ans/history и BMI source/result через switching; revision-1 exact text subset после deactivation; restore в новом browser context и после pagehide/reload; raw category recomputation на `29,996 → 30`; preservation other-module record и future document; Settings/About/Drawer/browser Back/Forward; четыре representative theme/palette combinations; real displaySize controls; пять portrait viewports. Production portrait/appearance screenshots сохраняются для visual review.
+
+Existing navigation test обновлён с одного Drawer entry на `BigCalc`, `ИМТ`, с сохранением current-primary и assertions об отсутствии add-calculator control. Первый targeted run прошёл 49 из 50 tests; новый primary-result locator ошибочно включал также hidden Ans viewport. Locator уточнён по существующему `aria-label="Результат"`; application code и test expectations не менялись.
+
+Первый полный App run выявил single-entry assumption в существующем accessibility test: общий Drawer button locator стал неоднозначным. Test обновлён под два зарегистрированных калькулятора; проверяет initial BigCalc focus, Tab на ИМТ, циклический Tab обратно на BigCalc и Shift+Tab на ИМТ, с прежним Escape/focus restoration. Production navigation не менялась. При visual review один ранний light Liquid Glass screenshot захватил Settings до завершения asynchronous Back; перед assertions/screenshots добавлено явное ожидание закрытия Settings/About. Повторный screenshot показывает active BMI.
+
+Первый полный browser run: 221 passed / 1 failed (описанный accessibility locator). После его исправления повторный полный `check:app` прошёл без failures: 331 unit tests в 30 files, 222 browser tests и production build. Liquid Glass performance assertion сохранён; maximum frame gap составил 300,1ms в первом run и 266,6ms в итоговом run.
+
+Visual review выполнен по девяти production screenshots: `360×640`, `360×800`, `390×844`, `412×915`, `768×1024` и dark lavender / light blue / dark Liquid Glass / light Liquid Glass. Shared title, labelled fields/units, focus-visible, separate result/category, bounded form и отсутствие primary History/keyboard соответствуют Stage 4 acceptance; overflow/clipping не обнаружены.
+
+| Gate                                         | Результат                                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Stage 3 dependency / targeted BMI unit tests | Passed: 127 tests                                                                  |
+| App typecheck / targeted ESLint              | Passed                                                                             |
+| Targeted browser regression                  | Passed: 28 BMI view + 4 navigation; separate production repeat 18/18               |
+| `npm run check`                              | Passed: 404 Core tests + 14 benchmark tests; format/lint/typecheck/build/API audit |
+| `npm run check:app` / `npm run build:app`    | Passed: 331 unit + 222 browser tests; production build                             |
+| `npm run android:build:debug`                | Passed: production rebuild, Capacitor sync, Gradle assembleDebug                   |
+| Visual review / `git diff --check`           | Passed: 9 production screenshots; whitespace/scope audit                           |
+
+Android artifact: `android/app/build/outputs/apk/debug/app-debug.apk`, 7 482 838 bytes; SHA-256 `8116CF0C578BB764EDB2B4A34F72F064ED932C0F182BF206BCEC0BA11A0A5862`. Gradle: `BUILD SUCCESSFUL in 27s`, 112 actionable tasks. Физическая Android acceptance и native IME/lifecycle checks относятся к Stage 5 и в этом этапе не выполнялись.
+
+Итоговый scope audit: изменены только production registration, новый integration test, существующие navigation/accessibility tests и этот verification report. Core, Worker, `main.ts`, navigation implementations, Host/Surface, BMI implementation, frozen contracts, specifications и package scripts не изменены.
+
+Stage 4 закрыт: все 21 DoD items выполнены, обязательные Core/App/Android gates и visual review прошли. Architecture/spec conflicts и blocking failures не остались. Stage 5 разблокирован, но не начат.
 
 ---
 

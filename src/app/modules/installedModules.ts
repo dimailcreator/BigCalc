@@ -1,4 +1,5 @@
 import type { RegisteredCalculatorModule } from "./CalculatorModule.js";
+import { bmiCalculatorModule } from "./bmi/BmiCalculatorModule.js";
 
 /** Add bundled calculators here; the main screen and navigation need no changes. */
-export const installedModules: readonly RegisteredCalculatorModule[] = [];
+export const installedModules: readonly RegisteredCalculatorModule[] = [bmiCalculatorModule];
