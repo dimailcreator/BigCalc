@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru" data-theme="dark" data-palette="lavender" data-display-size="medium">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Scoped module input fixture</title>
+    <style>
+      .input-fixture-content {
+        padding: 12px;
+      }
+      .input-fixture-content label {
+        display: block;
+        padding: 8px 0;
+      }
+      .input-fixture-content input:not(.expression-input) {
+        width: 100%;
+        min-height: 44px;
+      }
+      .input-fixture-spacer {
+        height: 400px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./module-input.js"></script>
+  </body>
+</html>

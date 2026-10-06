@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { defineCalculatorModule } from "../../../src/app/modules/CalculatorModule.js";
 import type { CalculatorModuleState } from "../../../src/app/modules/CalculatorModule.js";
 import { CalculatorModuleHost } from "../../../src/app/modules/CalculatorModuleHost.js";
@@ -45,6 +45,133 @@ interface SavedTestState {
 }
 
 describe("calculator module framework", () => {
+  it("passes optional owner services and orders input cleanup before runtime deactivation/disposal", () => {
+    const events: string[] = [];
+    const scopes = new Map<
+      string,
+      { services: object; activate: () => void; deactivate: () => void; dispose: () => void }
+    >();
+    const primary = defineCalculatorModule({
+      id: "primary",
+      title: "Primary",
+      createState: () => null
+    });
+    const secondary = defineCalculatorModule({
+      id: "secondary",
+      title: "Secondary",
+      createState: () => null,
+      fields: [{ id: "math", role: "input", label: "Math", inputKind: "math-expression" }],
+      createView(_state, services) {
+        expect(services).toBe(scopes.get("secondary")?.services);
+        return {
+          root: {} as HTMLElement,
+          dispose: () => {
+            events.push("view disposed");
+          }
+        };
+      },
+      deactivate() {
+        events.push("module deactivated");
+      }
+    });
+    const host = new CalculatorModuleHost(
+      [primary, secondary],
+      { load: () => null, save: () => true },
+      (module) => {
+        const scope = {
+          services: {},
+          activate: () => {
+            events.push(`${module.id} scope activated`);
+          },
+          deactivate: () => {
+            events.push(`${module.id} scope deactivated`);
+          },
+          dispose: () => {
+            events.push(`${module.id} scope disposed`);
+          }
+        };
+        scopes.set(module.id, scope);
+        return scope;
+      }
+    );
+    host.navigationModules[0]?.onDeactivate?.();
+    host.navigationModules[1]?.onActivate?.();
+    host.navigationModules[1]?.onDeactivate?.();
+    host.dispose();
+    expect(events.indexOf("secondary scope deactivated")).toBeLessThan(
+      events.indexOf("module deactivated")
+    );
+    expect(events.indexOf("secondary scope disposed")).toBeLessThan(
+      events.indexOf("view disposed")
+    );
+    expect(secondary.fields[0]?.inputKind).toBe("math-expression");
+  });
+
+  it("releases current and previous scopes if a module view cannot be constructed", () => {
+    const releases = [vi.fn(), vi.fn()];
+    let index = 0;
+    const primary = defineCalculatorModule({
+      id: "primary",
+      title: "Primary",
+      createState: () => null
+    });
+    const secondary = defineCalculatorModule({
+      id: "broken",
+      title: "Broken",
+      createState: () => null,
+      createView() {
+        throw new Error("View failed");
+      }
+    });
+    expect(
+      () =>
+        new CalculatorModuleHost(
+          [primary, secondary],
+          { load: () => null, save: () => true },
+          () => {
+            const release = releases[index++];
+            if (release === undefined) throw new Error("Unexpected input scope");
+            return { services: {}, activate: vi.fn(), deactivate: vi.fn(), dispose: release };
+          }
+        )
+    ).toThrow("View failed");
+    for (const release of releases) expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases prior scopes when the next service factory throws", () => {
+    const release = vi.fn();
+    const modules = ["primary", "broken"].map((id) =>
+      defineCalculatorModule({ id, title: id, createState: () => null })
+    );
+    expect(
+      () =>
+        new CalculatorModuleHost(modules, { load: () => null, save: () => true }, (module) => {
+          if (module.id === "broken") throw new Error("Scope failed");
+          return { services: {}, activate: vi.fn(), deactivate: vi.fn(), dispose: release };
+        })
+    ).toThrow("Scope failed");
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects malformed new input metadata without changing legacy field declarations", () => {
+    expect(() =>
+      defineCalculatorModule({
+        id: "invalid",
+        title: "Invalid",
+        createState: () => null,
+        fields: [{ id: "result", role: "output", label: "Result", inputKind: "text" }]
+      })
+    ).toThrow("Invalid fields");
+    expect(
+      defineCalculatorModule({
+        id: "legacy",
+        title: "Legacy",
+        createState: () => null,
+        fields: [{ id: "input", role: "input", label: "Input" }]
+      }).fields[0]?.inputKind
+    ).toBeUndefined();
+  });
+
   it("registers a test module, navigates to it, and persists only its declared state", () => {
     const storage = new MemoryStorage();
     const repository = new LocalCalculatorStateRepository(storage);

@@ -2,12 +2,14 @@ import type {
   CalculatorStateRepository,
   PersistentCalculatorState
 } from "../persistence/contracts.js";
+import type { CalculatorModuleServices } from "../input/CalculatorInputs.js";
 
 export interface CalculatorFieldDescriptor {
   readonly id: string;
   readonly role: "input" | "output";
   readonly label: string;
   readonly description?: string;
+  readonly inputKind?: "math-expression" | "text";
 }
 
 /** A module owns its data, while the application owns navigation and keyboard layout. */
@@ -26,7 +28,10 @@ interface CalculatorModuleBase<State> {
   readonly title: string;
   readonly fields?: readonly CalculatorFieldDescriptor[];
   createState(): State;
-  createView?(state: CalculatorModuleState<State>): CalculatorModuleView;
+  createView?(
+    state: CalculatorModuleState<State>,
+    services?: CalculatorModuleServices
+  ): CalculatorModuleView;
   activate?(state: CalculatorModuleState<State>): void;
   deactivate?(state: CalculatorModuleState<State>): void;
 }
@@ -58,7 +63,10 @@ export interface RegisteredCalculatorModule {
   readonly id: string;
   readonly title: string;
   readonly fields: readonly CalculatorFieldDescriptor[];
-  createRuntime(repository: CalculatorStateRepository): CalculatorModuleRuntime;
+  createRuntime(
+    repository: CalculatorStateRepository,
+    services?: CalculatorModuleServices
+  ): CalculatorModuleRuntime;
 }
 
 export function defineCalculatorModule<State, Persisted = never>(
@@ -68,7 +76,13 @@ export function defineCalculatorModule<State, Persisted = never>(
     throw new Error("Invalid calculator module identity");
   const fields = Object.freeze([...(module.fields ?? [])]);
   if (
-    fields.some((field) => !field.id.trim() || !field.label.trim()) ||
+    fields.some(
+      (field) =>
+        !field.id.trim() ||
+        !field.label.trim() ||
+        (field.inputKind !== undefined &&
+          (field.role !== "input" || !["math-expression", "text"].includes(field.inputKind)))
+    ) ||
     new Set(fields.map((field) => field.id)).size !== fields.length
   )
     throw new Error(`Invalid fields for calculator module: ${module.id}`);
@@ -79,7 +93,10 @@ export function defineCalculatorModule<State, Persisted = never>(
     id: module.id,
     title: module.title,
     fields,
-    createRuntime(repository: CalculatorStateRepository): CalculatorModuleRuntime {
+    createRuntime(
+      repository: CalculatorStateRepository,
+      services?: CalculatorModuleServices
+    ): CalculatorModuleRuntime {
       let state: State;
       if (module.persistence === undefined) {
         state = module.createState();
@@ -100,7 +117,7 @@ export function defineCalculatorModule<State, Persisted = never>(
           state = next;
         }
       };
-      const view = module.createView?.(handle) ?? null;
+      const view = module.createView?.(handle, services) ?? null;
       const flush = (): boolean => {
         if (module.persistence === undefined) return true;
         try {

@@ -57,7 +57,8 @@ button {
 
 .calculator-shell[data-primary-active="false"] > .history-panel,
 .calculator-shell[data-primary-active="false"] > .main-display,
-.calculator-shell[data-primary-active="false"] > .calculator-keyboard,
+.calculator-shell[data-primary-active="false"]:not([data-math-input-active="true"])
+  > .calculator-keyboard,
 .history-toggle[hidden],
 .calculator-module-screen[hidden] {
   display: none;
@@ -71,6 +72,35 @@ button {
 
 .calculator-shell[data-primary-active="false"] {
   min-height: 0;
+}
+
+.calculator-shell[data-primary-active="false"][data-math-input-active="true"] {
+  grid-template-rows:
+    var(--bc-input-header-height, clamp(58px, 8.5dvh, 76px)) 0
+    minmax(80px, 1fr)
+    minmax(
+      min(
+        408px,
+        max(
+          0px,
+          calc(
+            100dvh - var(--bc-input-header-height, clamp(58px, 8.5dvh, 76px)) - 80px -
+              max(12px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom))
+          )
+        )
+      ),
+      2fr
+    );
+}
+
+.calculator-shell[data-primary-active="false"][data-math-input-active="true"]
+  > .calculator-module-screen {
+  grid-row: 2 / 4;
+}
+
+.calculator-shell[data-primary-active="false"][data-math-input-active="true"]
+  > .calculator-keyboard {
+  grid-row: 4;
 }
 
 .calculator-shell[data-history-open="true"] .calculator-keyboard {

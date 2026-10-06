@@ -70,6 +70,7 @@ export class CalculatorThemePreview {
     // Its existing production CSS supplies the layout; the live shell is untouched.
     clone.dataset.historyOpen = "false";
     clone.dataset.primaryActive = "true";
+    clone.dataset.mathInputActive = "true";
     // Removing the history slot must not shift the real grid tracks.
     for (const [index, child] of Array.from(clone.children).entries()) {
       if (!child.matches(visibleParts)) child.remove();

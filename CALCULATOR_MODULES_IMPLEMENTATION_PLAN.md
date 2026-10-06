@@ -1951,6 +1951,14 @@ NativeInputLayout behavior preserved
 13. Android BMI regression passes if device available.
 14. Stage 9 unblocked.
 
+## Closure evidence — 2026-10-06
+
+Stage 8 completed from entry `a6c0fd702a923f8eb5686bf1e6923c9fda516dba` (`BigCalc CM 7`). No commit is created by this task; evidence describes the Stage 8 working tree. Generic owner-scoped math/text registration, optional module services context/input metadata, lifecycle routing/focus protection and both secondary layouts are implemented. History remains primary-only; production has one keyboard and no Units registration/module-ID branch. Calculation/current-settings services remain Stage 9 work.
+
+`npm run check` passed: **404 Core tests, 14 benchmarks**, formatter/lint/types/build and API audit. The final complete `npm run check:app` passed: **346 App unit tests in 31 files, all 254 browser tests (11.6min)**, App types and production build. Existing Liquid Glass frame-gap bound remains 1000ms; final measurement **266.7ms**. An earlier prolonged/interrupted full run had two setup/browser-launch timeouts; both cases and the full gate passed on repeat without source/assertion/timeout changes.
+
+The current debug APK (7 439 554 bytes; SHA-256 `e0c83abfb7c69ead745af8c1c03a124ff9debbf3c17345564ba4829f9798ecd8`) was installed with data preserved. Physical Samsung SM-A576B / Android 16 / WebView 153.0.8010.36 passed BMI acceptance with real height/weight IME, native scrolling, identical TopBar/wallpaper geometry and restored entry storage, plus smoke/lifecycle/Stage 34, Stage 27 and Stage 32R regressions. All four APK JS/CSS assets match the final build. Core/Worker/editor/persistence, BMI, production module registrations, scripts/package files, Android host and normative specs are unchanged. All 14 Stage 8 DoD items are satisfied; Stage 9 is unblocked and not started. Full commands, logs/artifact paths, development findings and DoD mapping: [Stage 8 verification](docs/MODULE_INPUT_STAGE8_VERIFICATION.md).
+
 ---
 
 # Stage 9. Shared Core/Worker calculation service for modules

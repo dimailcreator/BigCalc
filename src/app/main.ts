@@ -10,6 +10,11 @@ import { CalculationHistory, expressionSegmentsFromModel } from "./history/Calcu
 import { HistoryPanel } from "./history/HistoryPanel.js";
 import { bindButtonPress } from "./interaction/ButtonPress.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
+import { CalculatorInputCoordinator } from "./input/CalculatorInputCoordinator.js";
+import type {
+  CalculatorMathInputRegistration,
+  CalculatorModuleServiceScope
+} from "./input/CalculatorInputs.js";
 import { ApplicationLifecycle } from "./lifecycle/ApplicationLifecycle.js";
 import { NativeInputLayout } from "./layout/NativeInputLayout.js";
 import { defineCalculatorModule } from "./modules/CalculatorModule.js";
@@ -108,7 +113,7 @@ const editor = new ExpressionEditor({
     }
   },
   onEnter() {
-    primaryKeyboardTarget.submit();
+    primaryInputRegistration.submit();
   }
 });
 editor.attachAnsViewport(expressionOutput.root);
@@ -213,6 +218,14 @@ const settingsScreen = new SettingsScreen({
 const aboutScreen = new AboutScreen(() => {
   navigation.back();
 });
+const inputCoordinator = new CalculatorInputCoordinator({
+  keyboard,
+  suppressSoftwareKeyboard: Capacitor.getPlatform() === "android",
+  onMathTargetChange(active) {
+    shell.dataset.mathInputActive = String(active);
+  }
+});
+const moduleInputScopes = new Map<string, CalculatorModuleServiceScope>();
 const moduleHost = new CalculatorModuleHost(
   [
     defineCalculatorModule({
@@ -225,8 +238,17 @@ const moduleHost = new CalculatorModuleHost(
     }),
     ...installedModules
   ],
-  repositories.calculatorState
+  repositories.calculatorState,
+  (module) => {
+    const scope = inputCoordinator.createScope();
+    moduleInputScopes.set(module.id, scope);
+    return scope;
+  }
 );
+const primaryInputs = moduleInputScopes.get(moduleHost.primaryId)?.services.inputs;
+if (primaryInputs === undefined) throw new Error("Primary input service was not created");
+const primaryInputRegistration: CalculatorMathInputRegistration =
+  primaryInputs.registerMath(primaryKeyboardTarget);
 const modules = moduleHost.navigationModules;
 const drawer = new CalculatorDrawer(
   modules,
@@ -374,6 +396,7 @@ appRoot.replaceChildren(
   drawer.root,
   overflow.root
 );
+inputCoordinator.refresh();
 
 const navigation = new NavigationController({
   history: window.history,
@@ -421,6 +444,7 @@ const lifecycle = new ApplicationLifecycle(
   },
   () => {
     nativeInputLayout?.dispose();
+    inputCoordinator.dispose();
     keyboard.dispose();
     editor.dispose();
     settingsScreen.dispose();
@@ -439,20 +463,24 @@ if (Capacitor.isNativePlatform()) {
   });
   void App.addListener("appStateChange", ({ isActive }) => {
     if (!isActive) {
+      inputCoordinator.setBackground(true);
       editor.suspendNativeFocus();
       lifecycle.background();
     } else {
       editor.restoreNativeFocus();
+      inputCoordinator.setBackground(false);
     }
   });
 }
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
+    inputCoordinator.setBackground(true);
     editor.suspendNativeFocus();
     lifecycle.background();
   } else {
     editor.restoreNativeFocus();
+    inputCoordinator.setBackground(false);
   }
 });
 window.addEventListener(
@@ -541,6 +569,7 @@ function renderNavigation(
   shell.inert = top !== null && top !== "history";
   settingsScreen.root.inert = top !== "settings";
   aboutScreen.root.inert = top !== "about";
+  inputCoordinator.setSuspended(top !== null, top === "history");
   if (entries.length < previous.length && (top === null || top === "history")) {
     const last = previous.at(-1);
     if (last?.kind === "layer") {
@@ -550,6 +579,7 @@ function renderNavigation(
         overflowButton.focus();
     }
   }
+  inputCoordinator.refresh();
 }
 
 function currentAppSettings(

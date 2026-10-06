@@ -1,6 +1,7 @@
 import type { CalculatorStateRepository } from "../persistence/contracts.js";
 import type { CalculatorModuleRuntime, RegisteredCalculatorModule } from "./CalculatorModule.js";
 import type { CalculatorModuleRegistration } from "../navigation/NavigationController.js";
+import type { CalculatorModuleServiceScope } from "../input/CalculatorInputs.js";
 
 export interface ModuleScreen {
   readonly id: string;
@@ -14,11 +15,13 @@ export class CalculatorModuleHost {
   readonly #screens: readonly ModuleScreen[];
   readonly #navigationModules: readonly CalculatorModuleRegistration[];
   readonly #primaryId: string;
+  readonly #serviceScopes = new Map<string, CalculatorModuleServiceScope>();
   #activeId: string;
 
   constructor(
     modules: readonly RegisteredCalculatorModule[],
-    repository: CalculatorStateRepository
+    repository: CalculatorStateRepository,
+    createServiceScope?: (module: RegisteredCalculatorModule) => CalculatorModuleServiceScope
   ) {
     const primary = modules[0];
     if (primary === undefined) throw new Error("At least one calculator module is required");
@@ -30,9 +33,22 @@ export class CalculatorModuleHost {
     const runtimes = new Map<string, CalculatorModuleRuntime>();
     const screens: ModuleScreen[] = [];
     for (const module of modules) {
-      const runtime = module.createRuntime(repository);
-      if (module.id !== primary.id && runtime.root === null)
-        throw new Error(`Calculator module has no screen: ${module.id}`);
+      let scope: CalculatorModuleServiceScope | undefined;
+      let runtime: CalculatorModuleRuntime;
+      try {
+        scope = createServiceScope?.(module);
+        runtime = module.createRuntime(repository, scope?.services);
+        if (module.id !== primary.id && runtime.root === null) {
+          runtime.dispose();
+          throw new Error(`Calculator module has no screen: ${module.id}`);
+        }
+      } catch (error) {
+        scope?.dispose();
+        for (const previous of this.#serviceScopes.values()) previous.dispose();
+        for (const previous of runtimes.values()) previous.dispose();
+        throw error;
+      }
+      if (scope !== undefined) this.#serviceScopes.set(module.id, scope);
       runtimes.set(module.id, runtime);
       if (runtime.root !== null) screens.push({ id: module.id, root: runtime.root });
     }
@@ -43,15 +59,18 @@ export class CalculatorModuleHost {
         id: module.id,
         title: module.title,
         onDeactivate: () => {
+          this.#serviceScopes.get(module.id)?.deactivate();
           this.#runtimes.get(module.id)?.deactivate();
         },
         onActivate: () => {
           this.#activeId = module.id;
           this.#runtimes.get(module.id)?.activate();
+          this.#serviceScopes.get(module.id)?.activate();
         }
       }))
     );
     runtimes.get(primary.id)?.activate();
+    this.#serviceScopes.get(primary.id)?.activate();
   }
 
   get primaryId(): string {
@@ -86,6 +105,7 @@ export class CalculatorModuleHost {
 
   dispose(): void {
     this.flush();
+    for (const scope of this.#serviceScopes.values()) scope.dispose();
     for (const runtime of this.#runtimes.values()) runtime.dispose();
   }
 }
