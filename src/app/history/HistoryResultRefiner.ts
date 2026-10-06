@@ -1,8 +1,8 @@
 import type { CalculationClient } from "../calculation/CalculationClient.js";
 import type { VerifiedNumberDto } from "../calculation/CalculationProtocol.js";
 import {
-  createCalculationRequestId,
-  createCalculationSessionId
+  allocateCalculationRequestId,
+  allocateCalculationSessionId
 } from "../calculation/CalculationSession.js";
 import type { CalculationHistoryEntry } from "./CalculationHistory.js";
 import { CalculationHistory } from "./CalculationHistory.js";
@@ -13,7 +13,7 @@ export class HistoryResultRefiner {
   readonly #history: CalculationHistory;
   readonly #entry: CalculationHistoryEntry;
   readonly #onResult: (value: VerifiedNumberDto) => void;
-  readonly #sessionId = createCalculationSessionId(`history-${crypto.randomUUID()}`);
+  readonly #sessionId = allocateCalculationSessionId();
   #currentDigits: number;
   #targetDigits = 0;
   #running = false;
@@ -65,15 +65,12 @@ export class HistoryResultRefiner {
         const target = this.#targetDigits;
         let result = await this.#client.refine(
           this.#sessionId,
-          createCalculationRequestId(`history-request-${crypto.randomUUID()}`),
+          allocateCalculationRequestId(),
           target
         );
         while (!this.#isClosed() && result.status === "paused") {
           if (result.partial !== null) this.#accept(result.partial);
-          result = await this.#client.continue(
-            this.#sessionId,
-            createCalculationRequestId(`history-request-${crypto.randomUUID()}`)
-          );
+          result = await this.#client.continue(this.#sessionId, allocateCalculationRequestId());
         }
         if (result.status !== "complete") return;
         const previousDigits = this.#currentDigits;

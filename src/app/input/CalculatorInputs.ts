@@ -1,4 +1,8 @@
 import type { CalculatorKeyboardTarget } from "../keyboard/CalculatorKeyboard.js";
+import type {
+  ModuleCalculations,
+  ModuleEvaluationSettings
+} from "../calculation/ModuleCalculationService.js";
 
 export interface CalculatorInputRegistration {
   activate(): void;
@@ -18,6 +22,8 @@ export interface CalculatorModuleInputs {
 
 export interface CalculatorModuleServices {
   readonly inputs?: CalculatorModuleInputs;
+  readonly calculations?: ModuleCalculations;
+  readonly settings?: ModuleEvaluationSettings;
 }
 
 /** Application-owned lifetime; modules receive only services, never scope management. */

@@ -64,13 +64,13 @@ export class CalculatorModuleHost {
         },
         onActivate: () => {
           this.#activeId = module.id;
-          this.#runtimes.get(module.id)?.activate();
           this.#serviceScopes.get(module.id)?.activate();
+          this.#runtimes.get(module.id)?.activate();
         }
       }))
     );
-    runtimes.get(primary.id)?.activate();
     this.#serviceScopes.get(primary.id)?.activate();
+    runtimes.get(primary.id)?.activate();
   }
 
   get primaryId(): string {

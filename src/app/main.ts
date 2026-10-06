@@ -29,6 +29,7 @@ import { AboutScreen, CalculatorDrawer, OverflowMenu } from "./navigation/Naviga
 import { createBrowserRepositories } from "./persistence/ApplicationRepositories.js";
 import { SettingsScreen } from "./settings/SettingsScreen.js";
 import { AppearanceController } from "./settings/AppearanceController.js";
+import { ModuleCalculationService } from "./calculation/ModuleCalculationService.js";
 import type { AppSettings, EvaluationSettingsSnapshot } from "./state/AppState.js";
 import { NumberViewport } from "./viewport/NumberViewport.js";
 import { initialViewportPrecisionDemand } from "./viewport/NumberViewportModel.js";
@@ -50,6 +51,7 @@ const header = document.createElement("header");
 const heading = document.createElement("h1");
 const display = document.createElement("section");
 const calculationClient = createBrowserCalculationClient();
+const moduleCalculations = new ModuleCalculationService(calculationClient, initialSettings);
 let currentInertia = initialSettings.numberScrollInertia;
 const appearanceSettings = {
   theme: initialSettings.theme,
@@ -240,7 +242,7 @@ const moduleHost = new CalculatorModuleHost(
   ],
   repositories.calculatorState,
   (module) => {
-    const scope = inputCoordinator.createScope();
+    const scope = moduleCalculations.createScope(inputCoordinator.createScope());
     moduleInputScopes.set(module.id, scope);
     return scope;
   }
@@ -411,6 +413,7 @@ const navigation = new NavigationController({
 let timeoutNavigationDismissedByCalculation = false;
 
 const controller = new LiveCalculatorController(calculationClient, render, {
+  initialSettings,
   initialSignificantDigits: initialViewportPrecisionDemand(resultOutput.availableSlots),
   onExplicitSuccess(state) {
     if (state.resultValue === null) return;
@@ -430,9 +433,6 @@ const controller = new LiveCalculatorController(calculationClient, render, {
     );
   }
 });
-if (initialSettings.angleMode === "radians") controller.toggleAngleMode();
-if (initialSettings.factorialMode === "gamma") controller.toggleFactorialMode();
-controller.setMaxCalculationTimeMs(initialSettings.maxCalculationTimeMs);
 
 const nativeInputLayout =
   Capacitor.getPlatform() === "android" ? new NativeInputLayout(shell) : null;
@@ -453,6 +453,7 @@ const lifecycle = new ApplicationLifecycle(
     expressionOutput.dispose();
     historyPanel.dispose();
     controller.dispose();
+    moduleCalculations.dispose();
     calculationClient.terminate();
   }
 );
@@ -492,6 +493,7 @@ window.addEventListener(
 );
 
 function render(state: LiveCalculatorViewState): void {
+  moduleCalculations.updateSettings(state.settings);
   const loneAns = editor.model.tokens.length === 1 ? editor.model.tokens[0] : undefined;
   if (loneAns?.kind === "ans") {
     expressionOutput.setValue(

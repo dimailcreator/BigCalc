@@ -7,8 +7,8 @@ import type {
   VerifiedNumberDto
 } from "../calculation/CalculationProtocol.js";
 import {
-  createCalculationRequestId,
-  createCalculationSessionId
+  allocateCalculationRequestId,
+  allocateCalculationSessionId
 } from "../calculation/CalculationSession.js";
 import type {
   CalculationRequestId,
@@ -57,6 +57,7 @@ export interface LiveCalculatorViewState {
 
 export interface LiveCalculatorControllerOptions {
   readonly initialSignificantDigits: number;
+  readonly initialSettings?: CalculationSettingsDto;
   readonly debounceMs?: number;
   readonly onExplicitSuccess?: (state: LiveCalculatorViewState) => void;
 }
@@ -99,7 +100,6 @@ export class LiveCalculatorController {
   #currentSession: CurrentSession | null = null;
   #debounceTimer: ReturnType<typeof setTimeout> | null = null;
   #generation = 0;
-  #identitySequence = 0;
   #explicitRequested = false;
   #timeoutDialogOpen = false;
   #hiddenMathematicalError = "";
@@ -127,6 +127,13 @@ export class LiveCalculatorController {
     this.#initialSignificantDigits = options.initialSignificantDigits;
     this.#debounceMs = options.debounceMs ?? 150;
     this.#onExplicitSuccess = options.onExplicitSuccess;
+    if (options.initialSettings !== undefined) {
+      this.#settings = Object.freeze({
+        angleMode: options.initialSettings.angleMode,
+        factorialMode: options.initialSettings.factorialMode,
+        maxCalculationTimeMs: options.initialSettings.maxCalculationTimeMs
+      });
+    }
     this.#emit();
   }
 
@@ -543,13 +550,11 @@ export class LiveCalculatorController {
   }
 
   #nextSessionId(): CalculationSessionId {
-    this.#identitySequence += 1;
-    return createCalculationSessionId(`session-${String(this.#identitySequence)}`);
+    return allocateCalculationSessionId();
   }
 
   #nextRequestId(): CalculationRequestId {
-    this.#identitySequence += 1;
-    return createCalculationRequestId(`request-${String(this.#identitySequence)}`);
+    return allocateCalculationRequestId();
   }
 
   #emit(): void {

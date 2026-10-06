@@ -2086,6 +2086,14 @@ one production Worker
 11. BMI regression passes.
 12. Stage 10 unblocked.
 
+## Closure evidence — 2026-10-06
+
+Stage 9 completed from entry `f6d02a3f60cd014d3638dfefc3109a40c4f89754` (`BigCalc CM 8`). No commit is created by this task; evidence describes the Stage 9 working tree. Generic owner-scoped calculation sessions and immutable current-settings read/subscribe services reuse the existing one production CalculationClient/Worker. Primary, History and modules share the application-realm session/request allocator. Owner/settings cleanup rejects stale results and releases late handles without terminating shared transport; mathematical and transport errors remain distinct. Saved evaluation settings apply before primary startup emission; History retains its original snapshots.
+
+`npm run check` passed: **404 Core tests, 14 benchmarks**, formatter/lint/types/build and API audit. The complete `npm run check:app` passed: **363 App unit tests in 32 files, all 259 browser tests (11.9min)**, App types and production build. Existing Liquid Glass frame-gap bound remains 1000ms; final browser measurement **300.0ms**.
+
+The final debug APK (7 439 554 bytes; SHA-256 `3292d62b1e0fa641bb749ff810551c9a5edcc4780a9084164fea271fd4aebb76`) was installed with data preserved. Physical Samsung SM-A576B / Android 16 / WebView 153.0.8010.36 passed BMI with real IME, native scrolling, identical TopBar/wallpaper geometry and restored entry storage, plus smoke/lifecycle/Stage 34. An initial device run on an earlier APK stopped at a Stage 34 Settings-open timeout; both the unchanged intermediate artifact and rebuilt final artifact passed complete acceptance without weakening checks. All six APK assets match the final build. Core/Worker/editor/persistence, BMI, production module registrations, scripts/package files, Android host and normative specs are unchanged. All 12 Stage 9 DoD items are satisfied; Stage 10 is unblocked and not started. Full commands, logs/artifact paths, development findings and DoD mapping: [Stage 9 verification](docs/MODULE_CALCULATION_STAGE9_VERIFICATION.md).
+
 ---
 
 # Stage 10. Pure unit registry, parser and dimensional algebra

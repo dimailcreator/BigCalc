@@ -18,6 +18,15 @@ export type CalculationSessionId = string & CalculationSessionIdBrand;
 export type WorkerHandleId = string & WorkerHandleIdBrand;
 export type CalculationRequestId = string & CalculationRequestIdBrand;
 
+// Shared by primary, history and every module in this application realm. Never persisted.
+let nextApplicationIdentity = 0n;
+export function allocateCalculationSessionId(): CalculationSessionId {
+  return createCalculationSessionId(`session-${String(++nextApplicationIdentity)}`);
+}
+export function allocateCalculationRequestId(): CalculationRequestId {
+  return createCalculationRequestId(`request-${String(++nextApplicationIdentity)}`);
+}
+
 export interface ActiveCalculationIdentity {
   readonly sessionId: CalculationSessionId;
   readonly workerHandleId: WorkerHandleId;
