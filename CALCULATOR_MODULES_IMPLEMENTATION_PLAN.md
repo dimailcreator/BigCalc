@@ -1,14 +1,10 @@
 # BigCalc — Calculator Modules Implementation Plan
 
-**Статус:** Accepted; Stages 0–3 complete (2026-10-04); Stages 4–5 complete (2026-10-05); Stage 6+ unblocked
-
-**Новая фаза:** bundled calculator development
-
-**Первый калькулятор:** ИМТ
-
-**Базовое состояние:** `main` после завершения Stage 34 и post-Stage-34 commit `74c7538`
-
-**Основание:** `docs/APP_ARCHITECTURE_FREEZE.md`, `docs/CALCULATOR_MODULES.md`, `docs/decisions/ADR-APP-CALCULATOR-MODULE.md`, `UI_SPEC.md`, `DESIGN_SPEC.md`
+**Статус:** Draft 1<br>
+**Новая фаза:** bundled calculator development<br>
+**Первый калькулятор:** ИМТ<br>
+**Базовое состояние:** `main` после завершения Stage 34 и post-Stage-34 commit `74c7538`<br>
+**Основание:** `APP_ARCHITECTURE_FREEZE.md`, `docs/CALCULATOR_MODULES.md`, `docs/decisions/ADR-APP-CALCULATOR-MODULE.md`, `UI_SPEC.md`, `DESIGN_SPEC.md`
 
 ---
 
@@ -457,30 +453,6 @@ further bundled calculator development
 
 ---
 
-## Stage 0 verification — 2026-10-04
-
-Entry HEAD: `74c75380a46386ee3ab8c3f8f2cf04dcd4f0d3db` (`fixes app after S2`). На входе tracked working tree был чистым; этот plan уже существовал как untracked draft. План принят для новой фазы с локальной нумерацией от Stage 0; старый App plan сохраняет историю base phase до Stage 34 и pointer на этот файл.
-
-BMI semantics перенесены в `UI_SPEC.md` §§43.5/44.1, secondary calculator/BMI layout — в `DESIGN_SPEC.md` §49. Проверены `docs/APP_ARCHITECTURE_FREEZE.md`, module ADR, implementation и существующие module host/browser tests. Frozen contracts совместимы с BMI scope; Core, Worker, persistence schema и production module registrations не изменены. BMI production code не добавлен, Stage 1 не начат.
-
-Отдельное восстановление regression baseline: post-Stage-34 commit перенёс `Оформление` первым в Settings согласно DESIGN_SPEC §29.1, но `tests/app/accessibility.spec.js` продолжал ожидать переход Back → Градусы одним Tab. Test исправлен под действующий порядок: Back → обе themes → selected palette → selected display size → Градусы → Радианы. Проверки реального keyboard focus, Space activation и возврата через About сохранены; production code не менялся. Первый полный browser run дал 174 passed / 2 failed (устаревший focus expectation и timeout viewport/touch-target test); оба сценария прошли отдельный повтор (2/2). Formatting исходного draft приведён к Prettier.
-
-| Gate                              | Результат                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `npm run check`                   | Passed: formatting, lint, typecheck, 404 Core tests, 14 benchmark tests, build и public API audit |
-| `npm run check:app`               | Passed: App typecheck, 204 unit tests (28 files), 176 Chromium browser tests и production build   |
-| Targeted accessibility repeat     | Passed: 2 browser tests                                                                           |
-| Formatter/linter изменённого test | Passed: Prettier и ESLint                                                                         |
-| `npm run android:build:debug`     | Passed: production App build, Capacitor sync, Gradle 112 tasks (24 executed, 88 up-to-date)       |
-| `git diff --check`                | Passed                                                                                            |
-| Android smoke/lifecycle           | Не запускались: `adb devices -l` не обнаружил подключённых устройств                              |
-
-Debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`; SHA-256: `DDFD1916C93000A32470E56D5E0600CB7A9765A1F7EF161EADB93F3FB350B983`.
-
-Stage 0 закрыт: все обязательные regression gates прошли, BMI behavior/layout зафиксированы, module ADR сохранён. Architecture/spec conflicts и blocking baseline failures не остались. Следующий допустимый этап — Stage 1 (BMI pure domain model); он разблокирован, но не начат. Physical Android smoke/lifecycle остаются условной проверкой при доступном устройстве.
-
----
-
 # Stage 1. BMI pure domain model
 
 ## Цель
@@ -565,32 +537,6 @@ values immediately below boundaries
 
 ---
 
-## Stage 1 verification — 2026-10-04
-
-Entry HEAD: `9d0a6250a84a2d932bc7bf5b2c1a9b4fb45f49c8` (`BigCalc CM 0`), clean working tree. Stage 0 dependency подтверждена его verification report, принятыми UI/DESIGN sections и повторным regression gate.
-
-Добавлены `src/app/modules/bmi/BmiModel.ts` и `tests/app/modules/bmi/BmiModel.test.ts`. Pure API: `parseBmiInput`, `calculateBmi`, `classifyBmi`, `formatBmi`, `deriveBmiResult`. Parser различает empty/incomplete/invalid/valid, принимает decimal comma/dot, отвергает nonpositive/non-finite values и не вводит физиологических limits. Domain calculation использует metric formula с последовательным делением на рост в метрах, избегая overflow/underflow промежуточного квадрата. Непредставимый результат возвращается как module-local invalid result, без `NaN`, `Infinity` или фиктивного нулевого BMI в output.
-
-Category определяется только по raw BMI. Formatter использует явно заданную locale без grouping, максимум два decimal places, trim zeroes и comma output; ambient browser/Node locale не используется. Модель не зависит от Core, Worker, DOM, persistence, navigation или registration. Frozen boundaries и `installedModules.ts` не изменены; Stage 2 state/persistence ещё не добавлены.
-
-99 новых unit tests покрывают integer/comma/dot inputs, empty/incomplete, invalid syntax, nonpositive и overflowing values; metric formula и representable extreme arithmetic; все шесть категорий, exact boundaries 18.5/25/30/35/40 и непосредственно предшествующие им значения; 0/1/2 displayed decimals, отсутствие grouping/scientific notation, недоступный result при неверных inputs и calculation overflow/underflow. Regression `100 cm / 29,996 kg → 30 + Избыточная масса` проверяет весь pipeline, не классифицируя formatted text.
-
-Первый concurrent Core/App run остановлен после 30-second timeout стартового accessibility `beforeEach` (`page.goto`), уже наблюдавшегося в Stage 0. BMI tests и последующие browser scenarios проходили; production browser code не менялся. Итоговый полный App gate прошёл при отдельном запуске после Core gate; test timeouts и expectations не ослаблены.
-
-| Gate                                    | Результат                                                                                                                                                           |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Targeted BMI unit tests                 | Passed: 99 tests                                                                                                                                                    |
-| `npm run typecheck:app`                 | Passed                                                                                                                                                              |
-| Targeted Prettier / ESLint              | Passed                                                                                                                                                              |
-| Standalone ES2022 typecheck без DOM lib | Passed: `tsc --ignoreConfig --noEmit --strict --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022 --types node src/app/modules/bmi/BmiModel.ts` |
-| `npm run check`                         | Passed: formatting, lint, typecheck, 404 Core tests, 14 benchmark tests, build и public API audit                                                                   |
-| `npm run check:app`                     | Passed: App typecheck, 303 unit tests (29 files), 176 Chromium browser tests и production build                                                                     |
-| `git diff --check`                      | Passed                                                                                                                                                              |
-
-Stage 1 закрыт: все 17 DoD items выполнены, обязательные Core/App gates прошли. Architecture/spec conflicts и blocking failures не остались. Следующий допустимый этап — Stage 2 (BMI module state и persistence); он разблокирован, но не начат.
-
----
-
 # Stage 2. BMI module state and persistence
 
 ## Цель
@@ -657,33 +603,6 @@ future schema protection preserved
 11. Module/persistence tests pass.
 12. Full App checks pass.
 13. Stage 3 разблокирован.
-
----
-
-## Stage 2 verification — 2026-10-04
-
-Entry HEAD: `a8595b5257437635cd972d0234523bbd59e8d41a` (`BigCalc CM 1`), clean working tree. Stage 1 dependency подтверждена verification report и сохранёнными 99 domain tests.
-
-Добавлены `src/app/modules/bmi/BmiState.ts`, `src/app/modules/bmi/BmiCalculatorModule.ts` и `tests/app/modules/bmi/BmiCalculatorModule.test.ts`. BMI source state содержит только `heightText`/`weightText`; defaults пусты. `restoreState` создаёт новый source object. Result, category и validation вычисляются из текущих/restored input texts через pure Stage 1 model по требованию, без persistent или runtime cache derived data.
-
-BMI definition использует existing `defineCalculatorModule`, module ID `bmi`, title `ИМТ`, четыре заданных field descriptors и persistence declaration revision 1. Обе serialization boundaries выбирают только две строки; deserialize отвергает malformed DTO и отбрасывает посторонние derived/runtime properties. Existing `CalculatorStateRepository` и `bigcalc.app.calculator-state.v1` используются без изменения `APPLICATION_SCHEMA_VERSION`, repository, Host, navigation, Core или Worker contracts.
-
-Production view ещё отсутствует, `installedModules.ts` не изменён. Host/state integration tests используют явно test-only screen adapter через существующий `createView` hook, как existing framework tests; production stub и BMI-specific host branch не добавлены. Stage 3/4 не начаты.
-
-28 новых tests покрывают fresh independent state, descriptors/revision/schema, runtime retention, save on deactivate/host disposal, restore после recreation Host/repository, recomputation (`29,996 → 30 + Избыточная масса`), исключение computed/runtime properties, игнорирование stale saved output, preservation empty/incomplete/invalid source texts, malformed DTO/documents, revision mismatch, сохранность другого module, future BMI revision record и отказ overwrite future application schema при flush/deactivate/dispose.
-
-Первый полный App gate после успешного Core gate завершился с одним 30-second timeout в первом accessibility test при `locator.boundingBox` видимой кнопки `Калькуляторы`; остальные 175 browser tests прошли. Повторный полный `npm run check:app` прошёл все 176 browser tests и production build. Production browser code, test expectations и timeouts не менялись.
-
-| Gate                           | Результат                                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Targeted BMI unit/module tests | Passed: 127 tests (99 domain + 28 module/persistence)                                             |
-| `npm run typecheck:app`        | Passed                                                                                            |
-| Targeted Prettier / ESLint     | Passed                                                                                            |
-| `npm run check`                | Passed: formatting, lint, typecheck, 404 Core tests, 14 benchmark tests, build и public API audit |
-| `npm run check:app`            | Passed: App typecheck, 331 unit tests (30 files), 176 Chromium browser tests и production build   |
-| `git diff --check`             | Passed                                                                                            |
-
-Stage 2 закрыт: все 13 DoD items выполнены, обязательные Core/App gates прошли. Architecture/spec conflicts и blocking failures не остались. Следующий допустимый этап — Stage 3 (BMI module view); он разблокирован, но не начат.
 
 ---
 
@@ -795,35 +714,6 @@ theme token inheritance
 17. Accessibility passes.
 18. Full App checks pass.
 19. Stage 4 разблокирован.
-
----
-
-## Stage 3 verification — 2026-10-04
-
-Entry HEAD: `93f6004de65c9c34012ac42d86c36dfa0fc8a695` (`BigCalc CM 2`), clean working tree. Stage 2 dependency подтверждена verification report, source review и повторным запуском всех 127 BMI domain/module tests.
-
-Добавлены `BmiCalculatorView.ts` и `bmi.css`; existing BMI definition подключает production view через `createView`. Два native labelled text inputs используют decimal inputMode, autocomplete off и spellcheck false; units и inline errors связаны через `aria-describedby`. Input events обновляют только source texts и немедленно derive/render validation/result, не переписывая input value или selection. Empty/incomplete states не получают error; invalid inputs очищают прежние number/category. Status region с polite/atomic announcement содержит отдельно число и текст категории, включая raw-BMI rounding boundary. Restore render и dispose/listener cleanup покрыты browser tests.
-
-CSS использует semantic tokens, bounded 620px portrait form, tabular number typography и focus-visible. BMI card/control включены в существующие scoped Liquid Glass selectors; nested normal scope и reduced-transparency fallback сохраняются. Generic secondary-shell CSS снимает 520px primary minimum height, чтобы при IME-sized viewport module scrolling оставался внутренним. Frozen module contracts, Core, Worker, navigation и `installedModules.ts` не изменены; Stage 4 не начат.
-
-App-test type environment дополнен existing `vite/client` declarations для импортируемого module CSS. Persistence unit tests продолжают использовать test-only view adapter без DOM; прежняя Stage 2 assertion об отсутствии view заменена проверкой production view declaration. Test-only HTML/JS fixture монтирует настоящий BMI registration через existing Host/Surface, без production installation или тестового кода в App runtime.
-
-28 новых browser tests покрывают inputs/units, empty state, instant calculation/source serialization, шесть категорий и boundaries, comma/dot, rounding `29,996 → 30 + Избыточная масса`, validation обеих fields, stale output clearing, source/selection retention, Tab/focus, accessible result, restore, unrepresentable result, responsive matrix, IME-sized 360×300 scrolling и extreme number containment, обе themes/все palettes, displaySize stability, scoped Liquid Glass/reduced transparency и disposal. Responsive и representative appearance screenshots сохраняются как test artifacts для visual review.
-
-Visual review всех пяти portrait screenshots и четырёх representative appearances (`dark/lavender`, `light/blue`, `dark/liquid-glass`, `light/liquid-glass`) пройден: readable labels/units, visible focus, separate number/category, centered bounded tablet form, отсутствие overflow или broken surfaces.
-
-Первый полный App gate прошёл 203 browser tests, но последний existing Stage 34 Liquid Glass performance test зафиксировал maximum frame gap `1116,6 ms` при пороге `< 1000 ms`. Первый отдельный повтор остановился по 30-second timeout, следующий прошёл с `166,6 ms`. Итоговый повторный полный `npm run check:app` прошёл все 204 browser tests, production build и тот же performance test с `149,9 ms`. Code, thresholds, assertions и timeouts между этими прогонами не менялись. Диагностический снимок host: около 3,4 GB RAM / 650 MB свободно; transient timing failures не использованы как основание менять product или tests.
-
-| Gate                                         | Результат                                                                                             |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Stage 2 dependency / targeted BMI unit tests | Passed: 127 tests                                                                                     |
-| `npm run typecheck:app` / targeted ESLint    | Passed                                                                                                |
-| Targeted BMI browser tests                   | Passed: 28 tests                                                                                      |
-| `npm run check`                              | Passed: formatting, lint, typecheck, 404 Core tests, 14 benchmark tests, build и public API audit     |
-| `npm run check:app`                          | Passed: App typecheck, 331 unit tests (30 files), 204 Chromium browser tests и production build       |
-| Visual review / `git diff --check`           | Passed: 5 portrait screenshots + 4 representative appearances; tracked и new files whitespace checked |
-
-Stage 3 закрыт: все 19 DoD items выполнены, обязательные Core/App gates и visual review прошли. Architecture/spec conflicts и blocking failures не остались. Следующий допустимый этап — Stage 4 (production registration и App integration); он разблокирован, но не начат.
 
 ---
 
@@ -963,40 +853,6 @@ git diff --check
 
 ---
 
-## Stage 4 verification — 2026-10-05
-
-Entry HEAD: `3d5d1bb3bf7c92504100c9a536c5f4de46efa83b` (`BigCalc CM 3`), clean working tree. Stage 3 dependency подтверждена verification report, source review, повторными 127 BMI unit tests и 28 view browser tests в targeted regression run.
-
-Production change: `installedModules.ts` импортирует existing `bmiCalculatorModule` и регистрирует его единственным secondary bundled module. Existing `main.ts` оставляет BigCalc первым, existing Host/Surface/navigation автоматически создают Drawer registration, mount, shared title, History/keyboard visibility, switching и persistence. Core, Worker, frozen module contracts, Host, Surface и NavigationController не изменены; BMI-specific AppShell branches не добавлены.
-
-Добавлены 18 production browser integration tests в `tests/app/bmi-integration.spec.js`, использующие обычную App entry page и реальный Worker/repositories; Stage 3 test fixture не используется. Coverage: installed registration/field metadata и surface mount; Drawer order; shared shell visibility; native typing/Backspace/Enter и отсутствие любых Worker commands при BMI edits; сохранение primary expression/result, Ans/history и BMI source/result через switching; revision-1 exact text subset после deactivation; restore в новом browser context и после pagehide/reload; raw category recomputation на `29,996 → 30`; preservation other-module record и future document; Settings/About/Drawer/browser Back/Forward; четыре representative theme/palette combinations; real displaySize controls; пять portrait viewports. Production portrait/appearance screenshots сохраняются для visual review.
-
-Existing navigation test обновлён с одного Drawer entry на `BigCalc`, `ИМТ`, с сохранением current-primary и assertions об отсутствии add-calculator control. Первый targeted run прошёл 49 из 50 tests; новый primary-result locator ошибочно включал также hidden Ans viewport. Locator уточнён по существующему `aria-label="Результат"`; application code и test expectations не менялись.
-
-Первый полный App run выявил single-entry assumption в существующем accessibility test: общий Drawer button locator стал неоднозначным. Test обновлён под два зарегистрированных калькулятора; проверяет initial BigCalc focus, Tab на ИМТ, циклический Tab обратно на BigCalc и Shift+Tab на ИМТ, с прежним Escape/focus restoration. Production navigation не менялась. При visual review один ранний light Liquid Glass screenshot захватил Settings до завершения asynchronous Back; перед assertions/screenshots добавлено явное ожидание закрытия Settings/About. Повторный screenshot показывает active BMI.
-
-Первый полный browser run: 221 passed / 1 failed (описанный accessibility locator). После его исправления повторный полный `check:app` прошёл без failures: 331 unit tests в 30 files, 222 browser tests и production build. Liquid Glass performance assertion сохранён; maximum frame gap составил 300,1ms в первом run и 266,6ms в итоговом run.
-
-Visual review выполнен по девяти production screenshots: `360×640`, `360×800`, `390×844`, `412×915`, `768×1024` и dark lavender / light blue / dark Liquid Glass / light Liquid Glass. Shared title, labelled fields/units, focus-visible, separate result/category, bounded form и отсутствие primary History/keyboard соответствуют Stage 4 acceptance; overflow/clipping не обнаружены.
-
-| Gate                                         | Результат                                                                          |
-| -------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Stage 3 dependency / targeted BMI unit tests | Passed: 127 tests                                                                  |
-| App typecheck / targeted ESLint              | Passed                                                                             |
-| Targeted browser regression                  | Passed: 28 BMI view + 4 navigation; separate production repeat 18/18               |
-| `npm run check`                              | Passed: 404 Core tests + 14 benchmark tests; format/lint/typecheck/build/API audit |
-| `npm run check:app` / `npm run build:app`    | Passed: 331 unit + 222 browser tests; production build                             |
-| `npm run android:build:debug`                | Passed: production rebuild, Capacitor sync, Gradle assembleDebug                   |
-| Visual review / `git diff --check`           | Passed: 9 production screenshots; whitespace/scope audit                           |
-
-Android artifact: `android/app/build/outputs/apk/debug/app-debug.apk`, 7 482 838 bytes; SHA-256 `8116CF0C578BB764EDB2B4A34F72F064ED932C0F182BF206BCEC0BA11A0A5862`. Gradle: `BUILD SUCCESSFUL in 27s`, 112 actionable tasks. Физическая Android acceptance и native IME/lifecycle checks относятся к Stage 5 и в этом этапе не выполнялись.
-
-Итоговый scope audit: изменены только production registration, новый integration test, существующие navigation/accessibility tests и этот verification report. Core, Worker, `main.ts`, navigation implementations, Host/Surface, BMI implementation, frozen contracts, specifications и package scripts не изменены.
-
-Stage 4 закрыт: все 21 DoD items выполнены, обязательные Core/App/Android gates и visual review прошли. Architecture/spec conflicts и blocking failures не остались. Stage 5 разблокирован, но не начат.
-
----
-
 # Stage 5. Android acceptance, documentation and closure
 
 ## Physical Android checks
@@ -1110,7 +966,7 @@ CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md
 
 `APP_IMPLEMENTATION_PLAN.md` gets only the phase pointer, not BMI implementation details.
 
-At Stage 5 entry, About copy says BMI will appear in the future. After BMI ships, update it so implemented functionality is no longer described as future functionality.
+Current About copy says BMI will appear in the future. After BMI ships, update it so implemented functionality is no longer described as future functionality.
 
 Create:
 
@@ -1162,43 +1018,6 @@ known limitations
 24. First real bundled calculator milestone closed.
 25. Module architecture is production-proven.
 26. Stage 6+ is unblocked.
-
----
-
-## Stage 5 verification — 2026-10-05
-
-Entry HEAD: `17deee45c1ab4d589d12e8ef8f6f73e192db4465` (`BigCalc CM 4`), clean tree before Stage 5. Stage 4 dependency подтверждена его report, source review и повторными 127 BMI unit tests.
-
-Final Stage 5 commit: `bc551903e145e9c7c94109ec55c4a0eab4632563` (`BigCalc CM 5`). Он включает initial Stage 5 closure и последующий IME follow-up; их verification results записаны отдельно ниже.
-
-About теперь описывает ИМТ как доступный calculator; existing production BMI browser scenario проверяет эту copy. Добавлен `test:android:bmi` / `scripts/android-bmi-acceptance.mjs`: native ADB taps/text/key events, реальные IME/trusted input events, base case, six categories и boundaries, raw vs rounded result, empty/invalid clearing, отсутствие Worker commands и BMI history/keyboard, primary Ans/result retention, shared Back, четыре appearances, source-only persistence и force-stop/reopen. Optional `--with-regressions` запускает existing smoke/lifecycle/Stage 34 под общей entry-storage guard. После suite исходные `bigcalc.*` данные восстанавливаются до App bootstrap и сравниваются со snapshot, в том числе при failure.
-
-Начальные harness runs остановились на primary-result assertion: NumberViewport содержит leading blank slots перед `5`; native taps действительно ввели `2+3` и Core завершил результат. Assertion уточнён через `trim()` с сохранением ожидаемого числа. Existing Android lifecycle test затем выявил устаревшие tap coordinates: после Appearance-first Settings numeric input находился за viewport. Harness теперь сначала scrolls/checks containment для обоих numeric inputs; исходные IME/safe-area/lifecycle assertions и timeouts сохранены. Snapshot restoration прошёл во всех runs. Browser appearance capture дополнительно ждёт `data-open=false` / `opacity=0`, чтобы screenshot не захватывал закрывающиеся Settings; четыре affected cases повторены успешно. Application fixes не потребовались.
-
-Physical acceptance прошла на SM-A576B / Android 16 / WebView 153.0.8010.36 / Samsung HoneyBoard. Проверены base 180/75, восемь category/input cases с шестью категориями и точными thresholds, comma/dot, raw category при rounded `30`, clearing, native IME в обоих inputs, result reachability при IME, четыре appearances, shared Back, primary state/history, source-only persistence и process restart. За BMI editing записано 53 trusted input events и 0 Worker commands. Existing Android smoke/lifecycle/Stage 34 gates прошли в общей storage guard; Stage 34 проверил 36 appearance combinations, maximum Liquid Glass frame gap 299,6ms. Исходные данные устройства восстановлены и проверены.
-
-Android debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 7 482 892 bytes, SHA-256 `9681104a66885db0cfef73295be93cd28387490f3661a0f71f91473f61008124`. Gradle `BUILD SUCCESSFUL in 11s`; APK установлен успешно. Полные результаты, boundary/browser matrix, IME geometry и ограничения записаны в [BMI verification report](docs/BMI_CALCULATOR_VERIFICATION.md).
-
-| Initial closure gate                                                     | Result                                                                           |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `npm run check`                                                          | Passed: 404 Core + 14 benchmark tests; format/lint/types/build/public API audit  |
-| `npm run check:app` / `npm run build:app`                                | Passed: 331 unit tests / 30 files, 222 browser tests, types and production build |
-| `npm run android:build:debug`                                            | Passed; built and installed debug APK                                            |
-| `test:android:smoke` / `test:android:lifecycle` / `test:android:stage34` | Passed through `test:android:bmi -- --with-regressions`                          |
-| `npm run test:android:bmi`                                               | Passed standalone and with all three Android regression gates                    |
-| Visual review / `git diff --check`                                       | Passed: 9 BMI browser + 6 physical screenshots; clean whitespace checks          |
-
-Обновлены `docs/CALCULATOR_MODULES.md`, README и implementation/acceptance references UI/DESIGN specs без изменения semantics. Base App plan получает только phase/evidence pointer. Core, Worker, module contracts, Host/Surface/navigation algorithms и BMI domain/view не меняются.
-
-Stage 5 закрыт: все 26 DoD items выполнены, first real bundled calculator milestone закрыт, module architecture подтверждена production BMI и physical Android acceptance. Architecture/spec conflicts и blocking failures не остались. Physical coverage ограничена указанным device/WebView/IME. Stage 6+ разблокирован, но не начат.
-
-### Stage 5 follow-up: open IME geometry
-
-Дополнительная physical проверка выявила пропуск initial acceptance: при открытии IME WebView уменьшался 749 → 439 CSS px, сдвигая/сжимая TopBar и масштабируя Liquid Glass wallpaper. Исправление в generic `NativeInputLayout`, его Android bootstrap binding и shared CSS сохраняет panel/background geometry при IME resize; module surface продолжает использовать доступную высоту и native scrolling. BMI semantics, Core/Worker, Host/Surface/navigation algorithms и contracts не меняются.
-
-Добавлены пять browser regression cases и physical geometry checks: оба BMI inputs, нативные свайпы в обе стороны, четыре appearances с IME open/closed и shared chrome comparison. Отдельный physical probe использовал видимые HoneyBoard numeric keys вместо text injection. Android smoke/lifecycle/Stage 34/BMI checks прошли с новой сборкой; исходное storage восстановлено. Lifecycle harness сохраняет assertions и 5s deadline, ожидая focused-field containment после asynchronous native resize.
-
-Full App repeat без concurrent device/screenshot work прошёл после единичного Liquid Glass performance outlier: 331 unit + 227 browser tests, types и production build; maximum frame gap 166,7ms при неизменном лимите 1000ms. Android Stage 34 frame gap 299,6ms. Новый APK: 7 483 676 bytes, SHA-256 `4d3ff3d01bf2a23a86c8d703699c0c9ef4207cd276a8d05d0e61c55668d1efe2`, Gradle 17s, установлен успешно. Десять IME chrome checks прошли; formatter/lint, syntax и diff/scope audit прошли. Core baseline 404 + 14 и API audit сохраняются, Core не менялся. Final evidence и ограничения — в [verification report](docs/BMI_CALCULATOR_VERIFICATION.md). Stage 5 closure подтверждён с расширенной IME coverage; Stage 6+ не начат.
 
 ---
 
@@ -1293,3 +1112,2185 @@ BMI through BigCalc Core
 ```
 
 После закрытия BMI следующий bundled calculator начинается со Stage 6 этого файла.
+
+---
+
+# 12. Второй bundled calculator — «Единицы»
+
+## 12.1. Entry baseline
+
+Разработка второго bundled calculator продолжается в этом же плане и начинается со Stage 6.
+
+Текущий repository baseline после docs-only синхронизации Stage 5:
+
+```text
+28d1f80921d3390e6aba6d0dfd2e3799ec2fdb5f
+BigCalc CM docs fix
+```
+
+Перед началом Stage 6 baseline должен быть перепроверен по фактическому current HEAD. Если `main` уже ушёл вперёд, в verification Stage 6 записывается реальный entry commit, а не этот исторический ориентир.
+
+Функциональный reference для нового calculator — приложенный prototype `calc.html`. Prototype задаёт product direction и vocabulary, но не является production architecture и не переносится буквально. На Stage 6 reference найден в `C:\Users\mmole\Downloads\calc.html`; его SHA-256, полный registry inventory и решения записаны в [Units registry audit](docs/UNITS_REGISTRY_AUDIT.md).
+
+## 12.2. Product goal
+
+Второй production secondary bundled calculator — **Единицы**.
+
+Module identity:
+
+```text
+id = units
+title = Единицы
+```
+
+Normative Units scope зафиксирован в `UI_SPEC.md` §§43.6/44.2 и `DESIGN_SPEC.md` §50. Stage 6 принимает defaults `1`, `км/ч`, `м/с`; `displaySize` применяется к mathematical expression и result `NumberViewport`, но не к native unit controls. Signed integer powers включают negative и zero; affine conversion допускает только standalone temperature counterparts. Full resolution/normalization/prefix policy и quarantined entries — в [registry audit](docs/UNITS_REGISTRY_AUDIT.md), generic additive services direction — в [Stage 6 ADR](docs/decisions/ADR-APP-MODULE-INPUT-AND-CALCULATION-SERVICES.md). Эти решения не означают production implementation до соответствующих stages.
+
+Основной сценарий:
+
+```text
+Значение
+[ математическое выражение ]
+
+Из единиц
+[ unit expression ]
+
+В единицы
+[ unit expression ]
+
+→ verified result
+```
+
+Примеры value expression:
+
+```text
+1
+1/3
+π
+π/2
+√2
+2^100
+sin(30)
+```
+
+Примеры unit expression:
+
+```text
+км/ч
+м/с
+Дж/Вт
+кДж*ч/Дж
+(Н*м)/Дж
+санти-ярд/кило-год
+```
+
+Units v1 проверяет следующий уровень modular architecture: secondary module одновременно использует shared BigCalc mathematical editor/keyboard infrastructure, native Android text input и shared Worker/Core calculation infrastructure.
+
+## 12.3. Input model
+
+В первой версии существуют только два взаимоисключающих input kind:
+
+```text
+math-expression
+text
+```
+
+Никакого hybrid input в Units v1 нет.
+
+### `math-expression`
+
+Используется для поля `Значение`.
+
+```text
+ExpressionEditor
+shared BigCalc keyboard
+Android software IME suppressed
+```
+
+Поле использует ту же mathematical source semantics, что и основной BigCalc, кроме отдельно исключённых возможностей Units v1.
+
+### `text`
+
+Используется для:
+
+```text
+Из единиц
+В единицы
+```
+
+```text
+native HTML text input
+Android IME enabled
+shared BigCalc keyboard hidden
+```
+
+Переключение input mode определяется активным field, а не active module целиком.
+
+## 12.4. Keyboard ownership
+
+Application по-прежнему владеет keyboard definition/layout.
+
+Units module не создаёт:
+
+```text
+собственную CalculatorKeyboard
+собственный keyboard layout
+копию BigCalc keyboard DOM
+```
+
+Shared `CalculatorKeyboard` должен уметь работать с текущим active mathematical editing target.
+
+Expected behavior:
+
+```text
+BigCalc active
+→ target = primary ExpressionEditor
+→ shared keyboard visible
+
+Units / Значение active
+→ target = Units ExpressionEditor
+→ shared keyboard visible
+
+Units / Из единиц active
+→ no mathematical target
+→ shared keyboard hidden
+→ native IME allowed
+
+Units / В единицы active
+→ no mathematical target
+→ shared keyboard hidden
+→ native IME allowed
+```
+
+History остаётся только у primary BigCalc.
+
+## 12.5. Core boundary
+
+Unit names, aliases, prefixes, dimensions и unit-expression grammar являются module-local domain logic.
+
+Core не должен получать identifiers вида:
+
+```text
+км
+ярд
+Дж
+Вт
+```
+
+Unit parser разбирает unit expressions, проверяет dimension compatibility и компилирует conversion в обычное математическое expression, которое затем вычисляется существующим BigCalc Worker/Core.
+
+Conceptual pipeline:
+
+```text
+value ExpressionModel
+        +
+from unit expression
+        +
+to unit expression
+        ↓
+unit parser / dimensional algebra
+        ↓
+conversion compiler
+        ↓
+Core source
+        ↓
+shared Calculation Worker
+        ↓
+VerifiedNumber
+        ↓
+NumberViewport
+```
+
+Units module не импортирует internal Core implementation и не обходит application Worker boundary.
+
+## 12.6. Exact numeric representation of unit scales
+
+Prototype использует JavaScript `number` для conversion factors. Production implementation не должна переносить это ограничение на verified result path.
+
+Unit scale описывается exact/symbolic source representation, пригодной для Core compilation.
+
+Conceptual examples:
+
+```text
+foot
+scale = 381/1250
+
+inch
+scale = 127/5000
+
+yard
+scale = 1143/1250
+
+degree
+scale = π/180
+```
+
+Допускается отдельное typed internal representation вместо raw strings, если она детерминированно компилируется в Core source и не проходит через IEEE-754 `number` как authoritative value.
+
+Dimension exponents остаются exact integers.
+
+## 12.7. Unit expression semantics
+
+Units v1 поддерживает:
+
+```text
+*
+×
+·
+/
+÷
+^
+(...)
+whitespace multiplication
+integer exponents
+```
+
+Unit expression parser не является BigCalc mathematical parser и не должен подменяться Core parser.
+
+Dimension algebra использует семь SI base dimensions:
+
+```text
+L
+M
+T
+I
+Th
+N
+J
+```
+
+Operations:
+
+```text
+multiply → add dimension exponents
+divide   → subtract dimension exponents
+power n  → multiply all exponents by integer n
+```
+
+Conversion разрешена только между одинаковыми dimensions.
+
+## 12.8. Prefixes and aliases
+
+Prototype direction сохраняется:
+
+```text
+русские aliases
+английские aliases
+unit symbols
+SI decimal prefixes
+prefix + symbol
+prefix + normalized name
+```
+
+Prefix resolution и direct-unit resolution должны иметь однозначно зафиксированный deterministic precedence.
+
+Prototype содержит необычные/экспериментальные registry entries. До production registry их нужно явно классифицировать:
+
+```text
+intentional production unit/alias
+intentional easter egg
+prototype-only test data
+ошибка prototype
+```
+
+Нельзя молча переносить или молча исправлять такие entries.
+
+## 12.9. Affine units
+
+Units v1 поддерживает temperature conversions:
+
+```text
+K
+°C
+°F
+°R
+```
+
+Affine unit:
+
+```text
+может использоваться как одиночная unit expression
+не получает SI prefix
+не участвует в multiplication/division
+не возводится в степень
+```
+
+Conversion compiler выполняет:
+
+```text
+source unit → base temperature → target unit
+```
+
+Для linear-to-affine и affine-to-linear behavior должен быть явно специфицирован и покрыт tests.
+
+## 12.10. Result
+
+Authoritative result — `VerifiedNumberDto` из Core-backed calculation.
+
+Production result использует существующий `NumberViewport`, а не фиксированное округление до 12 decimal places из prototype.
+
+Optional secondary metadata:
+
+```text
+from → to
+linear conversion factor
+или marker affine conversion
+```
+
+Если factor показывается пользователю, его authoritative numeric value также вычисляется через Core-compatible representation, а не `number`.
+
+## 12.11. Live calculation
+
+Отдельная обязательная кнопка `Посчитать` в Units v1 не нужна.
+
+Изменение любого source field:
+
+```text
+value
+from unit
+to unit
+```
+
+инвалидирует старый derived calculation и запускает новый parse/compile/calculate pipeline.
+
+Допускается короткий UI debounce, если он не меняет semantics и не ломает immediate feedback.
+
+`=` shared BigCalc keyboard работает как explicit action для текущего Units calculation, но не создаёт primary History entry.
+
+## 12.12. `Ans`
+
+`Ans` в Units v1 считается out of scope.
+
+Не определять неявно, означает ли он:
+
+```text
+последний primary BigCalc result
+последний Units result
+какой-либо global result
+```
+
+Units math editor должен либо не предоставлять insertion `Ans`, либо явно отвергать его до отдельного product/architecture decision.
+
+## 12.13. Persistence
+
+Persistent source of truth:
+
+```ts
+interface UnitsState {
+  readonly valueSource: string;
+  readonly fromUnitText: string;
+  readonly toUnitText: string;
+}
+```
+
+Persistent DTO содержит только эти строки.
+
+Не persist:
+
+```text
+parsed unit AST
+compiled Core source
+calculation session IDs
+Worker handles
+VerifiedNumber
+result viewport position
+focus
+selection
+active field
+errors
+```
+
+Proposed module revision:
+
+```text
+moduleId = units
+revision = 1
+```
+
+## 12.14. UI direction
+
+Prototype desktop composition не переносится буквально.
+
+Production screen использует shared TopBar и vertical portrait module surface.
+
+Conceptual order:
+
+```text
+Значение
+[ math-expression ]
+
+Из единиц
+[ text ]
+
+[ swap ]
+
+В единицы
+[ text ]
+
+Результат
+[ NumberViewport / metadata ]
+
+secondary actions
+
+Быстрые примеры
+Приставки
+Единицы
+```
+
+Reference controls, examples, prefixes и unit chips из prototype могут быть сохранены, но mobile layout должен соответствовать существующей BigCalc visual language и semantic `--bc-*` tokens.
+
+---
+
+# Stage 6. Units baseline, specification and architecture decisions
+
+## Цель
+
+Начать второй calculator milestone с чистого verified baseline и зафиксировать product/architecture contract до production code.
+
+## Entry baseline
+
+Перед изменениями определить фактический current HEAD.
+
+Исторический ориентир после BMI docs fix:
+
+```text
+28d1f80921d3390e6aba6d0dfd2e3799ec2fdb5f
+```
+
+Если HEAD другой, verification записывает реальный commit.
+
+## Baseline gates
+
+Запустить минимум:
+
+```text
+npm run check
+npm run check:app
+npm run android:build:debug
+git diff --check
+```
+
+При доступном physical device желательно повторить:
+
+```text
+npm run test:android:smoke
+npm run test:android:lifecycle
+npm run test:android:bmi
+```
+
+Pre-existing failures исправляются отдельно до Units production work.
+
+## Specification work
+
+Обновить:
+
+```text
+UI_SPEC.md
+DESIGN_SPEC.md
+docs/CALCULATOR_MODULES.md
+CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md
+```
+
+Зафиксировать:
+
+```text
+module id/title
+math-expression vs text input kinds
+shared keyboard ownership
+Core/Worker boundary
+unit expression grammar
+dimension model
+prefix behavior
+affine behavior
+live calculation
+result/NumberViewport
+persistence source of truth
+Ans out of scope
+History ownership
+mobile layout direction
+```
+
+## Architecture decisions
+
+Stage 6 должен явно зафиксировать две generic deficiencies существующего module framework:
+
+```text
+1. CalculatorKeyboard привязан к одному primary ExpressionEditor.
+2. CalculatorModule runtime не получает generic shared calculation service.
+```
+
+Подготовить ADR или эквивалентные documented decisions для additive changes:
+
+```text
+shared mathematical input target
+module services / calculation service
+```
+
+Изменения обязаны быть generic, а не `units`-specific.
+
+## Registry audit
+
+Составить review prototype registry:
+
+```text
+standard production entries
+aliases
+prefixes
+affine units
+ambiguous collisions
+non-standard entries
+prototype-only data
+```
+
+Не реализовывать спорные entries до явного решения.
+
+## Definition of Done — Stage 6
+
+1. Current HEAD записан.
+2. Regression baseline зелёный.
+3. Units product scope зафиксирован.
+4. Input taxonomy зафиксирована.
+5. Shared keyboard semantics зафиксированы.
+6. Core/Worker boundary зафиксирована.
+7. Unit grammar зафиксирована.
+8. Dimension model зафиксирована.
+9. Affine rules зафиксированы.
+10. Persistence semantics зафиксирована.
+11. `Ans` явно out of scope.
+12. History остаётся primary-only.
+13. Frozen-boundary deficiencies документированы.
+14. Generic architecture change direction принята.
+15. Prototype registry ambiguities перечислены.
+16. Units production code ещё не добавлен.
+17. Stage 7 разблокирован.
+
+## Stage 6 verification — 2026-10-06
+
+Entry HEAD: `28d1f80921d3390e6aba6d0dfd2e3799ec2fdb5f` (`BigCalc CM docs fix`). На входе изменён только этот файл: user-supplied updated plan со Stages 6–15. Его content сохранён; Stage 6 добавляет decisions/evidence и formatting normalization, включая explicit header line breaks вместо trailing spaces. Initial Stage 5 closure и IME follow-up остаются отдельной историей в [BMI verification report](docs/BMI_CALCULATOR_VERIFICATION.md).
+
+Units product/input/conversion/persistence contract зафиксирован в `UI_SPEC.md` §§43.6/44.2, portrait presentation — в `DESIGN_SPEC.md` §50. Приняты defaults `1`, `км/ч`, `м/с`, signed integer powers (включая negative/zero), deterministic symbol/name/prefix precedence, exact scales и standalone affine temperature policy. History остаётся primary-only, `Ans` исключён; result использует Core-backed `VerifiedNumberDto`/`NumberViewport`, displaySize применяется к mathematical displays.
+
+[Generic input/calculation ADR](docs/decisions/ADR-APP-MODULE-INPUT-AND-CALCULATION-SERVICES.md) документирует primary-bound keyboard и persistence-only module runtime, принимает additive backward-compatible direction Stages 7–9: replaceable math target, scoped input/layout coordination, current settings и sessions поверх одного existing Worker. Runtime/frozen Core/Worker/module contracts и persistence schema на Stage 6 не меняются. Units-specific shell branches, второй Worker и прямые Core imports в module UI не добавлены.
+
+Reference `C:\Users\mmole\Downloads\calc.html` проверен: [registry audit](docs/UNITS_REGISTRY_AUDIT.md) учитывает все 63 unit entries и 20 prefixes. Зафиксированы duplicate keys, symbol/name normalization traps и exact/conventional scale definitions. Четыре entries (Manya, Dal, average month, measured atomic mass scale) остаются quarantined до явного решения; это ограничение их будущего включения, не blocker generic Stage 7.
+
+Отдельная baseline remediation: formatter normalization в supplied plan/existing checkout и одна accessibility correction ИМТ — category paragraph получает `role="group"` для существующего accessible name. Existing assertions падали до исправления и прошли после него (46/46 BMI browser cases); expected results, harness logic и timeouts не менялись. Первоначальный failed full browser run остановлен после 16 одинаковых accessibility failures; Units production work не выполнялась.
+
+Core baseline прошёл: 404 tests + 14 benchmarks, formatter/lint/types/build/public API audit. Subsequent full App run дал 331 unit + 226 browser passed, но последний Glass performance case превысил unchanged 1000ms bound (1916,6ms); первый isolated repeat остановился на navigation timeout, второй прошёл с 233,3ms. Complete App repeat затем прошёл: 331 unit / 30 files + все 227 browser tests (11,3min), typechecks и production build, Glass max gap 266,6ms. Причина outliers не доказана; проверки/лимиты не ослаблены. Завершённый Android build daemon остановлен перед full repeat, parallel build/device work отсутствовала.
+
+`npm run android:build:debug` прошёл: Gradle `BUILD SUCCESSFUL in 25s`, APK 7 439 554 bytes, SHA-256 `eac4f94040961e8bfb79e8aeede520b848a9721067eb9b77981ca870b53b7720`. `adb devices -l` не обнаружил device; optional physical smoke/lifecycle/BMI повтор и APK installation не выполнялись. Это build baseline, не новая physical acceptance. Полные команды, failures/repeats, финальный scope/format audit и DoD mapping — в [Units Stage 6 verification](docs/UNITS_STAGE6_VERIFICATION.md).
+
+Финальный formatter/lint и `git diff --check` прошли; local documentation links, registry inventory и preservation/scope audit проверены. Все четыре JS/CSS assets APK совпадают по SHA-256 с final production build. Stage 6 закрыт: все 17 DoD items выполнены, Units production code не добавлен, frozen runtime boundaries не изменены. Stage 7 разблокирован, но не начат.
+
+---
+
+# Stage 7. Shared CalculatorKeyboard with dynamic mathematical target
+
+## Цель
+
+Отвязать существующую `CalculatorKeyboard` от permanently captured primary `ExpressionEditor`, не меняя видимое поведение primary BigCalc.
+
+Units module в production пока не добавлять.
+
+## Current limitation
+
+Существующий constructor получает конкретный editor и keyboard actions, поэтому весь keyboard lifetime связан с primary calculator.
+
+Нужно ввести generic target model.
+
+Conceptual shape:
+
+```ts
+interface CalculatorKeyboardTarget {
+  readonly editor: ExpressionEditor;
+  clear(origin: "pointer" | "keyboard"): void;
+  submit(): void;
+}
+```
+
+Точная API форма не нормативна.
+
+Keyboard должен поддерживать:
+
+```text
+setTarget(...)
+clearTarget(...)
+```
+
+или эквивалентную безопасную abstraction.
+
+## Behavioral invariants
+
+При Stage 7 primary BigCalc остаётся единственным реальным target.
+
+Все существующие keys сохраняют behavior:
+
+```text
+digits
+comma
+π
+e
+√
+functions
+operators
+smart brackets
+backspace + autorepeat
+AC
+=
+expand/collapse
+```
+
+Angle/factorial mode controls продолжают использовать global mathematical settings.
+
+Target switch / clear должен:
+
+```text
+stop active backspace hold
+не оставлять pointer press attached к old editor
+не восстанавливать focus в disposed/hidden editor
+не менять keyboard expansion unexpectedly
+```
+
+## Tests
+
+Добавить unit/browser regression для:
+
+```text
+primary editor initial target
+insertions routed to active target
+dynamic target replacement
+target clear
+backspace hold target switch
+pointer-up exactly-once behavior
+AC routed to target
+= routed to target
+math mode controls unchanged
+focus restoration
+expanded/collapsed keyboard
+```
+
+Existing Stage 27/32R interaction guarantees не должны деградировать.
+
+## Android
+
+Primary expression:
+
+```text
+inputMode = none
+software IME remains suppressed
+```
+
+Stage 7 не добавляет native input switching.
+
+## Definition of Done — Stage 7
+
+1. `CalculatorKeyboard` больше не permanently owns one editor.
+2. Dynamic target generic.
+3. Primary BigCalc behavior unchanged.
+4. No Units production code.
+5. No module-specific branch.
+6. Backspace autorepeat remains exactly-once.
+7. Keyboard modes unchanged.
+8. Focus behavior preserved.
+9. Browser regressions pass.
+10. Full App checks pass.
+11. Android primary IME suppression preserved.
+12. Stage 8 unblocked.
+
+---
+
+# Stage 8. Generic module input coordination and shared-shell layout
+
+## Цель
+
+Дать secondary calculator modules generic ability to activate a shared mathematical editor/keyboard target while preserving native text input behavior.
+
+## Input capabilities
+
+Introduce generic input kind metadata or equivalent runtime registration:
+
+```text
+math-expression
+text
+```
+
+`CalculatorFieldDescriptor` может получить additive optional metadata, но old modules обязаны оставаться compatible.
+
+Например:
+
+```ts
+inputKind?: "math-expression" | "text";
+```
+
+Точная contract form должна соответствовать ADR Stage 6.
+
+## Mathematical input service
+
+Application owns coordinator, conceptual API:
+
+```ts
+interface CalculatorMathInputService {
+  register(...): Disposable;
+  activate(...): void;
+  deactivate(...): void;
+}
+```
+
+Module сообщает editing target, но не keyboard buttons/layout.
+
+## Layout problem to solve
+
+Текущий secondary screen занимает весь grid region under TopBar, а primary keyboard скрывается для любого non-primary module.
+
+Нужны два generic secondary layouts.
+
+### Secondary without active math target
+
+```text
+TopBar
+module surface fills remaining space
+shared keyboard hidden
+```
+
+### Secondary with active math target
+
+```text
+TopBar
+scrollable module surface
+shared keyboard in bottom keyboard track
+```
+
+Module content и keyboard не должны overlap.
+
+History остаётся скрытой при любом secondary module.
+
+## Native text focus
+
+При focus native `text` field:
+
+```text
+math target inactive
+shared keyboard hidden
+native IME allowed
+NativeInputLayout can hold Android chrome geometry
+```
+
+При focus `math-expression`:
+
+```text
+native text input loses focus
+software IME suppressed
+shared keyboard visible
+math editor is current target
+```
+
+## Overlay/lifecycle behavior
+
+Проверить:
+
+```text
+Drawer
+Settings
+About
+browser Back/Forward
+Android Back
+pagehide/background
+module switching
+```
+
+Overlay не должен:
+
+```text
+оставлять keyboard поверх screen
+терять registered math target permanently
+фокусировать hidden editor
+```
+
+## Test module
+
+Stage 8 использовать synthetic/test secondary module с одним math field и одним text field.
+
+Units module ещё не реализовывать.
+
+## BMI regression
+
+BMI не объявляет math input и должен вести себя точно как после Stage 5:
+
+```text
+shared keyboard hidden
+native IME opens
+internal scrolling works
+NativeInputLayout behavior preserved
+```
+
+## Definition of Done — Stage 8
+
+1. Generic module math input registration exists.
+2. Generic native text behavior exists.
+3. Shared keyboard visibility follows active field kind.
+4. Secondary math layout does not overlap keyboard.
+5. Secondary native layout fills space with keyboard hidden.
+6. History remains primary-only.
+7. BMI unchanged functionally.
+8. Test module switches math ↔ text reliably.
+9. Drawer/Settings/About/Back preserve target state.
+10. No `units` branch in AppShell.
+11. No module-owned keyboard layout.
+12. Full browser regression passes.
+13. Android BMI regression passes if device available.
+14. Stage 9 unblocked.
+
+---
+
+# Stage 9. Shared Core/Worker calculation service for modules
+
+## Цель
+
+Дать Core-backed secondary calculators generic application-level calculation service без прямого Core import и без отдельного Worker на каждый module.
+
+## Architecture
+
+Existing `CalculationClient` / Worker protocol остаётся transport boundary.
+
+Добавить higher-level service, который владеет:
+
+```text
+session IDs
+request IDs
+create/refine/continue
+cancel/dispose
+transport error normalization
+module session cleanup
+```
+
+Conceptual API:
+
+```ts
+const session = calculations.create(source, settings);
+await session.refine(significantDigits);
+await session.continue();
+await session.cancel();
+await session.dispose();
+```
+
+Точная API форма не нормативна.
+
+## Worker ownership
+
+Production App должен иметь один shared calculation transport/Worker unless documented evidence proves multiple workers necessary.
+
+Запрещено:
+
+```text
+Units creates its own browser Worker
+Units imports @bigcalc/core directly in UI thread
+Units imports internal src/core modules
+```
+
+## Settings service
+
+Core-backed module должен получать authoritative current evaluation settings:
+
+```text
+angleMode
+factorialMode
+maxCalculationTimeMs
+```
+
+Нужен generic read/subscribe mechanism или equivalent module service.
+
+Изменение relevant setting может инвалидировать/recompute module calculation.
+
+## Concurrency
+
+Проверить independent sessions:
+
+```text
+primary BigCalc session active
+secondary test session active
+```
+
+Operations одной session не должны ломать другую:
+
+```text
+create
+refine
+pause
+continue
+cancel
+dispose
+```
+
+## Lifecycle
+
+Module deactivation/dispose:
+
+```text
+cancel/dispose stale live work
+не persist runtime handles
+не terminate shared Worker needed by App
+```
+
+App lifecycle всё ещё владеет Worker lifetime.
+
+## Tests
+
+Обязательные tests:
+
+```text
+two independent sessions
+unique IDs
+result routing
+cancel isolation
+dispose isolation
+paused continuation
+transport failure
+session cleanup
+settings snapshot
+settings update notification
+module deactivation cleanup
+one production Worker
+```
+
+## Definition of Done — Stage 9
+
+1. Generic module calculation service exists.
+2. Existing Worker protocol reused unless strictly necessary otherwise.
+3. One shared transport/Worker in production.
+4. No direct module Core import.
+5. Independent primary/secondary sessions work.
+6. Cancel/dispose isolated.
+7. Pause/continue supported.
+8. Settings available generically.
+9. Runtime handles remain non-persistent.
+10. Primary BigCalc regression passes.
+11. BMI regression passes.
+12. Stage 10 unblocked.
+
+---
+
+# Stage 10. Pure unit registry, parser and dimensional algebra
+
+## Цель
+
+Реализовать Units domain logic как pure TypeScript без DOM, module registration, Worker, Core execution или persistence.
+
+## Suggested files
+
+```text
+src/app/modules/units/UnitDimensions.ts
+src/app/modules/units/UnitRegistry.ts
+src/app/modules/units/UnitParser.ts
+src/app/modules/units/UnitExpression.ts
+```
+
+Точные filenames не нормативны.
+
+## Dimensions
+
+Seven integer dimensions:
+
+```text
+L, M, T, I, Th, N, J
+```
+
+Pure operations:
+
+```text
+same
+multiply/add
+ divide/subtract
+integer power
+```
+
+## Registry
+
+Каждая linear unit содержит минимум:
+
+```text
+canonical id
+symbol aliases
+name aliases
+dimensions
+exact/symbolic scale
+prefix policy
+```
+
+Affine unit содержит explicit affine transform representation.
+
+Не хранить authoritative scale как JS `number`.
+
+## Normalization
+
+Поддержать documented normalization для:
+
+```text
+case where intended
+ё/е
+spaces
+underscores/hyphens where intended
+μ / µ
+localized names
+symbols
+```
+
+Нельзя сделать normalization настолько агрессивной, чтобы разные valid units становились неразличимыми.
+
+## Prefix parser
+
+Поддержать decimal SI prefixes от йокто до йотта, согласно accepted registry scope.
+
+Resolution precedence должна быть tested и deterministic.
+
+Prefix запрещён для affine units.
+
+## Grammar
+
+Parser поддерживает:
+
+```text
+atom
+(...)
+integer power
+multiplication
+division
+whitespace multiplication
+```
+
+Operators aliases:
+
+```text
+* × ·
+/ ÷
+^
+```
+
+Negative integer powers должны быть либо явно supported, либо явно rejected в Stage 6 spec. Не оставлять behavior случайным.
+
+## Errors
+
+Typed domain errors минимум для:
+
+```text
+empty expression
+unknown unit
+unexpected token
+unclosed parenthesis
+extra parenthesis
+missing exponent
+invalid/non-integer exponent
+affine in product
+affine in quotient
+affine power
+prefix on affine
+ambiguous alias
+```
+
+## Mandatory unit tests
+
+Покрыть минимум:
+
+```text
+m
+м
+метр
+meter
+km
+километр
+μm / µm
+км/ч
+m/s
+Дж/Вт
+кДж*ч/Дж
+(Н*м)/Дж
+санти-ярд/кило-год
+m^2
+m^-2 if supported
+nested parentheses
+whitespace multiplication
+× · ÷ aliases
+unknown unit
+prefix collision
+affine misuse
+all accepted SI prefixes
+representative Russian/English aliases
+exact dimension vectors
+exact compiled scale representation
+```
+
+## No Core yet
+
+Stage 10 не создаёт calculation sessions и не evaluates scale expressions.
+
+## Definition of Done — Stage 10
+
+1. Registry pure.
+2. Parser pure.
+3. Dimension algebra pure.
+4. Scale representation exact/symbolic.
+5. No authoritative JS floating-point factor path.
+6. Prefix precedence deterministic.
+7. Affine restrictions enforced.
+8. Typed domain errors exist.
+9. Prototype accepted examples parse.
+10. Registry ambiguities resolved per Stage 6.
+11. No DOM dependency.
+12. No Worker dependency.
+13. No Core execution dependency.
+14. Unit tests pass.
+15. Full checks pass.
+16. Stage 11 unblocked.
+
+---
+
+# Stage 11. Conversion compiler and Core-backed calculation lifecycle
+
+## Цель
+
+Связать pure unit domain с shared calculation service Stage 9 и получить verified conversion result.
+
+## Conversion compiler
+
+Input:
+
+```text
+value mathematical source
+parsed from unit
+parsed to unit
+```
+
+Output:
+
+```text
+Core mathematical source
+```
+
+Compiler должен безопасно parenthesize embedded value and scale expressions.
+
+## Linear conversion
+
+Conceptually:
+
+```text
+(value) * (fromScale) / (toScale)
+```
+
+Examples:
+
+```text
+1 km/h → m/s
+π km → m
+√2 m → cm
+1 J/W → s
+```
+
+## Affine conversion
+
+Compiler builds exact mathematical transforms through base quantity.
+
+Mandatory examples:
+
+```text
+25 °C → K
+0 K → °C
+32 °F → °C
+212 °F → K
+0 °R → K
+```
+
+No JS `number` arithmetic is authoritative for final result.
+
+## Error layering
+
+До Worker:
+
+```text
+unit syntax errors
+dimension mismatch
+affine misuse
+```
+
+Через Core:
+
+```text
+value syntax error
+unknown mathematical identifier
+math domain error
+division by zero
+precision/resource errors
+```
+
+Transport layer:
+
+```text
+worker crash/protocol/session failures
+```
+
+UI later должен различать эти categories.
+
+## Live calculation controller
+
+Implement module-local controller/model that manages:
+
+```text
+source revision/generation
+create session
+refine
+stale result rejection
+cancel/dispose previous session
+paused result
+continue
+explicit submit
+```
+
+Race invariant:
+
+```text
+old calculation can never overwrite result for newer source
+```
+
+## Precision
+
+Initial result precision должна быть достаточной для initial NumberViewport.
+
+Additional digits запрашиваются demand-driven через viewport/refinement integration, а не заранее огромным fixed request.
+
+## `=` behavior
+
+Для Units math target:
+
+```text
+current complete → explicit refresh/confirm current source
+current paused   → continue
+current failed   → retry current source where meaningful
+```
+
+Не создавать History entry.
+
+## Factor metadata
+
+Если UI показывает linear conversion factor, он создаётся из exact scale expressions и evaluated через same verified calculation infrastructure или derived exactly in a way that does not downgrade authoritative result.
+
+## Tests
+
+Mandatory:
+
+```text
+1 km/h → 1/3.6 m/s equivalent verified result
+π km → m
+√2 m → cm
+J/W → s
+compound dimensions
+dimension mismatch
+value syntax error
+Core domain error
+affine cases
+stale race
+rapid input changes
+cancel old session
+paused/continue
+explicit submit
+module deactivation cleanup
+no history mutation
+one Worker
+```
+
+## Definition of Done — Stage 11
+
+1. Conversion compiler deterministic.
+2. Value expression passes through Core.
+3. Scale arithmetic passes through exact/Core-compatible representation.
+4. Verified result produced.
+5. Dimension mismatch never enters Worker.
+6. Affine conversions verified.
+7. Stale result races impossible/tested.
+8. Pause/continue works.
+9. Explicit submit works.
+10. No primary History mutation.
+11. Shared Worker used.
+12. Full regression passes.
+13. Stage 12 unblocked.
+
+---
+
+# Stage 12. Units state, persistence and module definition
+
+## Цель
+
+Создать production module definition и persistence contract без production registration.
+
+## State
+
+Source of truth:
+
+```ts
+interface UnitsState {
+  readonly valueSource: string;
+  readonly fromUnitText: string;
+  readonly toUnitText: string;
+}
+```
+
+Recommended defaults:
+
+```text
+valueSource = "1"
+fromUnitText = "км/ч"
+toUnitText = "м/с"
+```
+
+Если Stage 6 принимает другие defaults, follow spec.
+
+## Fields
+
+Expected descriptors:
+
+```text
+value     input   Значение      math-expression
+fromUnit  input   Из единиц     text
+toUnit    input   В единицы     text
+result    output  Результат
+```
+
+Optional metadata outputs могут быть добавлены только если действительно нужны public field descriptors.
+
+## Persistence
+
+```text
+moduleId = units
+revision = 1
+```
+
+Persistent DTO:
+
+```ts
+interface PersistedUnitsStateV1 {
+  readonly valueSource: string;
+  readonly fromUnitText: string;
+  readonly toUnitText: string;
+}
+```
+
+Deserialize malformed data → safe defaults.
+
+Derived/runtime state не persist.
+
+## Expression reconstruction
+
+После restore `valueSource` заново парсится в `ExpressionModel`/editor representation через existing supported editor parsing path.
+
+Не сериализовать internal editor tokens напрямую без отдельного persistence decision.
+
+## Tests
+
+Mandatory:
+
+```text
+default state
+serialize exact source strings
+restore
+malformed DTO
+unknown revision
+foreign derived properties ignored
+module switch retention
+host recreation
+future app schema protection
+BMI record preservation
+calculation/session not persisted
+```
+
+## Definition of Done — Stage 12
+
+1. Module id/title fixed.
+2. Field descriptors correct.
+3. Input kinds declared generically.
+4. State source-only.
+5. Persistence revision 1.
+6. Runtime calculation state excluded.
+7. Restore reconstructs derived editor/calculation state.
+8. BMI state unaffected.
+9. Host tests pass.
+10. Units still not production-registered.
+11. Stage 13 unblocked.
+
+---
+
+# Stage 13. Units production view
+
+## Цель
+
+Реализовать production Units screen внутри existing module surface, используя generic services Stages 7–9.
+
+## View structure
+
+Recommended mobile structure:
+
+```text
+Значение
+[ ExpressionEditor ]
+
+Из единиц
+[ native text input ]
+
+[ Поменять местами ]
+
+В единицы
+[ native text input ]
+
+Результат
+[ NumberViewport ]
+[ from → to / factor metadata ]
+
+[ Очистить ] [ Скопировать ]
+
+Быстрые примеры
+Приставки
+Единицы
+```
+
+Shared TopBar уже показывает `Единицы`; duplicate internal h1 не нужен.
+
+## Math field
+
+`Значение` использует real `ExpressionEditor`.
+
+Requirements:
+
+```text
+π/e/√/functions from shared keyboard
+atomic identifiers
+selection/caret behavior
+software IME suppression on Android
+no Ans in Units v1
+```
+
+Editor visual style может быть адаптирован к form card, но core editing semantics не копируются вручную.
+
+## Unit fields
+
+`Из единиц` и `В единицы`:
+
+```text
+type=text
+native IME
+programmatic labels
+autocomplete off
+spellcheck false
+```
+
+Не мешать composition/native selection.
+
+## Active field chips
+
+Quick unit/prefix buttons вставляют text в последнее active unit field с сохранением selection/caret.
+
+Если ни одно unit field ещё не было active, использовать documented default target (`fromUnit` recommended).
+
+После chip insertion conversion обновляется.
+
+## Swap
+
+Swap меняет только:
+
+```text
+fromUnitText ↔ toUnitText
+```
+
+`valueSource` не меняется.
+
+После swap result пересчитывается.
+
+## Clear
+
+Нужно явно различить:
+
+```text
+keyboard AC → clear active math expression target
+screen Очистить → reset whole Units form
+```
+
+Не смешивать эти semantics.
+
+## Copy
+
+Copy result использует current verified display/result serialization и target unit context.
+
+Нельзя копировать stale/invalid result.
+
+Feedback accessible и временный, без изменения button width/layout where practical.
+
+## Result
+
+Use `NumberViewport`.
+
+Need accessible output combining:
+
+```text
+verified number
+target unit
+conversion context
+```
+
+Number scrolling/refinement не должен открывать History.
+
+## Errors
+
+Separate user-facing zones for:
+
+```text
+value/Core error
+from unit error
+to unit error
+dimension mismatch
+calculation/transport error
+```
+
+Empty/incomplete editing states не должны агрессивно показывать stale errors/results.
+
+## Examples
+
+Prototype quick examples можно адаптировать:
+
+```text
+км/ч → м/с
+Дж/Вт → с
+кДж*ч/Дж → с
+санти-ярд/кило-год → м/с
+°C → K
+bar → Pa
+```
+
+Example sets all relevant fields and recalculates.
+
+## Prefix/unit catalog
+
+Сохранить discoverability prototype, но mobile layout может использовать:
+
+```text
+wrapping chips
+collapsible groups
+scrollable module surface
+```
+
+Не создавать horizontal page overflow.
+
+## Appearance
+
+Use only semantic `--bc-*` tokens.
+
+Representative:
+
+```text
+dark/lavender
+light/blue
+dark/liquid-glass
+light/liquid-glass
+```
+
+Liquid Glass effects добавлять через generic/shared selectors where appropriate.
+
+## Display size
+
+Stage 6 должен определить, применяется ли global `displaySize` к Units `NumberViewport`.
+
+Recommended:
+
+```text
+result NumberViewport follows existing result typography semantics
+form fields/chips remain stable
+```
+
+Но implementation следует accepted spec.
+
+## Browser matrix
+
+```text
+360×640
+360×800
+390×844
+412×915
+768×1024
+```
+
+Проверять два состояния:
+
+```text
+math keyboard visible
+math keyboard hidden/native-field layout
+```
+
+и expanded keyboard.
+
+## Definition of Done — Stage 13
+
+1. Production view exists.
+2. Math field uses ExpressionEditor.
+3. Unit fields native.
+4. Shared keyboard targets math field.
+5. Native input hides shared keyboard.
+6. No second CalculatorKeyboard.
+7. NumberViewport used for result.
+8. Swap works.
+9. Whole-form clear works.
+10. Copy works.
+11. Quick examples work.
+12. Prefix/unit insertion respects selection.
+13. Errors mapped correctly.
+14. Accessible labels/result/focus.
+15. Appearance tokens inherited.
+16. Portrait matrix passes.
+17. Stage 14 unblocked.
+
+---
+
+# Stage 14. Production registration and full browser integration
+
+## Цель
+
+Зарегистрировать Units через standard `installedModules` path и доказать работу всего production flow без module-specific AppShell branches.
+
+## Registration
+
+Expected drawer order:
+
+```text
+BigCalc
+ИМТ
+Единицы
+```
+
+Production registration only through `installedModules.ts`.
+
+## Forbidden special cases
+
+Не добавлять Units-specific branch в:
+
+```text
+main.ts
+NavigationController
+CalculatorModuleHost
+CalculatorModuleSurface
+shared persistence repository
+```
+
+Generic services from Stages 7–9 могут использовать module identity only through normal registration/runtime handles, not hard-coded `units` checks.
+
+## Core integration checks
+
+Production page verifies:
+
+```text
+one Worker transport
+primary BigCalc still calculates
+Units starts independent session
+Units result routed correctly
+primary session/history unaffected
+```
+
+## Keyboard ↔ native input integration
+
+Production sequence:
+
+```text
+open Единицы
+focus Значение
+→ shared BigCalc keyboard visible
+→ π inserts into Units editor
+→ √ inserts
+→ functions/operators insert
+
+focus Из единиц
+→ shared keyboard hidden
+→ native textbox focused
+
+focus В единицы
+→ remains native mode
+
+focus Значение again
+→ shared keyboard returns
+```
+
+Browser can assert focus/layout/inputMode. Real Android IME belongs to Stage 15.
+
+## Mathematical settings
+
+Representative recalculation:
+
+```text
+sin(30)
+```
+
+Switch degrees/radians through real Settings or keyboard mode control and verify Units recalculates according to authoritative global settings.
+
+Factorial mode likewise with representative expression where behavior differs.
+
+## Module switching
+
+Verify:
+
+```text
+BigCalc ↔ Units
+BMI ↔ Units
+```
+
+Each module retains its own source state.
+
+Primary:
+
+```text
+expression
+result
+Ans
+History
+```
+
+must remain intact.
+
+## Persistence/restart
+
+Production browser context/reload verifies:
+
+```text
+valueSource
+fromUnitText
+toUnitText
+```
+
+restore and derived result recomputation.
+
+No calculation runtime in storage.
+
+## Navigation
+
+Verify:
+
+```text
+Drawer
+Settings
+About
+browser Back/Forward
+module stack
+```
+
+with both math and native field state.
+
+## Appearance
+
+Representative screenshots:
+
+```text
+dark lavender / math keyboard
+light blue / native field layout
+dark Liquid Glass / math keyboard
+light Liquid Glass / native field layout
+```
+
+Also verify expanded keyboard layout.
+
+## Regression
+
+Full:
+
+```text
+npm run check
+npm run check:app
+npm run build:app
+npm run android:build:debug
+git diff --check
+```
+
+## Definition of Done — Stage 14
+
+1. Units appears through installedModules.
+2. Drawer order correct.
+3. No special AppShell branch.
+4. Shared keyboard edits Units value.
+5. Native fields hide shared keyboard.
+6. One Worker used.
+7. Core-backed results correct.
+8. Global math settings affect Units correctly.
+9. Primary state/history preserved.
+10. BMI state preserved.
+11. Units state survives switching.
+12. Units source survives restart.
+13. Result re-derived after restart.
+14. No Units History.
+15. Appearance integration passes.
+16. Portrait/browser matrix passes.
+17. Full regression/build passes.
+18. Stage 15 unblocked.
+
+---
+
+# Stage 15. Android acceptance, documentation and Units milestone closure
+
+## Цель
+
+Проверить mixed input architecture на physical Android, закрыть Units milestone и зафиксировать reusable architecture для следующих Core-backed calculators.
+
+## Android automation
+
+Добавить:
+
+```text
+npm run test:android:units
+```
+
+Script должен использовать current debug APK и connected physical device.
+
+Желательно иметь optional combined regression mode similar to BMI, с storage snapshot/restore.
+
+## Physical input-mode checks
+
+### Math field
+
+```text
+open Units
+tap Значение
+→ field focused
+→ Android software IME does NOT open
+→ shared BigCalc keyboard visible
+```
+
+Нативно/через app keyboard проверить insertion:
+
+```text
+π
+e
+√
+function
+operator
+digit
+backspace
+```
+
+### Unit text fields
+
+```text
+tap Из единиц
+→ shared BigCalc keyboard hidden
+→ Android IME opens
+→ native trusted text input works
+
+tap В единицы
+→ Android IME remains usable
+```
+
+### Return to math field
+
+```text
+tap Значение
+→ native IME closes
+→ shared BigCalc keyboard returns
+→ existing mathematical source preserved
+```
+
+## NativeInputLayout regression
+
+Повторить Stage 5 geometry guarantees для native unit fields:
+
+```text
+TopBar geometry stable
+button geometry stable
+Liquid Glass wallpaper stable
+module surface resizes/scrolls
+page scrollY remains controlled
+no horizontal overflow
+```
+
+Особенно проверить transitions:
+
+```text
+math → native
+native → math
+native field A → native field B
+IME Back
+Android Back with overlays
+```
+
+## Physical calculation matrix
+
+Минимум:
+
+```text
+1 км/ч → м/с
+π км → м
+√2 м → см
+1 Дж/Вт → с
+1 кДж*ч/Дж → с
+25 °C → K
+32 °F → °C
+1 bar → Pa
+```
+
+Error cases:
+
+```text
+unknown unit
+dimension mismatch
+affine misuse
+invalid mathematical expression
+```
+
+## Core/Worker evidence
+
+Record that Units editing/calculation:
+
+```text
+uses shared Worker
+creates independent calculation session
+produces Worker commands when calculation needed
+never creates second Worker
+```
+
+BMI remains no-Core and should continue generating zero Worker calculation commands for BMI edits.
+
+## Switching
+
+Physical:
+
+```text
+BigCalc → Units → BMI → Units → BigCalc
+```
+
+Verify all source states retained and primary History unchanged by Units.
+
+## Restart
+
+```text
+enter Units sources
+force-stop
+reopen App
+open Units
+→ three source strings restored
+→ result recomputed through fresh session
+→ no old runtime handle/session restored
+```
+
+## Appearance
+
+Physical minimum:
+
+```text
+dark normal
+light normal
+dark Liquid Glass
+light Liquid Glass
+```
+
+For at least Liquid Glass and one normal palette capture/check both:
+
+```text
+math keyboard visible
+Android IME visible
+```
+
+## Full closure gate
+
+Run:
+
+```text
+npm run check
+npm run check:app
+npm run build:app
+npm run android:build:debug
+npm run test:android:smoke
+npm run test:android:lifecycle
+npm run test:android:stage34
+npm run test:android:bmi
+npm run test:android:units
+git diff --check
+```
+
+If a combined storage-guard acceptance command is introduced, record exact command and individual included suites.
+
+## Documentation
+
+Update:
+
+```text
+docs/CALCULATOR_MODULES.md
+UI_SPEC.md
+DESIGN_SPEC.md
+README.md
+CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md
+```
+
+Update About only after Units actually ships so it is described as existing functionality.
+
+Create:
+
+```text
+docs/UNITS_CALCULATOR_VERIFICATION.md
+```
+
+Record:
+
+```text
+entry/final commits
+test counts
+unit parser coverage
+registry decisions
+conversion cases
+Core/Worker session evidence
+Worker count
+browser matrix
+Android device/WebView/IME
+math keyboard ↔ native IME transitions
+NativeInputLayout geometry
+appearance screenshots
+persistence/restart
+APK size/SHA-256
+known limitations
+```
+
+## Definition of Done — Stage 15
+
+1. Units works on physical Android.
+2. Math field suppresses Android IME.
+3. Shared BigCalc keyboard edits Units expression.
+4. π is enterable without system keyboard support.
+5. Native unit fields open Android IME.
+6. Shared keyboard hides for native fields.
+7. Native → math transition closes IME and restores keyboard.
+8. NativeInputLayout geometry preserved.
+9. Linear conversions verified.
+10. Compound units verified.
+11. Core mathematical expressions verified.
+12. Affine temperature conversions verified.
+13. Unit errors verified.
+14. Core errors verified.
+15. One shared Worker confirmed.
+16. No direct module Core bypass.
+17. BigCalc state/history preserved.
+18. BMI behavior preserved.
+19. Units persistence/restart verified.
+20. No runtime session persisted.
+21. Theme/palette physical checks pass.
+22. Liquid Glass mixed-input checks pass.
+23. Full Core/App regression passes.
+24. Android existing regression suites pass.
+25. Units Android acceptance passes.
+26. Docs updated.
+27. Verification report created.
+28. About/README reflect shipped calculator.
+29. Mixed input architecture is production-proven.
+30. Core-backed module calculation architecture is production-proven.
+31. Units milestone closed.
+32. Next bundled calculator stage can begin.
+
+---
+
+# 13. Overall Units Definition of Done
+
+User can:
+
+```text
+open Drawer
+→ choose Единицы
+→ enter mathematical value with BigCalc keyboard
+→ use π/e/√/functions without Android keyboard
+→ enter source/target units with Android keyboard
+→ swap units
+→ see verified Core-backed result
+→ scroll/refine long result
+→ copy result
+→ use quick examples/unit chips
+→ switch calculators without losing source
+→ restart App and restore source
+→ use themes/palettes including Liquid Glass
+```
+
+Architecture remains clean if:
+
+```text
+Units registered through installedModules
+AppShell does not know Units semantics
+NavigationController does not know Units
+CalculatorModuleHost does not know Units
+module does not own keyboard layout
+shared keyboard has generic active math target
+native fields use generic input coordination
+module calculations use generic shared service
+one application Worker transport remains authoritative
+Core does not know unit identifiers
+unit parser remains module-local
+BigCalc alone owns History
+```
+
+---
+
+# 14. Out of scope for Units v1
+
+Unless Stage 6 explicitly changes scope:
+
+```text
+hybrid Android + BigCalc keyboard on one field
+Ans semantics in secondary calculators
+user-defined units
+custom user aliases
+custom prefixes
+currency conversion
+live exchange rates
+calendar-aware month/year arithmetic
+locale-dependent physical standards
+uncertainty propagation
+unit history
+favorites sync
+cloud unit registry
+plugin-defined units
+conversion graph visualization
+automatic natural-language quantity parsing
+implicit physical constants
+complex-valued unit quantities
+fractional dimension exponents
+custom module keyboard layout
+```
+
+`month`/`year` definitions, if included at all, must use explicitly documented fixed conversion semantics rather than calendar context.
+
+---
+
+# 15. Codex task rule for Stage 6+
+
+Отдавать Codex только один stage за задачу:
+
+```text
+Реализуй только Stage N из CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md.
+Не начинай Stage N+1.
+```
+
+Каждый stage заканчивается отчётом:
+
+```text
+Entry HEAD
+Что изменено
+Какие файлы изменены
+Какие tests добавлены/изменены
+Какие команды запущены
+Что прошло
+Что не прошло
+Есть ли architecture/spec conflict
+Есть ли изменение frozen boundary
+Следующий допустимый stage
+```
+
+Если stage требует изменить frozen module/application boundary:
+
+```text
+не делать hidden calculator-specific workaround
+остановиться на generic contract design
+документировать deficiency
+делать только additive backward-compatible change where possible
+добавить ADR/decision и regression tests
+```
+
+Если для Units возникает необходимость:
+
+```text
+создать второй production Worker
+импортировать Core напрямую в module UI
+добавить if (moduleId === "units") в AppShell/navigation/Host/Surface
+дать module собственный CalculatorKeyboard layout
+```
+
+это считается architecture conflict и требует остановки stage и отдельного решения, а не скрытого обхода.

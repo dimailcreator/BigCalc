@@ -1654,6 +1654,97 @@ Default input texts пусты, результат отсутствует. Switc
 
 ---
 
+## 43.6. Единицы — второй secondary bundled calculator
+
+Units v1: `id = units`, `title = Единицы`. Это product contract для Stages 6–15 [calculator modules plan](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md), а не утверждение о текущей production registration. BigCalc остаётся первым/primary, ИМТ вторым; Единицы добавляются третьим только на Stage 14. History принадлежит только BigCalc.
+
+### 43.6.1. Source fields и input kinds
+
+| Field ID   | Role   | Label     | Input kind        |
+| ---------- | ------ | --------- | ----------------- |
+| `value`    | input  | Значение  | `math-expression` |
+| `fromUnit` | input  | Из единиц | `text`            |
+| `toUnit`   | input  | В единицы | `text`            |
+| `result`   | output | Результат | —                 |
+
+Defaults: `valueSource = "1"`, `fromUnitText = "км/ч"`, `toUnitText = "м/с"`. Поле Значение использует существующие `ExpressionModel` / `ExpressionEditor`, atomic identifiers и mathematical syntax Core: например `1/3`, `π/2`, `√2`, `2^100`, `sin(30)`. Units не определяет альтернативную grammar значения. `Ans` и вставка history references явно исключены: typed/pasted `Ans` и структурированные reference tokens отвергаются с понятной ошибкой до compilation; displayed decimal не подставляется вместо них.
+
+Unit fields — native HTML text inputs: `type="text"`, `inputMode="text"`, `autocomplete="off"`, `spellcheck=false`, visible/programmatic labels и связанные descriptions/errors. Их исходные строки не переписываются на каждом keypress; parsing normalization не меняет отображённый текст, cursor или selection. Unit fields принимают русские/английские имена и symbols из audited registry.
+
+### 43.6.2. Shared keyboard и focus
+
+Input mode определяется активным field, а не module целиком. Application владеет одной `CalculatorKeyboard`, её layout, mode controls и expansion state; Units сообщает editing target через generic input service, без копии keyboard DOM или своего layout.
+
+| Active field / screen | Mathematical target | Shared keyboard | Android software IME |
+| --------------------- | ------------------- | --------------- | -------------------- |
+| BigCalc expression    | Primary editor      | Visible         | Suppressed           |
+| Units / Значение      | Units editor        | Visible         | Suppressed           |
+| Units / Из единиц     | None                | Hidden          | Allowed              |
+| Units / В единицы     | None                | Hidden          | Allowed              |
+| ИМТ native field      | None                | Hidden          | Allowed              |
+
+При выборе math field native input теряет focus, editor использует `inputMode="none"`; при выборе text field math target деактивируется. Открытие Drawer/Settings/About, switching, background и dispose приостанавливают input routing и backspace hold. Закрытие overlay может восстановить доступный target, но не focus скрытого/disposed editor и не подавить IME Settings. Back следует существующей navigation/IME policy, без Units-specific перехода в BigCalc. In-memory target choice не сохраняется после restart; стартовый Units target — Значение, без автоматического открытия IME.
+
+Global angle/factorial controls меняют authoritative mathematical settings приложения. `AC` и `=` направляются только текущему math target; `AC` очищает value expression, сохраняя unit texts. Target switch не меняет keyboard expansion и не доставляет delayed pointer-up или autorepeat старому editor. Обычный native Tab/focus и touch navigation сохраняются.
+
+### 43.6.3. Unit-expression grammar
+
+Unit grammar является module-local и не передаётся Core. Precedence: скобки/atom → одна integer power → multiplication/division слева направо. Whitespace между соседними factors означает multiplication; whitespace около явных operators/скобок/степени — только separation. `м с` означает `м*с`, `м / с` означает `м/с`; слитное `мс` означает один registry/prefix token, а не `м*с`.
+
+```text
+expression = factor { ("*" | "×" | "·" | "/" | "÷" | whitespace) factor }
+factor     = atom [ "^" signedInteger ]
+atom       = unitToken | "1" | "(" expression ")"
+signedInteger = [ "+" | "-" ] digit { digit }
+```
+
+Поддерживаются zero, positive и negative integer powers (`м^0`, `с^-2`, `м^+2`). Степень — decimal integer token, не expression и не JavaScript numeric coercion: `м^1.5`, `м^1e2`, `м^(2)`, `м^2^3` отвергаются. Implicit multiplication разрешена только с whitespace, не как `м(с)` или `(м)(с)`. Числовые factors кроме literal `1`, сложение/вычитание units, функции, fractional powers и compound prefixes не поддерживаются. Пустой input или незавершённый operator/скобка/степень не показывает прежний result как актуальный; завершённая invalid syntax получает field-local error с source range.
+
+Dimensions — exact integer vector в порядке `L, M, T, I, Th, N, J` (length, mass, time, electric current, thermodynamic temperature, amount of substance, luminous intensity). Multiplication складывает exponents, division вычитает, power умножает на signed integer. Implementation использует `bigint` либо checked exact integer arithmetic без overflow; conversion допускается только при совпадении всех семи компонентов. Plane/solid angles dimensionless; semantic distinctions вроде Hz/Bq и Gy/Sv не вводят дополнительные dimensions в v1.
+
+### 43.6.4. Registry, aliases и prefixes
+
+Полный prototype inventory, conventional definitions и unresolved entries записаны в [Units registry audit](docs/UNITS_REGISTRY_AUDIT.md). Нестандартные/спорные entries не реализуются до явного решения; отсутствие решения не блокирует generic keyboard Stage 7.
+
+Unit token сначала Unicode NFC-normalized. Symbols case-sensitive, без смешения Latin/Cyrillic glyphs; `µ` и `μ` эквивалентны для micro prefix. Whole direct symbol имеет приоритет над whole normalized name; затем разрешается ровно один prefix + symbol или prefix + normalized name. Имена case-insensitive, `ё → е`, допускают внутренний hyphen/underscore и alias punctuation, явно перечисленную registry; operators, parentheses, whitespace и degree sign не удаляются из expression. Multiword names задаются слитным/hyphenated alias (`морскаямиля`, `морская-миля`), поскольку пробел умножает factors.
+
+Prefix symbols сохраняют case, normalized prefix names — нет. На prefix tier выбирается longest valid prefix, а не первый элемент массива; несколько различных resolutions на одном tier являются ambiguity error. Registry при создании проверяет unique canonical IDs и collisions normalized aliases; одинаковый alias одной единицы допустим, silent overwrite между разными единицами запрещён. Direct `min` — minute, `h` — hour, `T` — tesla; `См` — siemens, `см` — centimetre, `Гр` — gray, `гр` — degree alias. Exact direct `kg`/`кг` и `kcal`/`ккал` сохраняют согласованное с prefix expansion значение.
+
+V1 prefix set — 20 prototype SI decimal prefixes от йокто (`10^-24`) до йотта (`10^24`), включая дека/гекто/деци/санти, с точными powers of ten и audited aliases. Binary prefixes и четыре более новые SI prefixes вне этого v1 set. Prefix всегда требует unit remainder; повторный prefix запрещён, в том числе prefix к уже-prefixed kilogram/kilocalorie. Для mass prefixes применяются к gram. Linear units допускают один prefix по registry declaration; temperature policy ниже строже.
+
+### 43.6.5. Exact scales и affine temperature
+
+Authoritative scale/offset — exact rational/symbolic representation, детерминированно компилируемая в Core source. `number`, `Math.PI` и prototype-rounded decimals не являются authoritative conversion factors. Например foot `381/1250`, inch `127/5000`, yard `1143/1250`, degree `π/180`. Names/aliases/dimensions никогда не попадают в Core source; compiler работает с разрешёнными typed nodes, а не вставляет raw unit text.
+
+Linear compilation: `(value) * (fromScale) / (toScale)`. Для temperature base — kelvin; одиночные `K`/`К` linear scale 1, `°C`, `°F`, `°R` обрабатываются как affine entries, включая zero-offset Rankine:
+
+| Unit | To kelvin               | From kelvin           |
+| ---- | ----------------------- | --------------------- |
+| K    | `x`                     | `x`                   |
+| °C   | `x + 27315/100`         | `x - 27315/100`       |
+| °F   | `(x + 45967/100) * 5/9` | `x * 9/5 - 45967/100` |
+| °R   | `x * 5/9`               | `x * 9/5`             |
+
+Affine atom допускает только standalone expression с необязательными группирующими скобками: `(°C)` valid, но `°C*1`, `°C/°C`, `°C^1`, `°C^0`, `к°C` invalid. Все четыре standalone temperature units не получают prefixes в v1; linear `K` может участвовать в обычных compound units и integer powers. Если хотя бы одна сторона affine, другая обязана быть одиночной temperature unit `K`, `°C`, `°F` или `°R`, а не dimension-equivalent compound `K*м/м`. Delta-temperature syntax/units отсутствуют. Отрицательный source принимается как математическое значение; отдельный physical absolute-zero validation limit не вводится.
+
+### 43.6.6. Live calculation, result и settings
+
+Изменение любого из трёх source fields немедленно инвалидирует result и parse/compile diagnostics прежнего source revision; короткий debounce допускается как в existing live calculation. Empty/incomplete input не показывает агрессивную error и не запускает неподходящее вычисление. Unit syntax, unknown/ambiguous unit, forbidden affine operation и dimension mismatch — module errors; Core mathematical error и Worker/protocol failure сохраняют свои отдельные категории.
+
+Units получает generic calculation/settings services приложения; используется тот же production `CalculationClient`/Worker, без прямого Core import в module UI. Module владеет своим live controller/source revision; application service выдаёт globally unique session/request IDs и изолирует cleanup. Изменение value/from/to или angleMode/factorialMode/maxCalculationTimeMs создаёт новую session и отменяет/утилизирует stale work. Appearance/inertia/displaySize/focus не создают mathematical session. Deactivation прекращает module work; возвращение recomputes from source, не использует чужой handle. Shared Worker живёт до App disposal.
+
+Authoritative output — `VerifiedNumberDto` в существующем `NumberViewport`, с demand-driven догрузкой verified digits и теми же форматами, zero/exactness semantics и viewport gestures; fixed 12-decimal formatting отсутствует. Accessible result связывает verified number, target unit и conversion context. Global `displaySize` применяется к Units mathematical expression и `NumberViewport`; обычные labels/native inputs/reference chips не масштабируются вместе с numeric displays.
+
+`=` явно продолжает/подтверждает текущую Units session согласно общим timeout rules (§§11–14), но не создаёт primary History entry, не заменяет value на `Ans`/displayed result и не меняет primary expression. Первый live timeout скрыт и сохраняет handle; повторный timeout после explicit `=` показывает shared timeout interaction, `Продолжить` продолжает ту же session, `Отменить` freezes без необратимого Core cancel. Дополнительные digits автоматически продолжаются после timeout. При source/settings change или deactivation frozen handle утилизируется. Metadata `from → to` может показываться; affine marker текстовый. Numeric factor, если показан, вычисляется через отдельную изолированную Core-backed session из тех же exact scales, без `number` fallback.
+
+### 43.6.7. Secondary actions и persistence
+
+Swap атомарно меняет только from/to source strings, сохраняя value expression, и запускает ровно один новый pipeline. Clear action очищает unit fields и возвращает value к `1`, сбрасывает diagnostics/result; это отдельная action от keyboard `AC`. Copy доступна только для текущего verified output, копирует displayed value с target unit text как presentation, не как точное значение следующего расчёта. Быстрый пример атомарно задаёт все три source strings, не трогает primary state/history. Unit/prefix chips вставляют текст в последний выбранный Units unit-text field с сохранением selection; при отсутствии такого выбора — Из единиц, не в math editor. Examples и reference controls не открывают IME автоматически.
+
+Switching сохраняет source states BigCalc/ИМТ/Units независимо. Restart использует source-only persistence §44.2; selection/focus/active field/result не восстанавливаются. Layout и appearance — DESIGN_SPEC §50. Units не добавляет history, custom keyboard, пользовательские units, currency/rates, CAS, unit grammar в Core или новый numeric backend.
+
+---
+
 # 44. Persistence дополнительных calculators
 
 Persistently сохраняются только те части состояния calculator module, которые сам module объявил сохраняемыми.
@@ -1669,6 +1760,14 @@ BMI использует существующий `CalculatorStateRepository`, �
 Persistent source of truth — только строки `heightText` и `weightText`. Parsed values, raw/formatted BMI, category и validation являются derived state; focus/selection, DOM references и runtime handles также не сохраняются. После restore число и категория пересчитываются из input texts.
 
 Malformed persisted data и unknown module revision безопасно дают defaults через существующий repository/host contract; данные других modules и future-schema protection сохраняются. Active calculator не обязан persist'иться: после restart приложение может открыться на BigCalc, но при переходе в ИМТ восстанавливаются BMI inputs и пересчитывается result/category.
+
+---
+
+## 44.2. Persistent Units state v1
+
+Units использует existing `CalculatorStateRepository` / `bigcalc.app.calculator-state.v1`: `moduleId = units`, `revision = 1`, без изменения application document schema. Persistent DTO содержит ровно `valueSource`, `fromUnitText`, `toUnitText` как исходные строки; defaults заданы в §43.6.1. При restore mathematical source реконструируется через existing editor parsing path, unit parsing/calculation выполняются заново.
+
+Parsed AST, dimensions/scales, compiled Core source, errors/results/VerifiedNumber, viewport position, structured editor tokens, selection/focus/active field, session/request IDs и Worker handles не persist'ятся. Malformed DTO/unknown module revision дают safe defaults; дополнительные derived fields игнорируются. Данные BigCalc/ИМТ/других modules и future-schema protection сохраняются; active module после restart может быть BigCalc.
 
 ---
 

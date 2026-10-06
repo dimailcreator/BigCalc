@@ -51,6 +51,7 @@ export class BmiCalculatorView implements CalculatorModuleView {
     label.textContent = "ИМТ";
     this.#number.className = "bmi-result-number";
     this.#category.className = "bmi-result-category";
+    this.#category.setAttribute("role", "group");
     this.#message.className = "bmi-result-message";
     result.append(label, this.#number, this.#category, this.#message);
     content.append(result);

@@ -26,3 +26,7 @@ Stage 26 freezes the first application contracts after the complete browser and 
 ## Verification
 
 The next-module criterion is exercised by `tests/app/modules/CalculatorModuleHost.test.ts` (registration, navigation, in-memory state, restart restoration) and `tests/app/module-framework.spec.js` (screen mounting under the existing shell). The full local gates are `npm run check` and `npm run check:app`. Android device behavior remains covered by the Stage 24 checklist; this architecture freeze adds no new device interaction.
+
+## Calculator Modules Stage 6 extension direction
+
+BMI established the existing native-input/module-local calculation path. Units additionally requires a replaceable mathematical keyboard target and generic module calculation/settings services, which the current runtime contract does not provide. The [Stage 6 ADR](decisions/ADR-APP-MODULE-INPUT-AND-CALCULATION-SERVICES.md) accepts additive, backward-compatible application extensions for Stages 7–9 with explicit regression obligations. Stage 6 documents this direction only: the frozen runtime contracts, Core API, Worker DTOs and persistence schema remain unchanged.

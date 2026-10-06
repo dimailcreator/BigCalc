@@ -2277,3 +2277,39 @@ Browser coverage проверяет наследование tokens; representat
 Production BMI view и representative browser screenshots проверяются вместе с physical Android form/IME и четырьмя appearance states из §49.4. Device/WebView, screenshots, Back, persistence и результаты checks записываются в [BMI verification report](docs/BMI_CALCULATOR_VERIFICATION.md). Visual acceptance не вводит новых tokens, palettes, layout modes или BMI-specific navigation.
 
 Follow-up evidence включает сравнение shared TopBar и Liquid Glass wallpaper до/при/после native IME resize, а также достижимость fields/result обычными native swipes. Generic Android layout correction и regression coverage описаны в том же report.
+
+---
+
+# 50. Единицы — portrait secondary calculator
+
+Stage 6 фиксирует presentation contract для второго bundled calculator (`units`, `Единицы`). Production view/registration реализуются позже по [calculator modules plan](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md). Input, grammar, conversion, actions и persistence semantics заданы в UI_SPEC §§43.6/44.2; desktop `calc.html` остаётся reference, без переноса его двухколоночной architecture.
+
+## 50.1. Shared shell и field-dependent layout
+
+Shared TopBar показывает `Единицы`, Drawer/Settings/About/Back используют общий shell. History button скрыт при любом secondary module. Units не создаёт собственный TopBar, keyboard DOM/layout, bottom navigation или landscape composition.
+
+Одна vertical scrollable module surface содержит: Значение → Из единиц → Swap → В единицы → Результат → secondary actions → Быстрые примеры → Приставки → Единицы. Native inputs и reference sections не превращаются в grid с горизонтальной прокруткой страницы; unit groups могут быть collapsible, chips переносятся. Descriptions используют существующий label/info interaction, без implementation details в product UI.
+
+Generic secondary layout определяется наличием активного math target. При active math field shared keyboard занимает нижний keyboard track, module surface — оставшееся scrollable пространство между TopBar и keyboard. Keyboard не накладывается на fields/result. При text input/no math target keyboard hidden, module surface заполняет всю доступную высоту под TopBar. Смена состояния не перестраивает/не дублирует keyboard и сохраняет expansion state.
+
+Android native unit inputs используют обычную text IME. Уменьшение WebView height сохраняет shared TopBar/button geometry и wallpaper baseline через generic `NativeInputLayout`, как в Stage 5; реальная module surface уменьшается и прокручивается. Возврат к math field подавляет IME и показывает shared keyboard; release geometry следует actual viewport restoration, а не преждевременному blur. Safe areas, overlays и normal responsive resize сохраняют existing semantics.
+
+## 50.2. Fields, actions и result
+
+Каждый input имеет visible label, доступное имя и focus-visible state; placeholder только пример. Значение использует existing mathematical editor/atomic-token typography; два unit inputs остаются обычными text controls с читаемыми symbols/case. Active field indication не передаётся только цветом и не заменяет programmatic focus. Target indication и chips при необходимости следуют existing surface/control language.
+
+Swap — отдельная доступная button между unit fields, touch target не меньше 44px, с именем `Поменять единицы местами`. Clear/Copy — secondary actions; mandatory `Посчитать` отсутствует. Keyboard `AC` и form Clear имеют разное поведение по UI_SPEC и понятные accessible names. Examples/chips имеют keyboard focus и не имитируют shared mathematical keyboard.
+
+Result label задаёт контекст, `NumberViewport` содержит primary verified number. Ниже может находиться secondary `from → to`, exact Core-backed factor или текст `Affine-конвертация`; нельзя выдавать prototype-rounded factor за точное значение. Unit/module/Core/transport errors представлены читаемым текстом возле field/result, без stale number как актуального результата. Empty/incomplete state нейтральный. Status announcements не озвучивают каждую догруженную цифру как новый полный result.
+
+## 50.3. Appearance и display size
+
+Units использует existing semantic `--bc-*` tokens: surfaces, typography, primary/secondary text, borders, errors, radius и focus. Обе themes и все шесть palettes поддерживаются через global appearance, без Units-specific color tables, category colors или новой theme. Liquid Glass следует existing scoped effects/wallpaper и reduced-transparency/motion fallback; preview scopes не меняют production root.
+
+Global `displaySize` small/medium/large применяется к Units mathematical expression и `NumberViewport` через существующие numeric display tokens. Native unit inputs, labels, error text и reference chips сохраняют обычные control sizes. Display size меняет presentation/visible-slot demand, но не source, parsed units или mathematical settings/session.
+
+## 50.4. Verification direction
+
+Обязательная portrait matrix: `360×640`, `360×800`, `390×844`, `412×915`, `768×1024`. Проверяются compact/expanded keyboard, оба input modes и переходы math ↔ text, внутренний scroll/reachability fields/result, отсутствие horizontal page overflow/keyboard overlap, safe areas, visible focus, touch targets и long unit texts/errors.
+
+Browser и physical Android acceptance должны сравнивать shared chrome/wallpaper до/при/после native IME в обычных и Liquid Glass themes, проверить native swipes, возврат к math IME suppression и overlays/Back/background/restart. `displaySize` проверяется во всех трёх вариантах. Stage 6 не создаёт Units screenshots и не утверждает acceptance несуществующего production screen; BMI evidence остаётся историей Stage 5.
