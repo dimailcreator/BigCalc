@@ -30,3 +30,5 @@ The next-module criterion is exercised by `tests/app/modules/CalculatorModuleHos
 ## Calculator Modules Stage 6 extension direction
 
 BMI established the existing native-input/module-local calculation path. Units additionally requires a replaceable mathematical keyboard target and generic module calculation/settings services, which the current runtime contract does not provide. The [Stage 6 ADR](decisions/ADR-APP-MODULE-INPUT-AND-CALCULATION-SERVICES.md) accepts additive, backward-compatible application extensions for Stages 7–9 with explicit regression obligations. Stage 6 documents this direction only: the frozen runtime contracts, Core API, Worker DTOs and persistence schema remain unchanged.
+
+Stage 7 implements the replaceable keyboard target and press invalidation, preserving the legacy constructor, primary interaction and global controls. [Stage 7 verification](SHARED_KEYBOARD_STAGE7_VERIFICATION.md) records regression and Android evidence. Module runtime/service contracts, navigation/layout coordination, Worker transport and persistence remain at their existing baseline; Stages 8–9 are not implemented by this keyboard change.

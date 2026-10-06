@@ -8,6 +8,8 @@ Normative product behavior: [UI_SPEC §§43.6/44.2](../../UI_SPEC.md), [DESIGN_S
 
 ## Observed deficiencies
 
+These observations describe the Stage 6 entry implementation. Stage 7 addresses item 1 through the replaceable keyboard target; items 2 and the secondary layout constraint remain Stage 8–9 work.
+
 1. `CalculatorKeyboard` permanently captures a concrete `ExpressionEditor` and primary `clear`/`equals` callbacks. In `main.ts`, the callbacks reach the primary `LiveCalculatorController`; `ExpressionEditor.onEnter` is also bound at construction. Reusing this keyboard for another editor currently edits/submits the primary calculator.
 2. `RegisteredCalculatorModule.createRuntime(repository)` receives only persistence; `CalculatorModule.createView(state)` has no mathematical input, evaluation settings or shared calculation service. A Core-backed module cannot create an isolated Worker session through the existing runtime contract.
 
@@ -67,6 +69,8 @@ BMI continues to omit math capability and shared calculation use. Synthetic seco
 - Serializing sessions/targets/compiled source as module state conflates source, derived calculation and UI state.
 
 ## Required verification before implementation closure
+
+Stage 7 implementation uses `CalculatorKeyboardTarget`, `setTarget`/`clearTarget` and keyboard disposal, retaining the legacy constructor overload. Global actions are stored separately from target clear/submit. Invalidated pointer state retains release/click provenance without retaining the detached editor; repeat stops before replacement. Primary Enter and `=` share the target submit action. Coverage and final gates are tracked in [Stage 7 verification](../SHARED_KEYBOARD_STAGE7_VERIFICATION.md). Scoped input registration/layout and calculation/settings services remain Stage 8–9 work.
 
 Stage 7: primary behavior plus synthetic target replacement/clear, all insertion families, exactly-once pointer events, active backspace hold switch, physical Enter/AC/`=`, focus and expansion, global modes, Android primary IME suppression.
 

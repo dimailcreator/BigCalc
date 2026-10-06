@@ -92,6 +92,7 @@ function coordinatorFor(document: Document): PointerClickCoordinator {
 export class ButtonPressState {
   #pointer: TrackedPointer | null = null;
   #suppressPointerClick = false;
+  #pointerInvalidated = false;
 
   tracks(id: number): boolean {
     return this.#pointer?.id === id;
@@ -101,6 +102,7 @@ export class ButtonPressState {
     if (this.#pointer !== null) return false;
     this.#pointer = { id, x, y };
     this.#suppressPointerClick = false;
+    this.#pointerInvalidated = false;
     return true;
   }
 
@@ -118,7 +120,14 @@ export class ButtonPressState {
     if (!this.tracks(id)) return false;
     this.#pointer = null;
     this.#suppressPointerClick = true;
-    return inside;
+    return inside && !this.#pointerInvalidated;
+  }
+
+  /** Keep tracking release so its compatibility click is consumed even if retargeted. */
+  invalidatePointerPress(): boolean {
+    if (this.#pointer === null || this.#pointerInvalidated) return false;
+    this.#pointerInvalidated = true;
+    return true;
   }
 
   cancel(id: number): boolean {
@@ -149,22 +158,34 @@ export interface ButtonPressOptions {
   readonly onPointerStop?: () => void;
 }
 
+export interface ButtonPressBinding {
+  readonly invalidatePointerPress: () => void;
+}
+
 /** Bind a semantic button without relying on the browser to emit click after a touch hold. */
 export function bindButtonPress(
   button: HTMLButtonElement,
   activate: (origin: "pointer" | "keyboard") => void,
   options: ButtonPressOptions = {}
-): void {
+): ButtonPressBinding {
   const press = new ButtonPressState();
   const coordinator = coordinatorFor(button.ownerDocument);
   button.classList.add("press-control");
+  let pointerStopped = true;
+
+  const stopPointer = (): void => {
+    if (pointerStopped) return;
+    pointerStopped = true;
+    options.onPointerStop?.();
+  };
 
   const stop = (id: number): void => {
-    if (press.cancel(id)) options.onPointerStop?.();
+    if (press.cancel(id)) stopPointer();
   };
   button.addEventListener("pointerdown", (event) => {
     if (!event.isPrimary || event.button !== 0 || button.disabled) return;
     if (!press.begin(event.pointerId, event.clientX, event.clientY)) return;
+    pointerStopped = false;
     try {
       button.setPointerCapture(event.pointerId);
     } catch {
@@ -175,7 +196,7 @@ export function bindButtonPress(
   button.addEventListener("pointermove", (event) => {
     if (press.move(event.pointerId, event.clientX, event.clientY)) {
       coordinator.record(press, event);
-      options.onPointerStop?.();
+      stopPointer();
     }
   });
   button.addEventListener("pointerup", (event) => {
@@ -189,7 +210,7 @@ export function bindButtonPress(
       event.clientY <= bounds.bottom;
     const shouldActivate = press.end(event.pointerId, event.clientX, event.clientY, inside);
     coordinator.record(press, event);
-    options.onPointerStop?.();
+    stopPointer();
     if (shouldActivate && options.activateOnPointerUp !== false) activate("pointer");
   });
   button.addEventListener("pointercancel", (event) => {
@@ -216,4 +237,9 @@ export function bindButtonPress(
   button.addEventListener("contextmenu", (event) => {
     event.preventDefault();
   });
+  return {
+    invalidatePointerPress() {
+      if (press.invalidatePointerPress()) stopPointer();
+    }
+  };
 }

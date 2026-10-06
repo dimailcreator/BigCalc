@@ -1796,6 +1796,18 @@ Stage 7 не добавляет native input switching.
 11. Android primary IME suppression preserved.
 12. Stage 8 unblocked.
 
+## Verification / closure — 2026-10-06
+
+Entry HEAD: `707b409562031565ed948517a0f22505d11f95e5` (`BigCalc CM 6`), clean working tree. Stage 6 dependency and accepted generic input ADR checked; Stage 7 evidence describes the final working tree, without creating a commit.
+
+`CalculatorKeyboardTarget` separates editor/clear/submit from global angle/factorial controls. Keyboard supports `setTarget`, `clearTarget`, null initial target and disposal; legacy constructor remains compatible. Switching releases the old editor and stops its backspace repeat. Target-dependent pointer bindings become inert until release/cancel while retaining compatibility-click provenance, so delayed release cannot edit either detached or replacement target. Expansion, primary insertion semantics, focus/caret/selection and global modes are preserved. Primary Enter and `=` share one target submit action; primary remains the only production target.
+
+Added two press unit regressions and 13 browser cases with two real test-only editors. Sensitivity check with invalidation disabled reproduced incorrect replacement input (`456` → `4567`); restored implementation passed all 13 cases. Existing Stage 27/32R/32S interaction coverage remains green. Full gates passed: `npm run check` (404 Core tests + 14 benchmarks and public API audit), `npm run check:app` (333 unit / 30 files + all 240 browser tests, 9.6min, typechecks/build). Liquid Glass max frame gap was 133.3ms against unchanged 1000ms bound.
+
+Debug APK build/install passed; Samsung SM-A576B / Android 16 / WebView 153.0.8010.36 passed existing Android Stage 27, Stage 32R, WebView smoke and lifecycle harnesses. Primary input retains `inputMode="none"`, focus and suppressed IME through foreground/overlay/restart checks. Final APK JS/CSS assets match production build by SHA-256. This is separate Stage 7 evidence, preserving initial Stage 5 closure, its IME follow-up and Stage 6 baseline.
+
+Formatter/lint, `git diff --check` and boundary/link/scope audit passed. Core/Worker/module/editor contracts, persistence, scripts/package files, styles and Android host are unchanged; no Units production code or module-specific branch added. All 12 Stage 7 DoD items are satisfied; Stage 8 is unblocked and not started. Commands, local log paths, negative-check/tooling observations, artifact hash and complete DoD mapping: [Stage 7 verification](docs/SHARED_KEYBOARD_STAGE7_VERIFICATION.md).
+
 ---
 
 # Stage 8. Generic module input coordination and shared-shell layout

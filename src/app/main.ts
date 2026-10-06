@@ -108,7 +108,7 @@ const editor = new ExpressionEditor({
     }
   },
   onEnter() {
-    controller.evaluateExplicitly();
+    primaryKeyboardTarget.submit();
   }
 });
 editor.attachAnsViewport(expressionOutput.root);
@@ -127,17 +127,20 @@ expressionOutput.root.addEventListener("pointerup", (event) => {
   expressionPointerStart = null;
 });
 display.append(editor.root, resultOutput.root);
-const keyboard = new CalculatorKeyboard(
+const primaryKeyboardTarget = {
   editor,
+  clear(origin: "pointer" | "keyboard") {
+    controller.clear();
+    editor.clear();
+    if (origin === "pointer") editor.focus();
+  },
+  submit() {
+    controller.evaluateExplicitly();
+  }
+};
+const keyboard = new CalculatorKeyboard(
+  primaryKeyboardTarget,
   {
-    clear(origin) {
-      controller.clear();
-      editor.clear();
-      if (origin === "pointer") editor.focus();
-    },
-    equals() {
-      controller.evaluateExplicitly();
-    },
     toggleAngleMode() {
       controller.toggleAngleMode();
       saveSettings();
@@ -418,6 +421,7 @@ const lifecycle = new ApplicationLifecycle(
   },
   () => {
     nativeInputLayout?.dispose();
+    keyboard.dispose();
     editor.dispose();
     settingsScreen.dispose();
     moduleHost.dispose();

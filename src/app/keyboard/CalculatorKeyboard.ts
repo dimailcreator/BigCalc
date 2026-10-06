@@ -1,14 +1,25 @@
 import type { ExpressionEditor } from "../editor/ExpressionEditor.js";
 import { bindButtonPress } from "../interaction/ButtonPress.js";
+import type { ButtonPressBinding } from "../interaction/ButtonPress.js";
 import type { MathModes } from "../settings/MathModes.js";
 import { EXPANDED_ROWS, KEY_LABELS } from "./KeyboardLayout.js";
 import type { KeyboardKeyId } from "./KeyboardLayout.js";
 
-export interface CalculatorKeyboardActions {
+export interface CalculatorKeyboardTarget {
+  readonly editor: ExpressionEditor;
   readonly clear: (origin: "pointer" | "keyboard") => void;
-  readonly equals: () => void;
+  readonly submit: () => void;
+}
+
+export interface CalculatorKeyboardGlobalActions {
   readonly toggleAngleMode: () => void;
   readonly toggleFactorialMode: () => void;
+}
+
+/** Legacy constructor actions; new callers supply clear/submit on the replaceable target. */
+export interface CalculatorKeyboardActions extends CalculatorKeyboardGlobalActions {
+  readonly clear: (origin: "pointer" | "keyboard") => void;
+  readonly equals: () => void;
 }
 
 const SPECIAL_KEYS = new Set<KeyboardKeyId>([
@@ -24,20 +35,42 @@ const SPECIAL_KEYS = new Set<KeyboardKeyId>([
 
 export class CalculatorKeyboard {
   readonly root: HTMLElement;
-  readonly #editor: ExpressionEditor;
-  readonly #actions: CalculatorKeyboardActions;
+  #target: CalculatorKeyboardTarget | null;
+  readonly #actions: CalculatorKeyboardGlobalActions;
+  readonly #targetBindings: ButtonPressBinding[] = [];
   readonly #buttons = new Map<KeyboardKeyId, HTMLButtonElement>();
   readonly #additionalRows: readonly HTMLDivElement[];
   #modes: MathModes;
   #expanded = false;
+  #disposed = false;
 
   constructor(
     editor: ExpressionEditor,
     actions: CalculatorKeyboardActions,
     initialModes: MathModes
+  );
+  constructor(
+    target: CalculatorKeyboardTarget | null,
+    actions: CalculatorKeyboardGlobalActions,
+    initialModes: MathModes
+  );
+  constructor(
+    target: ExpressionEditor | CalculatorKeyboardTarget | null,
+    actions: CalculatorKeyboardActions | CalculatorKeyboardGlobalActions,
+    initialModes: MathModes
   ) {
-    this.#editor = editor;
-    this.#actions = actions;
+    this.#target =
+      target === null || "editor" in target
+        ? target
+        : {
+            editor: target,
+            clear: (actions as CalculatorKeyboardActions).clear,
+            submit: (actions as CalculatorKeyboardActions).equals
+          };
+    this.#actions = {
+      toggleAngleMode: actions.toggleAngleMode,
+      toggleFactorialMode: actions.toggleFactorialMode
+    };
     this.#modes = initialModes;
     this.root = document.createElement("section");
     this.root.className = "calculator-keyboard";
@@ -64,6 +97,23 @@ export class CalculatorKeyboard {
 
   get expanded(): boolean {
     return this.#expanded;
+  }
+
+  setTarget(target: CalculatorKeyboardTarget): void {
+    if (this.#disposed || target === this.#target) return;
+    this.clearTarget();
+    this.#target = target;
+  }
+
+  clearTarget(): void {
+    for (const binding of this.#targetBindings) binding.invalidatePointerPress();
+    this.#target?.editor.stopBackspaceHold();
+    this.#target = null;
+  }
+
+  dispose(): void {
+    this.clearTarget();
+    this.#disposed = true;
   }
 
   setMathModes(modes: MathModes): void {
@@ -104,25 +154,31 @@ export class CalculatorKeyboard {
     const label = this.#accessibleLabel(key);
     if (label !== null) button.setAttribute("aria-label", label);
     if (key === "backspace") {
-      bindButtonPress(
-        button,
-        () => {
-          this.#editor.deleteBackward();
-        },
-        {
-          activateOnPointerUp: false,
-          onPointerStart: () => {
-            this.#editor.startBackspaceHold();
+      this.#targetBindings.push(
+        bindButtonPress(
+          button,
+          () => {
+            this.#target?.editor.deleteBackward();
           },
-          onPointerStop: () => {
-            this.#editor.stopBackspaceHold();
+          {
+            activateOnPointerUp: false,
+            onPointerStart: () => {
+              this.#target?.editor.startBackspaceHold();
+            },
+            onPointerStop: () => {
+              this.#target?.editor.stopBackspaceHold();
+            }
           }
-        }
+        )
       );
-    } else
-      bindButtonPress(button, (origin) => {
+    } else {
+      const binding = bindButtonPress(button, (origin) => {
         this.#activate(key, origin);
       });
+      if (key !== "expand" && key !== "angle" && key !== "factorial") {
+        this.#targetBindings.push(binding);
+      }
+    }
     cell.append(button);
     this.#buttons.set(key, button);
     return cell;
@@ -177,6 +233,7 @@ export class CalculatorKeyboard {
   }
 
   #activate(key: KeyboardKeyId, origin: "pointer" | "keyboard"): void {
+    if (this.#disposed) return;
     switch (key) {
       case "expand":
         this.#setExpanded(!this.#expanded);
@@ -187,60 +244,65 @@ export class CalculatorKeyboard {
       case "factorial":
         this.#actions.toggleFactorialMode();
         return;
+    }
+    const target = this.#target;
+    if (target === null) return;
+    const editor = target.editor;
+    switch (key) {
       case "clear":
-        this.#actions.clear(origin);
+        target.clear(origin);
         return;
       case "equals":
-        this.#actions.equals();
+        target.submit();
         return;
       case "round":
-        this.#editor.insertSmartBracket("()", origin === "pointer");
+        editor.insertSmartBracket("()", origin === "pointer");
         return;
       case "square":
-        this.#editor.insertSmartBracket("[]", origin === "pointer");
+        editor.insertSmartBracket("[]", origin === "pointer");
         return;
       case "curly":
-        this.#editor.insertSmartBracket("{}", origin === "pointer");
+        editor.insertSmartBracket("{}", origin === "pointer");
         return;
       case "sin":
       case "cos":
       case "tan":
       case "ln":
       case "log":
-        this.#editor.insertFunction(key, origin === "pointer");
+        editor.insertFunction(key, origin === "pointer");
         return;
       case "squareRoot":
-        this.#editor.insertText("√", origin === "pointer");
+        editor.insertText("√", origin === "pointer");
         return;
       case "pi":
-        this.#editor.insertText("π", origin === "pointer");
+        editor.insertText("π", origin === "pointer");
         return;
       case "e":
-        this.#editor.insertText("e", origin === "pointer");
+        editor.insertText("e", origin === "pointer");
         return;
       case "power":
-        this.#editor.insertText("^", origin === "pointer");
+        editor.insertText("^", origin === "pointer");
         return;
       case "factorialOperator":
-        this.#editor.insertText("!", origin === "pointer");
+        editor.insertText("!", origin === "pointer");
         return;
       case "percent":
-        this.#editor.insertText("%", origin === "pointer");
+        editor.insertText("%", origin === "pointer");
         return;
       case "divide":
-        this.#editor.insertText("/", origin === "pointer");
+        editor.insertText("/", origin === "pointer");
         return;
       case "multiply":
-        this.#editor.insertText("*", origin === "pointer");
+        editor.insertText("*", origin === "pointer");
         return;
       case "minus":
-        this.#editor.insertText("-", origin === "pointer");
+        editor.insertText("-", origin === "pointer");
         return;
       case "plus":
-        this.#editor.insertText("+", origin === "pointer");
+        editor.insertText("+", origin === "pointer");
         return;
       case "comma":
-        this.#editor.insertText(",", origin === "pointer");
+        editor.insertText(",", origin === "pointer");
         return;
       case "0":
       case "1":
@@ -252,7 +314,7 @@ export class CalculatorKeyboard {
       case "7":
       case "8":
       case "9":
-        this.#editor.insertText(key, origin === "pointer");
+        editor.insertText(key, origin === "pointer");
         return;
       case "reserved":
       case "backspace":
