@@ -2268,6 +2268,16 @@ Stage 10 не создаёт calculation sessions и не evaluates scale expres
 15. Full checks pass.
 16. Stage 11 unblocked.
 
+## Closure evidence — 2026-10-07
+
+Stage 10 completed from entry `40b604d27b01079319c3434e08a48162fea6826f` (`BigCalc CM 9`). No commit is created by this task; evidence describes the Stage 10 working tree. Six pure TypeScript domain files implement seven bigint dimensions, the audited 59 units/20 decimal prefixes, exact rational/symbolic scale nodes, deterministic symbol/name/longest-prefix resolution, signed integer unit grammar, original source ranges and typed errors. Affine units are standalone/group-only; powers/products/quotients/prefixes are rejected. Four Stage 6 quarantined entries remain excluded. Factor source serialization does not evaluate scales or compile value conversions.
+
+Added **235 unit tests** in four suites, with all prototype example pairs, registry identities/dimensions/scales/transforms, aliases/case/normalization/precedence/collisions, signed powers, affine misuse and exact generated identities. Fresh Stage 9 service/Host dependency checks passed **24 tests**. Domain-only compilation with `lib: [ES2022]`, `types: []` passed; all 21 imports stay inside the domain directory.
+
+`npm run check` passed: **404 Core tests, 14 benchmark tests**, formatter/lint/types/build and public API audit. The complete `npm run check:app` passed: **598 App unit tests in 36 files, all 259 browser tests (11.8min)**, App types and production build. Existing Liquid Glass frame-gap bound remains 1000ms; final measurement **283.3ms**. All six production assets match the entry baseline byte-for-byte; no domain import/registration is added to the production entrypoint. Android build/device acceptance was not rerun for this pure-domain stage; Stage 9 physical evidence remains separate historical evidence.
+
+Existing production/test files, frozen Core/Worker/application contracts, BMI, production module registrations, scripts/package/config, Android host and normative specs are unchanged. All 16 Stage 10 DoD items are satisfied; Stage 11 is unblocked and not started. Full implementation, commands, logs, limitations and DoD mapping: [Stage 10 verification](docs/UNITS_DOMAIN_STAGE10_VERIFICATION.md).
+
 ---
 
 # Stage 11. Conversion compiler and Core-backed calculation lifecycle

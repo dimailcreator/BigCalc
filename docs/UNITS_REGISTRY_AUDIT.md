@@ -133,6 +133,10 @@ Resolution tiers: complete direct symbol → complete normalized name → longes
 
 Mandatory Stage 10 tests include every resolution example, normalized-alias collision rejection, checked exact integer dimensions, lexical signed powers (`с^-2`, not `с^1e2`), all forbidden affine forms, and no IEEE-754 factor on the compiler path. Prefix/name/symbol identity is independent of Core angleMode; degree scale always means `π/180` radians.
 
+## Stage 10 implementation follow-up
+
+Stage 10 implementation follow-up — 2026-10-07: `src/app/modules/units/UnitRegistryEntries.ts` now implements the 59 candidates using the exact/conventional definitions recorded above and the 20 audited prefixes. Pure registry/parser tests validate canonical IDs, all dimension vectors, factors/transforms, declared aliases, precedence/case/collisions and all six prototype example pairs. The four quarantined entries remain excluded; no intent/uncertainty decision is inferred. The original Stage 6 inventory and decision ledger are preserved. Evidence: [Stage 10 verification](UNITS_DOMAIN_STAGE10_VERIFICATION.md).
+
 ## Sources checked for technical audit
 
 These sources justify classification/scale accuracy; they do not infer product intent for custom entries.
