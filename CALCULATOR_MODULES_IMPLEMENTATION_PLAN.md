@@ -2800,6 +2800,18 @@ math keyboard hidden/native-field layout
 16. Portrait matrix passes.
 17. Stage 14 unblocked.
 
+## Stage 13 closure (verified working tree)
+
+Entry HEAD: `c0119287c95cd8f30486d5db86be52096239ac20` (`BigCalc CM 12`), clean working tree. No commit is created by this task.
+
+Attached production `UnitsCalculatorView` and lifecycle hooks to the existing Units definition without installation. The vertical form uses real ExpressionEditor, two native unit inputs, one shared keyboard target and NumberViewport. Swap, six examples and form clear commit source snapshots atomically; AC clears only math. Twenty prefix/59 unit chips preserve last native field selection (default fromUnit), without opening IME. Verified copy has stable accessible feedback and stale-completion guards; five error zones, neutral incomplete edits and source-only reload are covered. Semantic appearance/displaySize/glass tokens and the generic scroll/IME layout are reused.
+
+The plan's additive-boundary rule is applied explicitly in [Stage 13 ADR](docs/ADR_MODULE_PRESENTATION_STAGE13.md): optional owner-scoped presentation services supply inertia and the existing shared timeout interaction, and optional editor text tokenization preserves typed/pasted Ans for rejection. Generic main routing uses the existing single TimeoutDialog/navigation layer without module-ID branches. Default primary parsing and Core/Worker/persistence/module-state/keyboard contracts remain unchanged; Host, Surface, NavigationController, installedModules, Android host, package/scripts/config/dependencies and normative specs are untouched.
+
+Fresh prerequisites passed 448 tests. Added eight service unit tests and 36 real production-view browser tests, including all five portrait sizes, compact/expanded/native layouts, four representative appearances with three display sizes, selection/composition/Ans, examples/actions/errors/copy, refinement, timeout freeze/resume/Back, overlays/background/switch/dispose and reload. Final `npm run check` passed 404 Core + 14 benchmark tests and all formatting/lint/types/build/API gates. Final `npm run check:app` passed 758 unit + all 320 browser tests (13.1min), App types and production build; Liquid Glass maximum frame gap was 283.4ms below the unchanged 1000ms limit. Initial new harness/strict lint findings and their resolutions are retained in the report. Worker/CSS/two wallpaper assets retain entry SHA-256 values; generic application JS and its referencing web chunk change.
+
+All 17 Stage 13 DoD items are satisfied, with no unresolved failure, blocker or architecture/spec conflict. No new APK/physical Android acceptance is claimed. Stage 14 registration is unblocked and not started. Commands, changed files, boundaries, screenshots, limitations and full DoD mapping: [Stage 13 verification](docs/UNITS_VIEW_STAGE13_VERIFICATION.md).
+
 ---
 
 # Stage 14. Production registration and full browser integration

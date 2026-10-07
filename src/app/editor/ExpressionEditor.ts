@@ -10,6 +10,7 @@ export interface ExpressionEditorOptions {
   readonly onChange: (model: ExpressionModel) => void;
   readonly onEnter: () => void;
   readonly suppressSoftwareKeyboard?: boolean;
+  readonly parseText?: (text: string) => readonly ExpressionToken[];
 }
 
 /** Browser input is an event channel; ExpressionModel owns all content and selection. */
@@ -21,6 +22,7 @@ export class ExpressionEditor {
   #ansViewport: HTMLOutputElement | null = null;
   readonly #onChange: ExpressionEditorOptions["onChange"];
   readonly #onEnter: ExpressionEditorOptions["onEnter"];
+  readonly #parseText: (text: string) => readonly ExpressionToken[];
   readonly #backspaceRepeater: BackspaceRepeater;
   #model = new ExpressionModel();
   #historyOpen = false;
@@ -38,6 +40,7 @@ export class ExpressionEditor {
   constructor(options: ExpressionEditorOptions) {
     this.#onChange = options.onChange;
     this.#onEnter = options.onEnter;
+    this.#parseText = options.parseText ?? parseEditorText;
     this.#backspaceRepeater = new BackspaceRepeater(() => {
       this.deleteBackward();
     });
@@ -284,7 +287,7 @@ export class ExpressionEditor {
       this.#render();
       return;
     }
-    const tokens = parseEditorText(text);
+    const tokens = this.#parseText(text);
     if (tokens.length === 0 && text.length > 0) {
       this.#render();
       return;
@@ -313,7 +316,7 @@ export class ExpressionEditor {
     event.preventDefault();
     if (this.#historyOpen) return;
     this.#onNativeSelection();
-    const tokens = parseEditorText(event.clipboardData?.getData("text/plain") ?? "");
+    const tokens = this.#parseText(event.clipboardData?.getData("text/plain") ?? "");
     if (tokens.length > 0) this.#insertUserTokens(tokens);
   }
 
@@ -322,7 +325,7 @@ export class ExpressionEditor {
       this.#render();
       return;
     }
-    const tokens = parseEditorText(text);
+    const tokens = this.#parseText(text);
     if (tokens.length > 0) this.#insertUserTokens(tokens);
     else this.#render();
   }

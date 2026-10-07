@@ -11,6 +11,7 @@ import { HistoryPanel } from "./history/HistoryPanel.js";
 import { bindButtonPress } from "./interaction/ButtonPress.js";
 import { CalculatorKeyboard } from "./keyboard/CalculatorKeyboard.js";
 import { CalculatorInputCoordinator } from "./input/CalculatorInputCoordinator.js";
+import { ModulePresentationService } from "./input/ModulePresentationService.js";
 import type {
   CalculatorMathInputRegistration,
   CalculatorModuleServiceScope
@@ -52,6 +53,12 @@ const heading = document.createElement("h1");
 const display = document.createElement("section");
 const calculationClient = createBrowserCalculationClient();
 const moduleCalculations = new ModuleCalculationService(calculationClient, initialSettings);
+const modulePresentation = new ModulePresentationService(
+  initialSettings.numberScrollInertia,
+  () => {
+    syncTimeout();
+  }
+);
 let currentInertia = initialSettings.numberScrollInertia;
 const appearanceSettings = {
   theme: initialSettings.theme,
@@ -210,6 +217,7 @@ const settingsScreen = new SettingsScreen({
   },
   onInertia(value) {
     currentInertia = value;
+    modulePresentation.updateInertia(value);
     resultOutput.setInertia(value);
     expressionOutput.setInertia(value);
     historyPanel.setInertia(value);
@@ -242,7 +250,9 @@ const moduleHost = new CalculatorModuleHost(
   ],
   repositories.calculatorState,
   (module) => {
-    const scope = moduleCalculations.createScope(inputCoordinator.createScope());
+    const scope = modulePresentation.createScope(
+      moduleCalculations.createScope(inputCoordinator.createScope())
+    );
     moduleInputScopes.set(module.id, scope);
     return scope;
   }
@@ -383,10 +393,12 @@ shell.addEventListener(
 );
 const timeoutDialog = new TimeoutDialog(shell, {
   onContinue() {
-    controller.continueAfterTimeout();
+    const actions = modulePresentation.timeoutActions;
+    if (actions !== null) actions.onContinue();
+    else controller.continueAfterTimeout();
   },
   onFreeze() {
-    controller.freezeAfterTimeout();
+    freezeTimeout();
   }
 });
 appRoot.dataset.calculationWorker = "started";
@@ -404,13 +416,14 @@ const navigation = new NavigationController({
   history: window.history,
   modules,
   canRestoreLayer(layer) {
-    return layer !== "timeout" || controller.state.timeoutDialogOpen;
+    return layer !== "timeout" || timeoutOpen();
   },
   onChange(entries, previous) {
     renderNavigation(entries, previous);
   }
 });
 let timeoutNavigationDismissedByCalculation = false;
+let primaryTimeoutOpen = false;
 
 const controller = new LiveCalculatorController(calculationClient, render, {
   initialSettings,
@@ -454,6 +467,7 @@ const lifecycle = new ApplicationLifecycle(
     historyPanel.dispose();
     controller.dispose();
     moduleCalculations.dispose();
+    modulePresentation.dispose();
     calculationClient.terminate();
   }
 );
@@ -492,7 +506,31 @@ window.addEventListener(
   { once: true }
 );
 
+function timeoutOpen(): boolean {
+  return (
+    modulePresentation.timeoutActions !== null ||
+    (moduleHost.activeId === moduleHost.primaryId && primaryTimeoutOpen)
+  );
+}
+
+function freezeTimeout(): void {
+  const actions = modulePresentation.timeoutActions;
+  if (actions !== null) actions.onFreeze();
+  else controller.freezeAfterTimeout();
+}
+
+function syncTimeout(): void {
+  const open = timeoutOpen();
+  timeoutDialog.setOpen(open);
+  if (open && !navigation.hasLayer("timeout")) navigation.openLayer("timeout");
+  if (!open && navigation.topLayer === "timeout") {
+    timeoutNavigationDismissedByCalculation = true;
+    navigation.back();
+  }
+}
+
 function render(state: LiveCalculatorViewState): void {
+  primaryTimeoutOpen = state.timeoutDialogOpen;
   moduleCalculations.updateSettings(state.settings);
   const loneAns = editor.model.tokens.length === 1 ? editor.model.tokens[0] : undefined;
   if (loneAns?.kind === "ans") {
@@ -512,17 +550,7 @@ function render(state: LiveCalculatorViewState): void {
   }
   display.dataset.phase = state.phase;
   display.setAttribute("aria-busy", state.phase === "running" ? "true" : "false");
-  timeoutDialog.setOpen(state.timeoutDialogOpen);
-  if (
-    state.timeoutDialogOpen &&
-    moduleHost.activeId === moduleHost.primaryId &&
-    !navigation.hasLayer("timeout")
-  )
-    navigation.openLayer("timeout");
-  if (!state.timeoutDialogOpen && navigation.topLayer === "timeout") {
-    timeoutNavigationDismissedByCalculation = true;
-    navigation.back();
-  }
+  syncTimeout();
 
   const degrees = state.settings.angleMode === "degrees";
   keyboard.setMathModes({
@@ -547,12 +575,12 @@ function renderNavigation(
   if (previous.at(-1)?.kind === "layer" && previous.at(-1)?.id === "timeout" && top !== "timeout") {
     const dismissedByCalculation = timeoutNavigationDismissedByCalculation;
     timeoutNavigationDismissedByCalculation = false;
-    if (controller.state.timeoutDialogOpen) {
+    if (timeoutOpen()) {
       if (dismissedByCalculation) {
         navigation.openLayer("timeout");
         return;
       }
-      controller.freezeAfterTimeout();
+      freezeTimeout();
     }
   }
   historyPanel.setOpen(historyOpen);
@@ -567,7 +595,7 @@ function renderNavigation(
   overflowButton.setAttribute("aria-expanded", String(top === "overflow"));
   settingsScreen.setOpen(top === "settings");
   aboutScreen.setOpen(top === "about");
-  timeoutDialog.setOpen(top === "timeout" && controller.state.timeoutDialogOpen);
+  timeoutDialog.setOpen(top === "timeout" && timeoutOpen());
   shell.inert = top !== null && top !== "history";
   settingsScreen.root.inert = top !== "settings";
   aboutScreen.root.inert = top !== "about";

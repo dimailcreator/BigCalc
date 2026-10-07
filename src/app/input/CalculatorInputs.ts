@@ -24,6 +24,18 @@ export interface CalculatorModuleServices {
   readonly inputs?: CalculatorModuleInputs;
   readonly calculations?: ModuleCalculations;
   readonly settings?: ModuleEvaluationSettings;
+  readonly presentation?: CalculatorModulePresentation;
+}
+
+export interface ModuleTimeoutActions {
+  readonly onContinue: () => void;
+  readonly onFreeze: () => void;
+}
+
+export interface CalculatorModulePresentation {
+  readInertia(): number;
+  subscribeInertia(listener: (value: number) => void): () => void;
+  setTimeout(actions: ModuleTimeoutActions | null): void;
 }
 
 /** Application-owned lifetime; modules receive only services, never scope management. */

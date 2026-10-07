@@ -1,0 +1,143 @@
+.units-calculator {
+  min-width: 0;
+  color: var(--bc-text-primary);
+}
+.units-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(100%, 620px);
+  margin: 0 auto;
+  padding: 16px 14px max(24px, env(safe-area-inset-bottom));
+}
+.units-field {
+  min-width: 0;
+}
+.units-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 16px;
+  color: var(--bc-text-primary-soft);
+}
+.units-field > input,
+.units-field .expression-editor {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid var(--bc-border-normal);
+  border-radius: 14px;
+  background: var(--bc-surface-control);
+  color: var(--bc-text-primary);
+}
+.units-field > input {
+  padding: 10px 12px;
+  font-size: 18px;
+}
+.units-field .expression-editor {
+  padding: 8px 12px;
+}
+.units-field .expression-input {
+  padding: 8px 12px;
+}
+.units-content button,
+.units-content summary {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--bc-border-normal);
+  border-radius: 12px;
+  color: var(--bc-text-primary);
+  background: var(--bc-surface-control);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.units-content button:disabled {
+  color: var(--bc-text-secondary);
+  opacity: 0.6;
+  cursor: default;
+}
+.units-content button:focus-visible,
+.units-content summary:focus-visible,
+.units-field > input:focus-visible {
+  outline: 2px solid var(--bc-caret);
+  outline-offset: 2px;
+}
+.units-field [aria-invalid="true"] {
+  border-color: var(--bc-error);
+}
+.units-result {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--bc-border-normal);
+  border-radius: 20px;
+  background: var(--bc-surface-card);
+}
+.units-result p {
+  margin: 0;
+  color: var(--bc-text-secondary);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.units-result .number-viewport {
+  margin: 8px 0;
+}
+.units-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.units-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+}
+.units-chips button {
+  max-width: 100%;
+}
+.units-content .units-error {
+  margin: 8px 0 0;
+  color: var(--bc-error);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.units-feedback {
+  min-height: 21px;
+  margin: 0;
+  color: var(--bc-text-secondary);
+  font-size: 14px;
+}
+.units-catalog-target {
+  margin: 0;
+  color: var(--bc-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.units-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.units-result,
+.units-field > input,
+.units-field .expression-editor,
+.units-content button,
+.units-content summary {
+  backdrop-filter: blur(var(--bc-liquid-blur)) saturate(var(--bc-liquid-saturation));
+  box-shadow: var(--bc-liquid-glass-shadow);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .units-result,
+  .units-field > input,
+  .units-field .expression-editor,
+  .units-content button,
+  .units-content summary {
+    backdrop-filter: none;
+  }
+}
