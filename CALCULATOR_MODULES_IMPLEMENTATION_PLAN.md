@@ -2560,6 +2560,18 @@ calculation/session not persisted
 10. Units still not production-registered.
 11. Stage 13 unblocked.
 
+## Stage 12 closure — 2026-10-07
+
+Entry HEAD: `0c29ba914cebbbded48377800467c9ebd1f9bedf` (`BigCalc CM 11`), clean working tree. No commit is created by this task; final evidence describes the working tree based on that entry.
+
+Added source-only `UnitsState` / `PersistedUnitsStateV1`, immutable defaults `1` / `км/ч` / `м/с`, explicit three-string serialization and declaration `units` / revision 1 in the existing application document/schema. Malformed DTO/unknown revision falls back safely, foreign derived fields are ignored, BMI/unknown module/future revision records are retained and future application documents cannot be overwritten. `UnitsCalculatorModule` supplies stable identity/fields/input kinds and generic persistence hooks without production installation. Its optional view remains unset until Stage 13; test-only Host observers attach to the production definition without a placeholder production screen or contract change.
+
+`createUnitsExpression` reconstructs a fresh existing ExpressionModel through supported editor tokenization/constructors, retains known atomic names and preserves original casing/whitespace/unsupported syntax. Reserved `Ans` remains visible with no History identity and is rejected before Worker; filtered clipboard text or saved result digits never replace the original expression. Test observers recreate derived editor/controller state from restored strings and current services, and compute verified output only after activation.
+
+Fresh dependency tests passed 365 domain/compiler/controller/service/Host/BMI tests. Added 74 unit tests and four actual Worker/localStorage browser tests covering source round trips, malformed/unknown/future data, switching/recreation, BMI preservation, excluded runtime state and verified recomputation. `npm run check` passed 404 Core + 14 benchmark tests, formatting/lint/types/build/API audit. Final `npm run check:app` passed 750 unit + all 284 browser tests (11.8min), App types and production build; Liquid Glass maximum frame gap was 316.7ms below the unchanged 1000ms bound. A first-run pre-assertion navigation timeout in the existing displaySize 360px case is recorded in the report; the unchanged case and full gate subsequently passed with fresh servers. All six production assets retain entry filenames/SHA-256 values.
+
+Existing production/tests and frozen Core/Worker/module/input/editor/Host/persistence/application contracts, primary/BMI, installed module list, Android host, scripts/package/config/dependencies and normative specifications are unchanged. No new APK/device acceptance is claimed. All 11 Stage 12 DoD items are satisfied; no unresolved conflict, failure or blocker remains. Stage 13 is unblocked and not started. Scope, implementation, commands, all verification outcomes and DoD mapping: [Stage 12 verification](docs/UNITS_STATE_STAGE12_VERIFICATION.md).
+
 ---
 
 # Stage 13. Units production view
