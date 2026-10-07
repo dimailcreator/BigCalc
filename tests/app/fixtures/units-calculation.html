@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Units calculation lifecycle fixture</title>
+    <style>
+      .number-viewport {
+        display: block;
+        position: relative;
+        width: 320px;
+        height: 40px;
+        font: 24px monospace;
+      }
+      .number-viewport-content {
+        display: flex;
+        white-space: pre;
+      }
+      .number-slot {
+        display: inline-block;
+        flex: 0 0 1ch;
+        width: 1ch;
+      }
+      .number-slot-placeholder,
+      .number-slot-padding {
+        color: transparent;
+      }
+      .number-viewport-probe {
+        position: absolute;
+        width: 1ch;
+        visibility: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./units-calculation.js"></script>
+  </body>
+</html>

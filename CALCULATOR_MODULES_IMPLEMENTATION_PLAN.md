@@ -2448,6 +2448,16 @@ one Worker
 12. Full regression passes.
 13. Stage 12 unblocked.
 
+## Stage 11 closure — 2026-10-07
+
+Entry HEAD: `bba54f408e9735a219f9c44cc7ce247373f71d82` (`BigCalc CM 10`), clean working tree. No commit is created by this task; final evidence describes the working tree based on that entry.
+
+Implemented deterministic `UnitConversionCompiler` and module-local `UnitsCalculationController` over the existing Stage 9 services. Exact/symbolic linear factors and affine transforms remain ordinary Core source; dimensions/affine misuse/History references are blocked before Worker creation, mathematical syntax/domain/resource failures remain Core DTOs and transport failures retain their category. Source/settings generations gate all async work; replacement/deactivation releases old sessions. Viewport capacity supplies initial demand, extra demand coalesces on the same handle, initial live timeout is hidden, repeat explicit timeout opens the interaction, cancel freezes without losing the handle and additional-digit pauses continue automatically. `=` confirms/continues/retries without primary History mutation.
+
+Fresh dependency tests passed 259 domain/service/Host tests. Added 78 compiler/controller unit tests and 21 actual Worker browser tests, including all mandatory conversions, exact affine zeros, malformed value wrapper protection, error layering, races, real pause/freeze/continue, NumberViewport demand and independent primary History with one Worker. `npm run check` passed 404 Core + 14 benchmark tests, lint/types/build/API audit. `npm run check:app` passed 676 unit + all 280 browser tests (9.9min), App types and production build. Liquid Glass maximum frame gap: 133.3ms below the unchanged 1000ms bound. All six production assets retain entry filenames/SHA-256 values; new implementation is not imported by the shipped entrypoint.
+
+Frozen Core/Worker/module/input/service/application contracts, primary/BMI, registrations, persistence, Android host, existing tests, scripts/package/config/dependencies and normative specs are unchanged. No new APK/device acceptance is claimed. No conflict or blocker remains; all 13 Stage 11 DoD items are satisfied. Stage 12 is unblocked and not started. Implementation, commands, development findings, scope/limitations and DoD mapping: [Stage 11 verification](docs/UNITS_CALCULATION_STAGE11_VERIFICATION.md).
+
 ---
 
 # Stage 12. Units state, persistence and module definition
