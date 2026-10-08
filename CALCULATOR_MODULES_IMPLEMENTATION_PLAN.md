@@ -3262,6 +3262,14 @@ known limitations
 31. Units milestone closed.
 32. Next bundled calculator stage can begin.
 
+### Выполнение Stage 15
+
+Stage 15 завершён на базе `fcb7e689fab4758a1d8885c11f1ace1d2a152645` (`BigCalc CM 14`). Новый commit не создавался; verification относится к итоговому working tree. Общий mixed-input coordinator/layout сохраняет numeric font baseline при Android IME, закрывает shared keyboard по Back без потери source/session и сохраняет геометрию primary display. Последующие History-focus и primary-display Back исправления зафиксированы отдельно от первоначальных acceptance результатов в [Units verification](docs/UNITS_CALCULATOR_VERIFICATION.md). Исторические Stage 5 initial closure/IME follow-up и Stage 6–14 records не переписаны.
+
+Финальные gates: `npm run check` — 404 Core + 14 benchmark tests и public API audit; `npm run check:app` — 765 unit / 353 browser tests и build; отдельный `npm run build:app` и debug APK build прошли. `npm run test:android:units -- --with-regressions` на physical Samsung SM-A576B (Android 16 / WebView 154 / HoneyBoard) прошёл smoke, lifecycle, Stage 34, BMI и Units, с точным восстановлением entry storage. Проверены 10 conversions, 4 errors, 23 IME geometry/font checks, четыре appearances, три display sizes, один общий Worker, switching и fresh-session restart. APK: 7,502,754 bytes, SHA-256 `34CF95FCF103907B501AA52E2487B79025DD872F5049C8A6759B7B449D8795C5`. Все 32 DoD items закрыты; следующий bundled-calculator stage разблокирован, его реализация не начата. Core/Worker/module contracts, registry и source DTOs не изменены.
+
+Primary Back follow-up (2026-10-08): по уточнению пользователя основной BigCalc пропускает скрытие клавиатуры и использует обычный navigation/exit; первый Back закрывает shared keyboard только в дополнительных calculators. Первоначальные Stage 15 gates и APK выше сохранены отдельно. Follow-up: 767 App unit tests, 37 browser integration tests, typecheck/lint, production/debug build и все пять physical Android suites проходят. Исходный storage восстановлен точно. Текущий APK: 7,502,754 bytes, SHA-256 `8719E32CC69D1349A9F7AD859BDAA04BD63CAAD00F63F626AB0EC4BD1404DF04`. Подробные результаты и разделение initial closure/follow-up — в [Units verification](docs/UNITS_CALCULATOR_VERIFICATION.md).
+
 ---
 
 # 13. Overall Units Definition of Done

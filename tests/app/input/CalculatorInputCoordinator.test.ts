@@ -80,6 +80,54 @@ function setup() {
 }
 
 describe("scoped calculator input coordination", () => {
+  it("dismisses only the active math keyboard, blocks stale edits and restores on explicit focus", () => {
+    const s = setup();
+    const scope = s.coordinator.createScope();
+    const math = s.math();
+    inputs(scope).registerMath(math.target);
+    scope.activate();
+    math.input.focus();
+    expect(s.coordinator.dismissMathKeyboard()).toBe(true);
+    expect(s.visible()).toBe(false);
+    expect(s.document.activeElement).toBeNull();
+    expect(s.coordinator.dismissMathKeyboard()).toBe(false);
+    const event = new Event("beforeinput", { cancelable: true });
+    math.input.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    s.coordinator.refresh();
+    expect(s.visible()).toBe(false);
+    s.coordinator.setSuspended(true);
+    s.coordinator.setSuspended(false);
+    expect(s.visible()).toBe(false);
+    s.coordinator.setBackground(true);
+    s.coordinator.setBackground(false);
+    expect(s.visible()).toBe(false);
+    scope.deactivate();
+    scope.activate();
+    expect(s.visible()).toBe(false);
+    math.input.focus();
+    expect(s.visible()).toBe(true);
+    expect(s.routed()).toBe(math.target);
+    s.coordinator.dispose();
+  });
+  it("explicit math focus in History releases dismissal while routing stays suspended", () => {
+    const s = setup();
+    const scope = s.coordinator.createScope();
+    const math = s.math();
+    inputs(scope).registerMath(math.target);
+    scope.activate();
+    math.input.focus();
+    s.coordinator.dismissMathKeyboard();
+    s.coordinator.setSuspended(true, true);
+    math.input.focus();
+    expect(s.visible()).toBe(false);
+    const event = new Event("keydown", { cancelable: true });
+    math.input.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    s.coordinator.setSuspended(false);
+    expect(s.visible()).toBe(true);
+    s.coordinator.dispose();
+  });
   it("blocks delayed math DOM events after native selection or owner deactivation", () => {
     const s = setup();
     const scope = s.coordinator.createScope();

@@ -1528,6 +1528,8 @@ Back
 
 Navigation назад определяется реальным navigation stack.
 
+Если Android IME открыта, первый System Back закрывает её средствами Android, сохраняя calculator и source. В application callback сначала закрывается верхний UI layer. На основном BigCalc Back не скрывает shared keyboard: при отсутствии layer используется реальный navigation stack, а на корневом экране приложение закрывается. В дополнительных calculators при отсутствии layer первый Back закрывает открытую shared BigCalc keyboard, снимает focus и приостанавливает math input routing, сохраняя calculator, expression и calculation session. Следующий Back использует navigation stack. Явный tap на math field снова показывает shared keyboard. Закрытие overlay, refresh и background/resume сами по себе не открывают ранее закрытую по Back клавиатуру дополнительного calculator.
+
 ---
 
 # 42. Calculator switching
@@ -1656,7 +1658,7 @@ Default input texts пусты, результат отсутствует. Switc
 
 ## 43.6. Единицы — второй secondary bundled calculator
 
-Units v1: `id = units`, `title = Единицы`. Это product contract для Stages 6–15 [calculator modules plan](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md), а не утверждение о текущей production registration. BigCalc остаётся первым/primary, ИМТ вторым; Единицы добавляются третьим только на Stage 14. History принадлежит только BigCalc.
+Units v1: `id = units`, `title = Единицы`. Production bundled calculator реализован по Stages 6–15 [calculator modules plan](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md). BigCalc остаётся первым/primary, ИМТ вторым; Единицы установлены третьими с Stage 14. History принадлежит только BigCalc. Browser/physical Android evidence и итоговые gates: [Units verification](docs/UNITS_CALCULATOR_VERIFICATION.md).
 
 ### 43.6.1. Source fields и input kinds
 
@@ -1675,15 +1677,17 @@ Unit fields — native HTML text inputs: `type="text"`, `inputMode="text"`, `aut
 
 Input mode определяется активным field, а не module целиком. Application владеет одной `CalculatorKeyboard`, её layout, mode controls и expansion state; Units сообщает editing target через generic input service, без копии keyboard DOM или своего layout.
 
-| Active field / screen | Mathematical target | Shared keyboard | Android software IME |
-| --------------------- | ------------------- | --------------- | -------------------- |
-| BigCalc expression    | Primary editor      | Visible         | Suppressed           |
-| Units / Значение      | Units editor        | Visible         | Suppressed           |
-| Units / Из единиц     | None                | Hidden          | Allowed              |
-| Units / В единицы     | None                | Hidden          | Allowed              |
-| ИМТ native field      | None                | Hidden          | Allowed              |
+| Active field / screen | Mathematical target | Shared keyboard      | Android software IME |
+| --------------------- | ------------------- | -------------------- | -------------------- |
+| BigCalc expression    | Primary editor      | Visible on selection | Suppressed           |
+| Units / Значение      | Units editor        | Visible on selection | Suppressed           |
+| Units / Из единиц     | None                | Hidden               | Allowed              |
+| Units / В единицы     | None                | Hidden               | Allowed              |
+| ИМТ native field      | None                | Hidden               | Allowed              |
 
 При выборе math field native input теряет focus, editor использует `inputMode="none"`; при выборе text field math target деактивируется. Открытие Drawer/Settings/About, switching, background и dispose приостанавливают input routing и backspace hold. Закрытие overlay может восстановить доступный target, но не focus скрытого/disposed editor и не подавить IME Settings. Back следует существующей navigation/IME policy, без Units-specific перехода в BigCalc. In-memory target choice не сохраняется после restart; стартовый Units target — Значение, без автоматического открытия IME.
+
+После закрытия shared keyboard по System Back она остаётся скрытой до явного выбора math field согласно §41. Source и resumable calculation сохраняются; dismiss state не входит в persistence. При открытой native IME число не меняет размер из-за уменьшения WebView height: числовой responsive baseline сохраняется до восстановления viewport, вместе с shared chrome/wallpaper (DESIGN_SPEC §50.1).
 
 Global angle/factorial controls меняют authoritative mathematical settings приложения. `AC` и `=` направляются только текущему math target; `AC` очищает value expression, сохраняя unit texts. Target switch не меняет keyboard expansion и не доставляет delayed pointer-up или autorepeat старому editor. Обычный native Tab/focus и touch navigation сохраняются.
 

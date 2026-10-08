@@ -24,6 +24,7 @@ import { CalculatorModuleSurface } from "./modules/CalculatorModuleSurface.js";
 import { installedModules } from "./modules/installedModules.js";
 import { createNavigationIcon } from "./navigation/NavigationIcon.js";
 import { NavigationController } from "./navigation/NavigationController.js";
+import { handleAndroidBack } from "./navigation/AndroidBack.js";
 import { HistorySwipeGesture } from "./navigation/HistorySwipeGesture.js";
 import type { NavigationEntry } from "./navigation/NavigationController.js";
 import { AboutScreen, CalculatorDrawer, OverflowMenu } from "./navigation/NavigationSurfaces.js";
@@ -231,8 +232,9 @@ const aboutScreen = new AboutScreen(() => {
 const inputCoordinator = new CalculatorInputCoordinator({
   keyboard,
   suppressSoftwareKeyboard: Capacitor.getPlatform() === "android",
-  onMathTargetChange(active) {
+  onMathTargetChange(active, dismissed) {
     shell.dataset.mathInputActive = String(active);
+    shell.dataset.keyboardDismissed = String(dismissed);
   }
 });
 const moduleInputScopes = new Map<string, CalculatorModuleServiceScope>();
@@ -474,7 +476,14 @@ const lifecycle = new ApplicationLifecycle(
 
 if (Capacitor.isNativePlatform()) {
   void App.addListener("backButton", () => {
-    if (!navigation.back()) void App.exitApp();
+    handleAndroidBack(
+      navigation,
+      inputCoordinator,
+      () => {
+        void App.exitApp();
+      },
+      navigation.activeModuleId === moduleHost.primaryId
+    );
   });
   void App.addListener("appStateChange", ({ isActive }) => {
     if (!isActive) {
@@ -603,7 +612,7 @@ function renderNavigation(
   if (entries.length < previous.length && (top === null || top === "history")) {
     const last = previous.at(-1);
     if (last?.kind === "layer") {
-      if (last.id === "history") editor.focus();
+      if (last.id === "history" && shell.dataset.keyboardDismissed !== "true") editor.focus();
       else if (last.id === "drawer") drawerButton.focus();
       else if (last.id === "overflow" || last.id === "settings" || last.id === "about")
         overflowButton.focus();

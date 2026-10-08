@@ -18,12 +18,13 @@ interface InputField {
 interface InputScope {
   readonly fields: Set<InputField>;
   selected: InputField | null;
+  keyboardDismissed: boolean;
   disposed: boolean;
 }
 
 export interface CalculatorInputCoordinatorOptions {
   readonly keyboard: KeyboardPort;
-  readonly onMathTargetChange: (active: boolean) => void;
+  readonly onMathTargetChange: (active: boolean, dismissed: boolean) => void;
   readonly suppressSoftwareKeyboard?: boolean;
   readonly document?: Document;
 }
@@ -62,7 +63,12 @@ export class CalculatorInputCoordinator {
 
   createScope(): CalculatorModuleServiceScope {
     if (this.#disposed) throw new Error("Input coordinator is disposed");
-    const scope: InputScope = { fields: new Set(), selected: null, disposed: false };
+    const scope: InputScope = {
+      fields: new Set(),
+      selected: null,
+      keyboardDismissed: false,
+      disposed: false
+    };
     this.#scopes.add(scope);
     return {
       services: {
@@ -116,6 +122,18 @@ export class CalculatorInputCoordinator {
     this.refresh();
   }
 
+  /** Android Back hides the shared keyboard without changing source or navigation. */
+  dismissMathKeyboard(): boolean {
+    const scope = this.#active;
+    if (scope === null || this.#target === null) return false;
+    scope.keyboardDismissed = true;
+    this.#restoreFocus = null;
+    this.#stopRouting();
+    this.#blurScope(scope);
+    this.refresh();
+    return true;
+  }
+
   setBackground(background: boolean): void {
     if (this.#background === background || this.#disposed) return;
     this.#background = background;
@@ -148,6 +166,7 @@ export class CalculatorInputCoordinator {
       !this.#disposed &&
       !this.#suspended &&
       !this.#background &&
+      this.#active?.keyboardDismissed === false &&
       selected !== undefined &&
       selected !== null &&
       selected.target !== null &&
@@ -165,7 +184,7 @@ export class CalculatorInputCoordinator {
         field.target?.editor.setEditingSurfaceActive(field.target === target);
       }
     }
-    this.#options.onMathTargetChange(target !== null);
+    this.#options.onMathTargetChange(target !== null, this.#active?.keyboardDismissed ?? false);
   }
 
   dispose(): void {
@@ -186,7 +205,7 @@ export class CalculatorInputCoordinator {
     this.#scopes.clear();
     this.#active = null;
     this.#restoreFocus = null;
-    this.#options.onMathTargetChange(false);
+    this.#options.onMathTargetChange(false, false);
   }
 
   #register(
@@ -207,6 +226,7 @@ export class CalculatorInputCoordinator {
         scope.disposed ||
         this.#active !== scope ||
         scope.selected !== field ||
+        scope.keyboardDismissed ||
         !available(input) ||
         this.#background ||
         (this.#suspended && !this.#historyInteraction)
@@ -278,8 +298,13 @@ export class CalculatorInputCoordinator {
 
   #select(scope: InputScope, field: InputField): void {
     if (this.#disposed || scope.disposed || !scope.fields.has(field)) return;
-    if (this.#active === scope && (this.#suspended || this.#background)) return;
+    if (
+      this.#active === scope &&
+      ((this.#suspended && !this.#historyInteraction) || this.#background)
+    )
+      return;
     scope.selected = field;
+    scope.keyboardDismissed = false;
     if (this.#active !== scope) return;
     if (
       field.target !== null &&

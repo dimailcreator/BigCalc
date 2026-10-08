@@ -9,8 +9,10 @@
 
   /* Display typography only; medium preserves the Stage 34C metrics. */
   --bc-display-font-scale: 1;
-  --bc-font-expression: calc(clamp(42px, 12.2vw, 68px) * var(--bc-display-font-scale));
-  --bc-font-result: calc(clamp(26px, 7.1vw, 38px) * var(--bc-display-font-scale));
+  --bc-font-expression-base: clamp(42px, 12.2vw, 68px);
+  --bc-font-result-base: clamp(26px, 7.1vw, 38px);
+  --bc-font-expression: calc(var(--bc-font-expression-base) * var(--bc-display-font-scale));
+  --bc-font-result: calc(var(--bc-font-result-base) * var(--bc-display-font-scale));
   --bc-font-history-expression: calc(15px * var(--bc-display-font-scale));
   --bc-font-history-result: calc(clamp(24px, 6.8vw, 32px) * var(--bc-display-font-scale));
   --bc-font-history-open-expression: calc(clamp(34px, 10vw, 52px) * var(--bc-display-font-scale));
@@ -83,8 +85,8 @@
 
 @media (height <= 680px) {
   :is(:root, .bc-theme-scope) {
-    --bc-font-expression: calc(clamp(34px, 9vw, 48px) * var(--bc-display-font-scale));
-    --bc-font-result: calc(clamp(21px, 5.7vw, 28px) * var(--bc-display-font-scale));
+    --bc-font-expression-base: clamp(34px, 9vw, 48px);
+    --bc-font-result-base: clamp(21px, 5.7vw, 28px);
   }
 }
 

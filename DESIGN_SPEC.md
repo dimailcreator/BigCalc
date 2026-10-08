@@ -2282,7 +2282,7 @@ Follow-up evidence включает сравнение shared TopBar и Liquid G
 
 # 50. Единицы — portrait secondary calculator
 
-Stage 6 фиксирует presentation contract для второго bundled calculator (`units`, `Единицы`). Production view/registration реализуются позже по [calculator modules plan](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md). Input, grammar, conversion, actions и persistence semantics заданы в UI_SPEC §§43.6/44.2; desktop `calc.html` остаётся reference, без переноса его двухколоночной architecture.
+Presentation contract второго bundled calculator (`units`, `Единицы`) зафиксирован на Stage 6; production view/registration реализованы на Stages 13–14 по [calculator modules plan](CALCULATOR_MODULES_IMPLEMENTATION_PLAN.md). Stage 15 проверяет physical Android mixed input и закрывает milestone; [Units verification](docs/UNITS_CALCULATOR_VERIFICATION.md) хранит evidence. Input, grammar, conversion, actions и persistence semantics заданы в UI_SPEC §§43.6/44.2; desktop `calc.html` остаётся reference, без переноса его двухколоночной architecture.
 
 ## 50.1. Shared shell и field-dependent layout
 
@@ -2293,6 +2293,8 @@ Shared TopBar показывает `Единицы`, Drawer/Settings/About/Back 
 Generic secondary layout определяется наличием активного math target. При active math field shared keyboard занимает нижний keyboard track, module surface — оставшееся scrollable пространство между TopBar и keyboard. Keyboard не накладывается на fields/result. При text input/no math target keyboard hidden, module surface заполняет всю доступную высоту под TopBar. Смена состояния не перестраивает/не дублирует keyboard и сохраняет expansion state.
 
 Android native unit inputs используют обычную text IME. Уменьшение WebView height сохраняет shared TopBar/button geometry и wallpaper baseline через generic `NativeInputLayout`, как в Stage 5; реальная module surface уменьшается и прокручивается. Возврат к math field подавляет IME и показывает shared keyboard; release geometry следует actual viewport restoration, а не преждевременному blur. Safe areas, overlays и normal responsive resize сохраняют existing semantics.
+
+При открытой IME исходный responsive baseline числовой типографики Значения и Результата сохраняется: уменьшение высоты не переключает их на compact font sizes. Global `displaySize` продолжает применяться к этому baseline. После восстановления viewport или изменения его ширины baseline освобождается. System Back закрывает shared keyboard согласно UI_SPEC §41; module surface получает освободившееся пространство, а явный tap на math field восстанавливает keyboard.
 
 ## 50.2. Fields, actions и result
 
@@ -2313,3 +2315,5 @@ Global `displaySize` small/medium/large применяется к Units mathemat
 Обязательная portrait matrix: `360×640`, `360×800`, `390×844`, `412×915`, `768×1024`. Проверяются compact/expanded keyboard, оба input modes и переходы math ↔ text, внутренний scroll/reachability fields/result, отсутствие horizontal page overflow/keyboard overlap, safe areas, visible focus, touch targets и long unit texts/errors.
 
 Browser и physical Android acceptance должны сравнивать shared chrome/wallpaper до/при/после native IME в обычных и Liquid Glass themes, проверить native swipes, возврат к math IME suppression и overlays/Back/background/restart. `displaySize` проверяется во всех трёх вариантах. Stage 6 не создаёт Units screenshots и не утверждает acceptance несуществующего production screen; BMI evidence остаётся историей Stage 5.
+
+Фактические portrait/browser и physical Android результаты, включая шрифты при IME и закрытие shared keyboard по Back, записаны в [Units verification](docs/UNITS_CALCULATOR_VERIFICATION.md). Исторические Stage 6 decisions и Stage 5 BMI closure/IME follow-up сохраняются отдельно.

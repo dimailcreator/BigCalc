@@ -63,6 +63,10 @@ async function layout(page) {
       surface: rect(".units-calculator"),
       keys: rect("#app > .calculator-shell > .calculator-keyboard"),
       wallpaper: [wallpaper.top, wallpaper.height],
+      fonts: [".units-calculator .expression-editor", ".units-calculator .number-viewport"].map(
+        (selector) =>
+          globalThis.getComputedStyle(globalThis.document.querySelector(selector)).fontSize
+      ),
       pageWidth: globalThis.document.documentElement.scrollWidth,
       viewportWidth: globalThis.innerWidth
     };
@@ -605,6 +609,7 @@ for (const palette of ["blue", "liquid-glass"]) {
     expect(resized.chrome).toEqual(before.chrome);
     expect(resized.control).toEqual(before.control);
     expect(resized.wallpaper).toEqual(before.wallpaper);
+    expect(resized.fonts).toEqual(before.fonts);
     expect(resized.surface.height).toBeLessThan(before.surface.height);
     await expect(keyboard(page)).toBeHidden();
     await math(page).focus();

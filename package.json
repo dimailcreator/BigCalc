@@ -29,6 +29,7 @@
     "test:android:stage33": "node scripts/android-stage33-acceptance.mjs",
     "test:android:stage34": "node scripts/android-stage34-acceptance.mjs",
     "test:android:bmi": "node scripts/android-bmi-acceptance.mjs",
+    "test:android:units": "node scripts/android-units-acceptance.mjs",
     "test:android:lifecycle": "node scripts/android-lifecycle-smoke.mjs",
     "benchmark:app": "npm run build:app && node scripts/app-performance.mjs",
     "benchmark:android": "node scripts/android-app-performance.mjs",
