@@ -88,12 +88,22 @@ test("installed BMI mounts through the existing module surface and drawer, prese
         { id: "bmi", role: "output" },
         { id: "category", role: "output" }
       ]
+    },
+    {
+      id: "units",
+      title: "Единицы",
+      fields: [
+        { id: "value", role: "input" },
+        { id: "fromUnit", role: "input" },
+        { id: "toUnit", role: "input" },
+        { id: "result", role: "output" }
+      ]
     }
   ]);
   await expect(page.locator(screen)).toBeHidden();
   await page.getByRole("button", { name: "Калькуляторы", exact: true }).click();
   const drawer = page.getByRole("navigation", { name: "Калькуляторы" });
-  await expect(drawer.getByRole("button")).toHaveText(["BigCalc", "ИМТ"]);
+  await expect(drawer.getByRole("button")).toHaveText(["BigCalc", "ИМТ", "Единицы"]);
   await expect(drawer.getByRole("button", { name: "BigCalc", exact: true })).toHaveAttribute(
     "aria-current",
     "true"
@@ -146,7 +156,7 @@ test("native BMI editing and switching preserve BigCalc expression/result withou
   await weight.pressSequentially("5");
   await weight.press("Enter");
   await expectBmi(page);
-  await expect(page.locator(`${live} .expression-input`)).toHaveValue("2+3");
+  await expect(page.locator(`${live} > .main-display .expression-input`)).toHaveValue("2+3");
   await expect(page.locator(`${live} > .main-display [aria-label="Результат"]`)).toHaveText("5");
   await settleLayout(page);
   expect(

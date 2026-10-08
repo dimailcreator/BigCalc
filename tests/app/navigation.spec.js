@@ -22,8 +22,8 @@ test("drawer lists registered calculators and Back closes it without changing ca
     "aria-current",
     "true"
   );
-  await expect(drawer.getByRole("button")).toHaveCount(2);
-  await expect(drawer.getByRole("button")).toHaveText(["BigCalc", "ИМТ"]);
+  await expect(drawer.getByRole("button")).toHaveCount(3);
+  await expect(drawer.getByRole("button")).toHaveText(["BigCalc", "ИМТ", "Единицы"]);
   await expect(page.getByText("+ Добавить калькулятор")).toHaveCount(0);
   await page.goBack({ waitUntil: "networkidle" });
   await expect(drawer).toBeHidden();

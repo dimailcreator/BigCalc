@@ -125,11 +125,16 @@ test("keyboard alone reaches number digits, History, and navigation layers", asy
   const drawer = page.getByRole("navigation", { name: "Калькуляторы" });
   const primaryItem = drawer.getByRole("button", { name: "BigCalc", exact: true });
   const bmiItem = drawer.getByRole("button", { name: "ИМТ", exact: true });
+  const unitsItem = drawer.getByRole("button", { name: "Единицы", exact: true });
   await expect(primaryItem).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(bmiItem).toBeFocused();
   await page.keyboard.press("Tab");
+  await expect(unitsItem).toBeFocused();
+  await page.keyboard.press("Tab");
   await expect(primaryItem).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(unitsItem).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(bmiItem).toBeFocused();
   await page.keyboard.press("Escape");

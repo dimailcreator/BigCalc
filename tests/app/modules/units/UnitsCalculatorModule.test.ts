@@ -101,8 +101,9 @@ describe("Units module declaration and repository/Host persistence", () => {
     expect(unitsCalculatorDefinition.persistence).toBe(unitsStatePersistence);
     expect(APPLICATION_SCHEMA_VERSION).toBe(1);
   });
-  it("exports the production view without installing the module", () => {
-    expect(installedModules.map((module) => module.id)).toEqual(["bmi"]);
+  it("installs the production view after BMI through the shared registration list", () => {
+    expect(installedModules.map((module) => module.id)).toEqual(["bmi", "units"]);
+    expect(installedModules[1]).toBe(unitsCalculatorModule);
     expect(typeof unitsCalculatorDefinition.createView).toBe("function");
     const s = setup();
     expect(s.host.flush()).toBe(true);

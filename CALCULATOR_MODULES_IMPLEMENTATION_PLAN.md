@@ -2991,6 +2991,18 @@ git diff --check
 17. Full regression/build passes.
 18. Stage 15 unblocked.
 
+## Stage 14 closure (verified working tree)
+
+Entry HEAD: `bd657173a4761526785a732cc0a79358ee5774ca` (`BigCalc CM 13`), clean working tree. No commit is created by this task.
+
+Registered the completed Units module after BMI through `installedModules.ts`; the drawer order is BigCalc → ИМТ → Единицы. This is the only production change. Main, Host, Surface, navigation and shared persistence require no Units-specific branches. Core/Worker/module contracts, persistence schema/revision, Android host, scripts/package/config/dependencies and normative specs remain unchanged.
+
+Fresh dependency suites passed 456 tests; all 36 Stage 13 view tests were rerun successfully. Added 28 production-page browser tests for one Worker/shared keyboard, native/math targets, Core conversions, global modes, independent primary/BMI/Units state, exact Ans/History preservation, source-only reload/recomputed result, shared timeout, Drawer/Settings/About/Back/Forward, five portrait sizes, four appearances and three display sizes. Six screenshots include expanded keyboards; browser Android host resize checks hold TopBar/wallpaper until actual viewport restoration. Existing installation/focus-cycle expectations and primary editor/token selectors are updated for three modules/two editors, retaining assertions and timeout/performance limits.
+
+Final serial `npm run check` passed formatting/lint/types, 404 Core + 14 benchmark tests, build and public API audit. Final `npm run check:app` passed 758 unit tests in 41 files and all 348 browser tests (14.7min), App types and production build. Liquid Glass maximum frame gap was 316.7ms under the unchanged 1000ms bound. Separate `npm run build:app` and `npm run android:build:debug` passed; Gradle completed assembleDebug. The APK's HTML and all six web assets match the final build by SHA-256. Worker and two wallpapers match entry assets; application JS, CSS and referencing Capacitor web chunk change.
+
+All 18 Stage 14 DoD items are satisfied, with no unresolved failure, blocker or architecture/spec conflict. Stage 15 is unblocked and not started; no physical Android IME acceptance or new Android automation is claimed. Entry/history, intermediate harness findings, final gates, APK hash, changed files and full DoD mapping: [Stage 14 verification](docs/UNITS_INTEGRATION_STAGE14_VERIFICATION.md). Historical Stage 5 closure/IME follow-up and Stage 6–13 evidence remain intact.
+
 ---
 
 # Stage 15. Android acceptance, documentation and Units milestone closure

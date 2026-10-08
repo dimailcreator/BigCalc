@@ -7,13 +7,14 @@ test.beforeEach(async ({ page }) => {
 test("function buttons insert atomic names and ordinary opening brackets", async ({ page }) => {
   const keyboard = page.getByRole("region", { name: "Клавиатура калькулятора" });
   const input = page.getByRole("textbox", { name: "Выражение" });
+  const primary = page.locator("#app > .calculator-shell > .main-display");
   await keyboard.getByRole("button", { name: "Раскрыть клавиатуру" }).click();
 
   for (const name of ["sin", "cos", "tan", "ln", "log"]) {
     await keyboard.getByRole("button", { name, exact: true }).click();
     await expect(input).toHaveValue(`${name}(`);
-    await expect(page.locator(".expression-token-identifier")).toHaveText(name);
-    await expect(page.locator(".expression-token-character")).toHaveText("(");
+    await expect(primary.locator(".expression-token-identifier")).toHaveText(name);
+    await expect(primary.locator(".expression-token-character")).toHaveText("(");
     await keyboard.getByRole("button", { name: "Очистить" }).click();
   }
 

@@ -238,7 +238,7 @@ test("preview controls are inert, sibling hit targets are semantic, and the pale
       };
     });
   expect(inert).toEqual({ focused: false, tabStops: 0, events: "none" });
-  await expect(page.locator(`${live} .expression-input`)).toHaveValue("2+3");
+  await expect(page.locator(`${live} > .main-display .expression-input`)).toHaveValue("2+3");
   await page.getByRole("button", { name: "Тёмная тема", exact: true }).focus();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Светлая тема", exact: true })).toBeFocused();
