@@ -519,20 +519,20 @@ test("native viewport resize keeps TopBar and wallpaper geometry then restores m
         wallpaper: [wallpaper.height, wallpaper.top]
       };
     });
+  const nativeViewportState = () =>
+    page.evaluate(() => globalThis.document.documentElement.dataset.nativeInputViewport);
   const before = await geometry();
   await page.setViewportSize({ width: 390, height: 500 });
+  await expect.poll(nativeViewportState).toBe("held");
   expect(await geometry()).toEqual(before);
   await expect(keyboard(page)).toBeHidden();
   await math(page).focus();
-  expect(
-    await page.evaluate(() => globalThis.document.documentElement.dataset.nativeInputViewport)
-  ).toBe("held");
+  await expect.poll(nativeViewportState).toBe("held");
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(nativeViewportState).toBeUndefined();
   await math(page).focus();
   await expect(keyboard(page)).toBeVisible();
-  expect(
-    await page.evaluate(() => globalThis.document.documentElement.dataset.nativeInputViewport)
-  ).toBeUndefined();
+  expect(await geometry()).toEqual(before);
 });
 
 test("reload reconstructs the real editor source and recomputes without persisting focus/results", async ({
