@@ -93,7 +93,7 @@ Initial closure debug APK build and installation passed: `android/app/build/outp
 | 20. No persisted runtime      | Three-string source DTO, fresh create/refine               |
 | 21. Physical appearances      | Dark/light normal and Liquid Glass, eight screenshots      |
 | 22. Glass mixed input         | Chrome/wallpaper/fonts/host checks in both Glass themes    |
-| 23. Full Core/App gate        | Initial full gates passed; final-tree gap remains          |
+| 23. Full Core/App gate        | Initial and final-tree full gates passed                   |
 | 24. Existing Android suites   | Smoke/lifecycle/Stage 34/BMI passed in combined gate       |
 | 25. Units Android gate        | Final Units combined acceptance passed                     |
 | 26. Docs updated              | UI/Design/README/modules guide/plan/report                 |
@@ -104,7 +104,7 @@ Initial closure debug APK build and installation passed: `android/app/build/outp
 | 31. Units milestone           | Closed at initial closure                                  |
 | 32. Next calculator unblocked | Unblocked by closure; no next calculator code              |
 
-All 32 Stage 15 items passed the initial closure; the Units milestone was closed. Documentation formatting, local-link checks and `git diff --check` were part of that closure audit. The final Stage 15 commit includes the later Back policy change, verified separately below. The formal verification gap remains open: the full Core/App gates were not repeated after that change, so the initial full pass does not establish a full gate on the final tree.
+All 32 Stage 15 items passed the initial closure; the Units milestone was closed. Documentation formatting, local-link checks and `git diff --check` were part of that closure audit. The final Stage 15 commit includes the later Back policy change, verified separately below. Full Core/App gates had not been repeated during that Back follow-up; the final-tree verification and resize-test stabilization below close the formal gap without reclassifying the initial full pass.
 
 ## Primary Back policy follow-up — 2026-10-08
 
@@ -114,8 +114,35 @@ Production/debug builds and `npm run test:android:units -- --with-regressions` p
 
 Follow-up evidence: `primary-policy-check.log`, `primary-policy-lint.log`, `primary-policy-browser.log`, `primary-policy-build.log`, `primary-policy-android.log`, `primary-policy-apk.json`, `android/results.json`, `android/primary-policy-stage34-results.json` and `android/primary-policy-bmi-results.json` under `.release-test/stage15/`. The current `android/primary-after-back.png` was visually inspected with the complete primary keyboard visible. Initial closure JSON/APK identity and its primary screenshot are archived under `initial-closure/`.
 
+## Final-tree full verification — 2026-10-09
+
+The verification-only run started on clean HEAD `968d09085ec540a0bbae3d0730a602e153342932` (`BigCalc CM 15 docs fix`), containing the final primary/secondary Back policy and Units production registration. `npm run check` passed **404 Core tests / 55 suites + 14 benchmark tests**, formatting/lint/Core typechecks/build/public API audit, exit code 0, **257.333s (4min 17.3s)**.
+
+The first full `npm run check:app` passed App typechecks and **767 unit tests / 42 files**, but failed with **352 browser passes / 1 failure**, exit code 1, **923.373s** total. Production build did not run because the browser failure stopped the command. The failure was the immediate geometry comparison after `page.setViewportSize()` in `tests/app/units-view.spec.js:524`. The unchanged targeted diagnostic (`--repeat-each=5`) produced **3 failures / 2 passes**. Timeline observations showed two immediate mismatches before the `resize` event; after the handler, the held baseline matched in **8/8** observations. This identified a test synchronization race, without proving the absence of every possible production defect.
+
+A second complete `npm run check:app`, still on unchanged HEAD `968d090`, passed App typechecks, **767 unit tests / 42 files**, **353 browser tests / 35 files (14.8min)** and production build, exit code 0, **923.512s (15min 23.5s)** total. This successful full rerun confirmed final-tree Core/App verification while leaving the flaky test for the separate stabilization below. The first FAIL and diagnostic failures remain part of the verification history. No infrastructure failure or timeout was recorded; Node/Playwright emitted only the `NO_COLOR`/`FORCE_COLOR` warning.
+
+Evidence directory: `.release-test/stage15/final-tree-verification-2026-10-09-968d090/`. Its `summary.json`, `core-attempt-1.log`, `app-attempt-1.log`, `native-resize-diagnostic.log`, `resize-event-observations.json` and `app-attempt-2.log` were checked against the recorded results; failure contexts are retained there. No physical Android acceptance or APK build was repeated in this verification-only run.
+
+### Resize test stabilization
+
+Test-only commit: `1eee509dc3bc8988086454370665ce1abc0881e2` (`BigCalc CM 15 resize test fix`). The same test now uses `expect.poll` to await `document.documentElement.dataset.nativeInputViewport === "held"` after shrinking the viewport, before the original exact TopBar/button/background/wallpaper comparison. It checks that held state survives math focus, waits for the dataset property to become undefined after restoring `390×844`, then verifies keyboard return and exact restored geometry. The handler publishes held state after applying the baseline and clears it during release. There is no arbitrary sleep, synthetic resize, timeout increase or weaker geometry assertion; production code and contracts are unchanged.
+
+| Command / run                                              | Result                                                              | Duration                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------- |
+| `npm run test:app:e2e -- tests/app/units-view.spec.js:503` | 1/1 PASS                                                            | 29.3s browser run            |
+| Same test with `--repeat-each=10 --reporter=line,json`     | 10/10 PASS, 0 retries/flaky/skipped                                 | 41.4s browser run            |
+| `npm run check`                                            | 404 Core + 14 benchmark PASS; formatting/lint/types/build/API audit | 207.457s (3min 27.5s) total  |
+| `npm run check:app`                                        | Types, 767 units / 42 files, 353 browsers / 35 files and build PASS | 883.583s (14min 43.6s) total |
+
+Both new full gates exited 0 without retries or infrastructure failures. The browser suite took **14.3min**; production build took **2.31s**. Liquid Glass maximum frame gap was **283.3ms**, below the unchanged 1000ms limit. The repeat report confirms one worker, configured retries 0 and retry 0 in every result; nine entire test runs completed in **0.673–1.261s**, so the state waits do not always consume a timeout budget.
+
+These gates ran from entry HEAD `968d090` with only the uncommitted `tests/app/units-view.spec.js` patch, subsequently committed unchanged as `1eee509`. The recorded test SHA-256 matches that commit's file. Later changes are only the four verification/overview Markdown documents; full tests are not repeated solely for those documentation edits. Evidence: `.release-test/stage15/resize-test-fix-2026-10-09-968d090/summary.json`, with `targeted-single.log`, `targeted-repeat-10.log`, `targeted-repeat-10-report.json`, `core-gate.log` and `app-gate.log` in the same directory.
+
+Stage 15 final-tree Core/App closure is confirmed and the observed resize-test timing instability is corrected. No production regression was reproduced after waiting for the actual handler state and retaining strict geometry checks. Physical Android acceptance and APK builds were not repeated for this test/documentation follow-up; their initial-closure and Back-policy evidence above remain unchanged. No next calculator stage is implemented.
+
 ## Limits and scope audit
 
 Physical evidence covers one Samsung device, Android/WebView/IME combination. Portrait/wide browser matrix supplies additional geometry coverage; multi-device/IME, signed release/store distribution and landscape acceptance are not claimed. Debug APK is the tested artifact. Existing conventional registry definitions/exclusions remain unchanged.
 
-Changes are limited to generic typography/input/Back handling, shipped About copy, two font regression assertions, two coordinator regressions, seven Back-priority unit cases, five primary Back browser geometry cases, one Android acceptance script/command and current documentation. Core/Worker/module contracts, calculator mathematics/source DTOs and Android host remain unchanged. Initial Stage 5 closure/IME follow-up and Stage 6–14 records are preserved. No new calculator is implemented.
+Stage 15 implementation changes are limited to generic typography/input/Back handling, shipped About copy, two font regression assertions, two coordinator regressions, seven Back-priority unit cases, five primary Back browser geometry cases, one Android acceptance script/command and current documentation. Core/Worker/module contracts, calculator mathematics/source DTOs and Android host remain unchanged. Initial Stage 5 closure/IME follow-up and Stage 6–14 records are preserved. No new calculator is implemented.
